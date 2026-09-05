@@ -1,0 +1,6 @@
+import {useFetch} from '@/state/useFetch'
+import {Card} from '@/components/ui'
+export function Reconciliation(){
+ const {data,error}=useFetch<{accounts:{name:string;currency:string;balance:number;recordedNetMovement:number;impliedOpeningBalance:number}[];missingPostings:{kind:string;reference:string;amount:number}[];shipmentDifferences:{code:string;allocatedPaid:number;ledgerPaid:number;difference:number}[];note:string}>('/finance/reconciliation')
+ return <Card className="my-4 p-5"><details><summary className="font-bold">Historical reconciliation · {data?.missingPostings.length??0} missing posting snapshots · {data?.shipmentDifferences.length??0} shipment differences</summary>{error&&<p>{error}</p>}<p className="text-sm my-3">{data?.note}</p>{data?.accounts.map(a=><p key={a.name} className="text-sm py-2 border-b">{a.name} ({a.currency}): balance {a.balance}; recorded movements {a.recordedNetMovement}; implied opening {a.impliedOpeningBalance}</p>)}{data?.shipmentDifferences.map(s=><p key={s.code} className="text-sm py-2">{s.code}: allocated paid {s.allocatedPaid}; ledger paid {s.ledgerPaid}; difference {s.difference}</p>)}{data?.missingPostings.map((p,i)=><p key={i} className="text-sm py-2">{p.kind}: {p.reference} · BDT {p.amount} · account snapshot missing</p>)}</details></Card>
+}

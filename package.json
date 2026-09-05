@@ -1,0 +1,45 @@
+{
+  "name": "mamun",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sichuan Bangla Express (Mamun) — Chengdu→Dhaka air-freight-by-flyer suite. pnpm monorepo (Vite + React frontend, Hono + Prisma + Postgres + Redis backend).",
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=backend --filter=frontend --ui=tui",
+    "dev:plain": "turbo run dev --filter=backend --filter=frontend --ui=stream",
+    "dev:backend": "turbo run dev --filter=backend --ui=stream",
+    "dev:frontend": "turbo run dev --filter=frontend --ui=stream",
+    "build": "turbo build",
+    "build:backend": "turbo build --filter=backend",
+    "build:frontend": "turbo build --filter=frontend",
+    "start:backend": "pnpm --filter backend start",
+    "preview": "pnpm --filter frontend preview",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "infra": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v",
+    "db:generate": "pnpm --filter backend db:generate",
+    "db:push": "pnpm --filter backend db:push",
+    "db:migrate": "pnpm --filter backend db:migrate",
+    "db:deploy": "pnpm --filter backend db:deploy",
+    "db:studio": "pnpm --filter backend db:studio",
+    "db:seed": "pnpm --filter backend db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.8",
+    "typescript": "^5.9.3"
+  }
+}

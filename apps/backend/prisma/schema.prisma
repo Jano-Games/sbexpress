@@ -1,0 +1,588 @@
+// Sichuan Bangla Express (Mamun) — data model for the flyer-freight suite.
+//
+// Tracked additive migrations live in prisma/migrations. Back up before deployment.
+//
+// Conventions:
+//   * Money is Decimal BDT unless a currency column says otherwise.
+//   * Weights are Decimal(10,1) kg — the demo works in tenths of a kilo.
+//   * A constrained value is an enum, never a String.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: the connection URL lives in prisma.config.ts (CLI) and in the
+// driver adapter (runtime), not here.
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================================================================
+// Enums
+// =====================================================================
+
+enum SupplierTerms {
+  instant
+  monthly
+}
+
+enum FlightStatus {
+  upcoming
+  departed
+  completed
+}
+
+/// The nine-step shipment pipeline. Order is defined by STATUS_ORDER in
+/// src/shared/status.ts — Prisma enums carry no ordering of their own.
+enum ShipmentStatus {
+  pending
+  received_cn_hub
+  ready_for_shipment
+  in_transit
+  customs_cleared
+  received_bd_hub
+  ready_for_last_mile
+  out_for_delivery
+  delivered
+}
+
+enum PayStatus {
+  paid
+  unpaid
+  cod
+  monthly
+  /// Some money received, remainder outstanding.
+  partial
+}
+
+enum ReceiptStatus {
+  pending
+  approved
+  rejected
+}
+
+enum AccountKind {
+  cash
+  mobile
+  bank
+  wallet
+  fund
+}
+
+enum Currency {
+  BDT
+  CNY
+}
+
+enum ExpenseCategory {
+  ticket
+  packaging
+  courier
+  salary
+  transport
+  customs
+  others
+}
+
+enum TodoRole {
+  admin
+  hub
+}
+
+enum UserRole {
+  admin
+  hub
+}
+
+// =====================================================================
+// People & partners
+// =====================================================================
+
+/// Staff accounts. Customers never log in — they get a per-shipment
+/// tracking link instead.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  /// Argon2id hash — never a plain password.
+  passwordHash String
+  name         String
+  role         UserRole
+  createdAt    DateTime @default(now())
+}
+
+model Supplier {
+  statementLinks StatementLink[]
+  creditBalance Decimal @default(0) @db.Decimal(12,2)
+  credits CustomerCredit[]
+  refunds CustomerRefund[]
+  id        String        @id @default(cuid())
+  /// Short code shown to the hub role instead of the name, e.g. SUP-014.
+  code      String        @unique
+  name      String
+  phone     String        @default("—")
+  address   String        @default("—")
+  terms     SupplierTerms @default(instant)
+  createdAt DateTime      @default(now())
+
+  shipments Shipment[]
+  invoices  Invoice[]
+}
+
+/// A finalized (still editable) invoice — one per shipment. Lines are a
+/// snapshot the admin can adjust; a negative line or the discount field
+/// reduces the total.
+model Invoice {
+  revisions InvoiceRevision[]
+  id         String   @id @default(cuid())
+  /// e.g. INV-2609-SH-101, fixed at first finalize.
+  number     String   @unique
+  shipmentId String   @unique
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  /// [{label, amount}] in BDT; negative amounts are credits/adjustments.
+  lines      Json     @default("[]")
+  discount   Decimal  @default(0) @db.Decimal(12, 2)
+  note       String   @default("")
+  total      Decimal  @db.Decimal(12, 2)
+  issuedAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([supplierId])
+}
+
+model Flyer {
+  id        String   @id @default(cuid())
+  /// Display name "LASTNAME First", composed server-side from the two name
+  /// columns. Stays unique and is the identifier used in routes.
+  name      String   @unique
+  firstName String   @default("")
+  lastName  String   @default("")
+  cnPhone   String   @default("—")
+  /// WhatsApp reachable on the China number.
+  cnWhatsapp Boolean @default(false)
+  bdPhone   String   @default("—")
+  /// WhatsApp reachable on the BD number.
+  bdWhatsapp Boolean @default(false)
+  university String  @default("—")
+  batch     String   @default("—")
+  program   String   @default("—")
+  wechat    String   @default("—")
+  /// Address in China (dorm / campus).
+  cnAddress   String @default("—")
+  homeAddress String @default("—")
+  emergencyContact String @default("—")
+  docStudentId Boolean @default(false)
+  docVisa      Boolean @default(false)
+  docAdmission Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  flights FlightFlyer[]
+  shipments Shipment[]
+}
+
+// =====================================================================
+// Flights
+// =====================================================================
+
+model Flight {
+  id         String       @id @default(cuid())
+  /// Airline flight number, e.g. CA945. Unique per demo dataset.
+  code       String       @unique
+  date       DateTime     @db.Date
+  depTime    String       @default("—")
+  arrTime    String       @default("—")
+  via        String       @default("Direct")
+  /// Fare charged to the flyer vs what the ticket actually cost.
+  fare       Decimal      @default(0) @db.Decimal(12, 2)
+  actualCost Decimal      @default(0) @db.Decimal(12, 2)
+  agencyShare Decimal @default(0) @db.Decimal(12, 2)
+  flyerPaidAmount Decimal @default(0) @db.Decimal(12, 2)
+  /// Checked-baggage allowance for this ticket.
+  spaceKg    Int          @default(44)
+  /// Device allowance carried on top of the checked weight.
+  mobiles    Int          @default(2)
+  laptops    Int          @default(1)
+  status     FlightStatus @default(upcoming)
+  createdAt  DateTime     @default(now())
+
+  flyers    FlightFlyer[]
+  shipments Shipment[]
+  legs      FlightLeg[]
+  expenses  Expense[]
+  payments Payment[]
+}
+
+/// One physical segment of an itinerary. A direct flight has one leg (or
+/// none, for hand-entered flights); a connection has two or more. When legs
+/// exist, the parent flight's code, times and via label derive from them.
+model FlightLeg {
+  id       String @id @default(cuid())
+  flightId String
+  flight   Flight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  order    Int
+  /// Airline flight number of this segment, e.g. CZ3438.
+  code     String
+  /// Departure date of this segment — overnight connections span two days.
+  date     DateTime? @db.Date
+  fromIata String @default("")
+  fromCity String @default("")
+  toIata   String @default("")
+  toCity   String @default("")
+  /// Local wall-clock times, HH:mm.
+  depTime  String @default("—")
+  arrTime  String @default("—")
+
+  @@index([flightId, order])
+}
+
+model FlightFlyer {
+  contribution Decimal @default(0) @db.Decimal(12,2)
+  paidAmount Decimal @default(0) @db.Decimal(12,2)
+  flightId String
+  flyerId  String
+  flight   Flight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  flyer    Flyer  @relation(fields: [flyerId], references: [id], onDelete: Cascade)
+
+  @@id([flightId, flyerId])
+}
+
+// =====================================================================
+// Shipments
+// =====================================================================
+
+model Shipment {
+  creditNotes CreditNote[]
+  media ShipmentMedia[]
+  flyerId String?
+  flyer Flyer? @relation(fields: [flyerId], references: [id], onDelete: Restrict)
+  packedAt DateTime?
+  packageCount Int @default(0)
+  id          String         @id @default(cuid())
+  /// Human ID, e.g. SH-101.
+  code        String         @unique
+  supplierId  String
+  supplier    Supplier       @relation(fields: [supplierId], references: [id])
+  flightId    String?
+  flight      Flight?        @relation(fields: [flightId], references: [id])
+  /// Weight booked at the CN hub; 0 for device-only shipments.
+  bookedKg    Decimal        @default(0) @db.Decimal(10, 1)
+  /// Weight measured at the BD hub. Null until weighed.
+  weighedKg   Decimal?       @db.Decimal(10, 1)
+  description String         @default("—")
+  /// Category names joined from the registry, e.g. "Garments" or "Mobile, Laptop".
+  categories  String[]       @default([])
+  /// Device serial / IMEI numbers when a mobile/laptop category is present.
+  serials     String[]       @default([])
+  /// Total charge in BDT — computed from the rate below, kept as the
+  /// canonical figure all billing math reads.
+  charge      Decimal        @default(0) @db.Decimal(12, 2)
+  /// Agreed rate per kg for the weighed cargo part of the charge.
+  chargeRate     Decimal  @default(0) @db.Decimal(12, 2)
+  chargeCurrency Currency @default(BDT)
+  /// Per-piece device charges: [{category, count, rate}] in BDT. Defaults
+  /// come from the settings PCS rates; the values here are the override.
+  pcsItems       Json     @default("[]")
+  status      ShipmentStatus @default(pending)
+  payStatus   PayStatus      @default(unpaid)
+  payMethod   String?
+  cnFare      Decimal        @default(0) @db.Decimal(12, 2)
+  bdFare      Decimal?       @db.Decimal(12, 2)
+  customsTax  Decimal        @default(0) @db.Decimal(12, 2)
+  /// Damage/lost credit granted to the customer.
+  afterSalesFee Decimal      @default(0) @db.Decimal(12, 2)
+  lastMileCourier String?
+  lastMileRef     String?
+  photosCount Int            @default(0)
+  hasVideo    Boolean        @default(false)
+  /// Legacy value retained for data compatibility; never accepted by public routes.
+  trackToken  String         @unique
+  createdAt   DateTime       @default(now())
+
+  /// Total received against this shipment so far (BDT).
+  paidAmount Decimal @default(0) @db.Decimal(12, 2)
+
+  logs     ShipmentLog[]
+  receipt  Receipt?
+  expenses Expense[]
+  invoice  Invoice?
+  payments Payment[]
+  publicLinks PublicLink[]
+
+  @@index([supplierId])
+  @@index([flightId])
+  @@index([status])
+}
+
+model ShipmentLog {
+  id         String   @id @default(cuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  actor      String
+  message    String
+  at         DateTime @default(now())
+
+  @@index([shipmentId, at])
+}
+
+/// Customer-uploaded payment receipt awaiting manual review. One live receipt
+/// per shipment — a rejected one is overwritten by the next upload.
+model Receipt {
+  id         String        @id @default(cuid())
+  shipmentId String        @unique
+  shipment   Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  method     String
+  amount     Decimal       @db.Decimal(12, 2)
+  status     ReceiptStatus @default(pending)
+  txnRef     String        @default("")
+  uploadedAt DateTime      @default(now())
+}
+
+// =====================================================================
+// Finance
+// =====================================================================
+
+model Account {
+  paymentMethod PayMethod?
+  id       String      @id @default(cuid())
+  name     String
+  kind     AccountKind
+  currency Currency    @default(BDT)
+  balance  Decimal     @default(0) @db.Decimal(14, 2)
+  createdAt DateTime   @default(now())
+}
+
+model Expense {
+  /// Payment of a cost already recorded on Shipment; not an additional accrual cost.
+  costField String?
+  accountName String?
+  accountCurrency Currency?
+  accountAmount Decimal? @db.Decimal(14, 2)
+  fxRate Decimal? @db.Decimal(12, 6)
+  id         String          @id @default(cuid())
+  date       DateTime        @db.Date
+  category   ExpenseCategory
+  amount     Decimal         @db.Decimal(12, 2)
+  reason     String
+  shipmentId String?
+  shipment   Shipment?       @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  /// Set for auto-recorded flight ticket costs, kept in sync with the flight.
+  flightId   String?
+  flight     Flight?         @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  createdAt  DateTime        @default(now())
+
+  @@index([date])
+  @@index([flightId])
+}
+
+/// Money received (customer payments and other income), the source of the
+/// monthly "received" ledger on the finance screen.
+model Payment {
+  accountName String?
+  accountCurrency Currency?
+  accountAmount Decimal? @db.Decimal(14, 2)
+  fxRate Decimal? @db.Decimal(12, 6)
+  kind String @default("customer")
+  flightId String?
+  flight Flight? @relation(fields: [flightId], references: [id], onDelete: Restrict)
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  method       String
+  amount       Decimal  @db.Decimal(12, 2)
+  /// Shipment code when the payment settles a specific bill; free-form note otherwise.
+  reference    String   @default("")
+  /// Set when the payment applies to one shipment (partial payments included).
+  shipmentId   String?
+  shipment     Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([date])
+  @@index([shipmentId])
+}
+
+// =====================================================================
+// Misc
+// =====================================================================
+
+model Todo {
+  id        String   @id @default(cuid())
+  role      TodoRole
+  text      String
+  /// True when the system queued it (receipt uploads, statement reminders).
+  auto      Boolean  @default(false)
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+/// Singleton key/value settings: fx rate, weight-discrepancy threshold,
+/// invested capital. Values are stored as strings and parsed by the app.
+model Setting {
+  key   String @id
+  value String
+}
+
+enum PayMethodKind {
+  mobile_banking
+  bank_account
+}
+
+/// Payment rails shown on the public tracking page. "{code}" in the note is
+/// replaced with the shipment ID at render time.
+model PayMethod {
+  accountId String? @unique
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  id   String        @id @default(cuid())
+  kind PayMethodKind
+
+  // Mobile banking (bKash / Nagad / Rocket / wallet …)
+  provider String  @default("")
+  label    String  @default("")
+  number   String  @default("")
+  note     String  @default("")
+  /// Optional uploaded QR as a data URL; the page generates one from the
+  /// number when absent.
+  qrImage  String?
+
+  // Bank account
+  bankName      String @default("")
+  accountNumber String @default("")
+  accountName   String @default("")
+  branch        String @default("")
+  district      String @default("")
+
+  /// Only enabled methods appear on tracking pages.
+  enabled   Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+/// Bearer capabilities: only a SHA-256 digest is persisted.
+model PublicLink {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  shipmentId String
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  scope String
+  requestedAmount Decimal? @db.Decimal(12, 2)
+  paidAtIssue Decimal @db.Decimal(12, 2)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([shipmentId])
+}
+/// Transfers never enter income or expense totals.
+model FundTransfer {
+  id String @id @default(cuid())
+  reference String @unique
+  fromName String
+  toName String
+  fromCurrency Currency
+  toCurrency Currency
+  amount Decimal @db.Decimal(14, 2)
+  receivedAmount Decimal @db.Decimal(14, 2)
+  note String
+  createdAt DateTime @default(now())
+}
+
+/// Durable replay protection for financial write requests. Never stores public tokens.
+model FinancialRequest {
+  key String @id
+  actorId String
+  requestHash String
+  response Json
+  status Int
+  createdAt DateTime @default(now())
+}
+
+model ShipmentMedia {
+  id String @id @default(cuid())
+  reference String @unique @default(uuid())
+  shipmentId String
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  stagingKey String @unique
+  objectKey String @unique
+  name String
+  contentType String
+  size Int
+  status String @default("pending")
+  shared Boolean @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([shipmentId, status])
+}
+
+model CustomerCredit {
+ id String @id @default(cuid())
+ reference String @unique @default(uuid())
+ supplierId String
+ supplier Supplier @relation(fields:[supplierId],references:[id],onDelete:Restrict)
+ amount Decimal @db.Decimal(12,2)
+ kind String
+ reason String
+ shipmentCode String?
+ createdAt DateTime @default(now())
+}
+model CustomerRefund {
+ id String @id @default(cuid())
+ reference String @unique @default(uuid())
+ supplierId String
+ supplier Supplier @relation(fields:[supplierId],references:[id],onDelete:Restrict)
+ amount Decimal @db.Decimal(12,2)
+ reason String
+ accountName String
+ accountCurrency Currency
+ accountAmount Decimal @db.Decimal(14,2)
+ fxRate Decimal @db.Decimal(12,6)
+ createdAt DateTime @default(now())
+}
+model InvoiceRevision {
+ id String @id @default(cuid())
+ invoiceId String
+ invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Restrict)
+ version Int
+ snapshot Json
+ reason String
+ createdAt DateTime @default(now())
+ @@unique([invoiceId,version])
+}
+model CreditNote {
+ id String @id @default(cuid())
+ number String @unique @default(uuid())
+ shipmentId String
+ shipment Shipment @relation(fields:[shipmentId],references:[id],onDelete:Restrict)
+ amount Decimal @db.Decimal(12,2)
+ reason String
+ previousTotal Decimal @db.Decimal(12,2)
+ revisedTotal Decimal @db.Decimal(12,2)
+ createdAt DateTime @default(now())
+}
+
+model StatementLink {
+ id String @id @default(cuid())
+ tokenHash String @unique
+ supplierId String
+ supplier Supplier @relation(fields:[supplierId],references:[id],onDelete:Restrict)
+ month String
+ requestedAmount Decimal? @db.Decimal(12,2)
+ paidAtIssue Decimal @db.Decimal(12,2)
+ expiresAt DateTime
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ receipts StatementReceipt[]
+}
+model StatementReceipt {
+ id String @id @default(cuid())
+ reference String @unique @default(uuid())
+ linkId String
+ link StatementLink @relation(fields:[linkId],references:[id],onDelete:Restrict)
+ amount Decimal @db.Decimal(12,2)
+ method String
+ txnRef String
+ status String @default("pending")
+ createdAt DateTime @default(now())
+}

@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#FAFAF8}a{color:#0E4DA4}a:hover{color:#0F766E}input,select,textarea,button{font-family:'Archivo',sans-serif}</style>
+</helmet>
+<div style="font-family:'Archivo',sans-serif;color:#1A1C1E;background:#FAFAF8;min-height:100vh">
+<sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="Login" style="min-height:100vh;display:flex;flex-wrap:wrap">
+  <div style="flex:1;min-width:340px;background:#1A1C1E;color:#fff;padding:56px 52px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:38px;height:38px;background:#0F766E;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">SB</div><div style="font-weight:800;font-size:17px;line-height:1.2">Sichuan Bangla Express</div></div>
+    <div style="margin-top:auto">
+      <div style="font-size:40px;font-weight:800;line-height:1.1;text-wrap:pretty">Chengdu to Dhaka,<br>every shipment accounted for.</div>
+      <div style="display:flex;gap:10px;margin-top:26px;font-size:13px;color:#B9BCC1;align-items:center"><span style="background:#2A2D31;padding:6px 12px;border-radius:20px">CTU Chengdu</span><span style="color:#0F766E;font-weight:700">→</span><span style="background:#2A2D31;padding:6px 12px;border-radius:20px">DAC Dhaka · Bashundhara Hub</span></div>
+    </div>
+    <div style="margin-top:40px;font-size:12px;color:#7A7D82">Air cargo by student flyers · 44/52 kg + 2 mobiles + 1 laptop per flight</div>
+  </div>
+  <div style="flex:1;min-width:340px;display:flex;align-items:center;justify-content:center;padding:40px">
+    <div style="width:100%;max-width:400px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:22px;font-weight:800">Sign in</div>
+      <div style="font-size:13px;color:#5B5E63;margin-bottom:6px">Demo accounts — pick a role</div>
+      <div onClick="{{ loginAdmin }}" style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px;cursor:pointer;display:flex;gap:14px;align-items:center" style-hover="border-color:#0F766E">
+        <div style="width:42px;height:42px;border-radius:10px;background:#E3F0EE;color:#0F766E;display:flex;align-items:center;justify-content:center;font-weight:800">A</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Admin</div><div style="font-size:12px;color:#5B5E63">Rafiq · full access, finance &amp; review</div></div><div style="color:#0F766E;font-weight:700">→</div>
+      </div>
+      <div onClick="{{ loginHub }}" style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px;cursor:pointer;display:flex;gap:14px;align-items:center" style-hover="border-color:#0E4DA4">
+        <div style="width:42px;height:42px;border-radius:10px;background:#E7F0FE;color:#0E4DA4;display:flex;align-items:center;justify-content:center;font-weight:800">H</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Hub Manager — Dhaka</div><div style="font-size:12px;color:#5B5E63">Salam · sees supplier short codes only</div></div><div style="color:#0E4DA4;font-weight:700">→</div>
+      </div>
+      <div style="font-size:12px;color:#5B5E63;margin-top:4px">Customers don't log in — they get a tracking link per shipment with status and payment info.</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+<sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;min-height:100vh">
+  <div style="width:212px;background:#fff;border-right:1px solid #E7E5E0;padding:22px 14px;display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:20px;padding:0 6px"><div style="width:30px;height:30px;background:#0F766E;border-radius:8px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">SB</div><div style="font-weight:800;font-size:13px;line-height:1.15">Sichuan Bangla<br>Express</div></div>
+    <sc-for list="{{ nav }}" as="n" hint-placeholder-count="6">
+      <div onClick="{{ n.go }}" style="padding:9px 12px;border-radius:8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;background:{{ n.bg }};color:{{ n.color }};font-weight:{{ n.w }}">
+        <span style="flex:1">{{ n.label }}</span>
+        <sc-if value="{{ n.badge }}" hint-placeholder-val="{{ false }}"><span style="background:#0F766E;color:#fff;font-size:10.5px;font-weight:700;border-radius:10px;padding:2px 7px">{{ n.badge }}</span></sc-if>
+      </div>
+    </sc-for>
+    <div style="margin-top:auto;padding:12px;background:#F3F2EE;border-radius:10px;font-size:12px">
+      <div style="font-weight:700">{{ userName }}</div>
+      <div style="color:#5B5E63;margin-top:1px">{{ userRole }}</div>
+      <div onClick="{{ logout }}" style="color:#0E4DA4;font-weight:600;margin-top:8px;cursor:pointer">Log out</div>
+    </div>
+  </div>
+  <div style="flex:1;padding:26px 32px;min-width:0">
+
+  <sc-if value="{{ vOverview }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Admin Overview">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px">
+      <div style="font-size:23px;font-weight:800">Good morning, Rafiq</div>
+      <button onClick="{{ openAddFlight }}" style="background:#0F766E;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer">+ New flight</button>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+      <div style="background:#1A1C1E;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="width:32px;height:32px;background:#0F766E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">SB</div>
+        <span style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#E3E5E8">BUSINESS TODAY</span>
+        <span style="margin-left:auto;font-size:12.5px;color:#E3E5E8">Saturday 29 Aug 2026 · ¥1 = ৳{{ rate }}</span>
+      </div>
+      <div style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Cash in hand</div><div style="font-size:20px;font-weight:800;margin-top:4px">{{ cashBdt }}</div><div style="font-size:11.5px;color:#0E4DA4;margin-top:2px">+ {{ cashCny }} CNY · worth {{ cashWorth }}</div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">August net income</div><div style="font-size:20px;font-weight:800;margin-top:4px;color:#1B7A3D">{{ netAug }}</div><div style="font-size:11.5px;color:#44474C;margin-top:2px">{{ recvAug }} in − {{ expAug }} out</div></div>
+        <div onClick="{{ goReview }}" style="background:#FAFAF8;border-radius:10px;padding:14px 16px;cursor:pointer"><div style="font-size:11px;color:#44474C">Unpaid bills</div><div style="font-size:20px;font-weight:800;margin-top:4px;color:#C92A2A">{{ unpaidTotal }}</div><div style="font-size:11.5px;color:#0F766E;font-weight:700;margin-top:2px">{{ reviewCount }} receipt(s) to review →</div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Next flight · {{ nextFlight.id }} {{ nextFlight.dateLabel }}</div><div style="font-size:20px;font-weight:800;margin-top:4px">{{ nextFlight.booked }} <span style="font-size:12px;font-weight:500;color:#44474C">/ {{ nextFlight.space }} kg</span></div><div style="height:6px;background:#EBE9E4;border-radius:3px;margin-top:9px"><div style="width:{{ nextFlight.pct }};height:6px;background:#0F766E;border-radius:3px"></div></div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <sc-for list="{{ notices }}" as="nt" hint-placeholder-count="2">
+        <div style="display:flex;gap:10px;align-items:center;background:{{ nt.bg }};border:1px solid {{ nt.bd }};border-radius:10px;padding:10px 14px;font-size:12.5px"><span style="font-weight:800;color:{{ nt.c }}">{{ nt.tag }}</span><span style="color:#1A1C1E">{{ nt.text }}</span></div>
+      </sc-for>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:15px;font-weight:700">Flights</div><div onClick="{{ goFlights }}" style="font-size:12.5px;color:#0E4DA4;font-weight:600;cursor:pointer">View all →</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ ovFlights }}" as="ofl" hint-placeholder-count="3">
+          <div onClick="{{ ofl.open }}" style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#FAFAF8;border-radius:10px;cursor:pointer;flex-wrap:wrap">
+            <div style="font-weight:800;font-size:13.5px;width:70px;color:#0F766E">{{ ofl.id }}</div>
+            <div style="font-size:12.5px;width:90px;font-weight:600">{{ ofl.date }}</div>
+            <div style="flex:1;font-size:12.5px;color:#44474C;min-width:140px">{{ ofl.flyers }}</div>
+            <div style="width:150px;display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:#EBE9E4;border-radius:3px"><div style="width:{{ ofl.pct }};height:6px;background:#0F766E;border-radius:3px"></div></div><span style="font-size:11.5px;color:#44474C;white-space:nowrap">{{ ofl.kg }}</span></div>
+            <div style="background:{{ ofl.stBg }};color:{{ ofl.stC }};font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px">{{ ofl.status }}</div>
+            <div style="font-size:12px;color:#44474C;width:96px;text-align:right">{{ ofl.n }} shipment(s)</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:14px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:15px;font-weight:700">Active shipments</div><div onClick="{{ goShipments }}" style="font-size:12.5px;color:#0E4DA4;font-weight:600;cursor:pointer">View all →</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ activeRows }}" as="r" hint-placeholder-count="4">
+          <div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:14px;padding:11px 14px;background:#FAFAF8;border-radius:10px;cursor:pointer;flex-wrap:wrap">
+            <div style="font-weight:700;font-size:13px;width:76px">{{ r.id }}</div>
+            <div style="font-size:12.5px;color:#5B5E63;width:120px">{{ r.supLabel }}</div>
+            <div style="flex:1;font-size:12.5px;color:#5B5E63;min-width:140px">{{ r.desc }}</div>
+            <div style="background:{{ r.chipBg }};color:{{ r.chipC }};font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px">{{ r.status }}</div>
+            <div style="font-weight:700;font-size:13px;width:76px;text-align:right">{{ r.charge }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vShipments }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Shipments">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="font-size:23px;font-weight:800">Shipments</div>
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}"><button onClick="{{ openNewShipment }}" style="background:#0F766E;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer">+ New shipment</button></sc-if>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center">
+      <select onChange="{{ setFStatus }}" style="padding:9px 12px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px;background:#fff"><option>All statuses</option><option>Pending</option><option>Received at CN Hub</option><option>Ready for Shipment</option><option>In Transit</option><option>Customs Cleared</option><option>Received at BD Hub</option><option>Ready for Last Mile</option><option>Out for Delivery</option><option>Delivered</option></select>
+      <select onChange="{{ setFSupplier }}" style="padding:9px 12px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px;background:#fff"><option>All suppliers</option><sc-for list="{{ supplierCodes }}" as="sc" hint-placeholder-count="3"><option>{{ sc }}</option></sc-for></select>
+      <input type="date" onChange="{{ setFFrom }}" style="padding:8px 12px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px;background:#fff">
+      <span style="font-size:12px;color:#5B5E63">to</span>
+      <input type="date" onChange="{{ setFTo }}" style="padding:8px 12px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px;background:#fff">
+      <div style="font-size:12px;color:#5B5E63;margin-left:auto">{{ filterSummary }}</div>
+    </div>
+    <sc-if value="{{ showDeliveredCard }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#E6F7EC;border:1px solid #BBE5C8;border-radius:12px;padding:14px 18px;margin-top:12px;display:flex;gap:28px;flex-wrap:wrap;font-size:13px">
+        <div><span style="color:#5B5E63">Delivered:</span> <b>{{ delCount }} shipments</b></div>
+        <div><span style="color:#5B5E63">Weight:</span> <b>{{ delKg }} kg</b></div>
+        <div><span style="color:#5B5E63">Charges:</span> <b>{{ delCharge }}</b></div>
+      </div>
+    </sc-if>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:12px;padding:8px 16px">
+      <div style="display:flex;gap:12px;font-size:11px;color:#5B5E63;text-transform:uppercase;letter-spacing:.06em;padding:10px 6px;border-bottom:1px solid #E7E5E0">
+        <div style="width:66px">ID</div><div style="width:120px">Supplier</div><div style="flex:1;min-width:130px">Product</div><div style="width:82px">Weight</div><div style="width:140px">Status</div><div style="width:70px">Payment</div><div style="width:76px;text-align:right">Charge</div>
+      </div>
+      <sc-for list="{{ shipRows }}" as="r" hint-placeholder-count="6">
+        <div onClick="{{ r.open }}" style="display:flex;gap:12px;align-items:center;font-size:12.5px;padding:12px 6px;border-bottom:1px solid #F3F2EE;cursor:pointer" style-hover="background:#FAFAF8">
+          <div style="width:66px;font-weight:700">{{ r.id }}</div>
+          <div style="width:120px;color:#5B5E63">{{ r.supLabel }}</div>
+          <div style="flex:1;min-width:130px;color:#5B5E63">{{ r.desc }}</div>
+          <div style="width:82px">{{ r.kg }} <span style="color:#C92A2A;font-weight:700;font-size:11px">{{ r.disc }}</span></div>
+          <div style="width:140px"><span style="background:{{ r.chipBg }};color:{{ r.chipC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ r.status }}</span></div>
+          <div style="width:70px"><span style="background:{{ r.payBg }};color:{{ r.payC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ r.pay }}</span></div>
+          <div style="width:76px;text-align:right;font-weight:700">{{ r.charge }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vDetail }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Shipment Detail">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div onClick="{{ goShipments }}" style="font-size:12.5px;color:#0E4DA4;font-weight:600;cursor:pointer">← Shipments</div>
+      <div style="display:flex;gap:8px">
+        <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}"><button onClick="{{ d.invoice }}" style="background:#fff;border:1px solid #E7E5E0;padding:9px 16px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer">Generate invoice</button></sc-if>
+        <button onClick="{{ d.trackLink }}" style="background:#fff;border:1px solid #E7E5E0;padding:9px 16px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer">Tracking link</button>
+        <sc-if value="{{ d.canAdvance }}" hint-placeholder-val="{{ false }}"><button onClick="{{ d.advance }}" style="background:#0F766E;color:#fff;border:none;padding:9px 16px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer">Mark: {{ d.next }} →</button></sc-if>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;margin-top:12px;overflow:hidden">
+      <div style="background:#1A1C1E;color:#fff;padding:16px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><div style="font-size:22px;font-weight:800">{{ d.id }}</div><span style="background:{{ d.chipBg }};color:{{ d.chipC }};font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px">{{ d.status }}</span><span style="background:{{ d.payBg }};color:{{ d.payC }};font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px">{{ d.pay }}</span></div>
+          <div style="font-size:12.5px;color:#E3E5E8;margin-top:4px">{{ d.supLabel }} · {{ d.type }} · {{ d.desc }}</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px;background:#2A2D31;border-radius:12px;padding:10px 16px">
+          <div style="text-align:center"><div style="font-size:14px;font-weight:800">CTU</div><div style="font-size:10px;color:#E3E5E8">Chengdu</div></div>
+          <div style="color:#0F766E;font-weight:800">✈ →</div>
+          <div style="text-align:center"><div style="font-size:14px;font-weight:800">DAC</div><div style="font-size:10px;color:#E3E5E8">Dhaka</div></div>
+          <div style="border-left:1px solid #44474C;padding-left:12px;margin-left:4px"><div style="font-size:12.5px;font-weight:700;color:#0F766E">{{ d.flightNo }}</div><div style="font-size:10.5px;color:#E3E5E8">{{ d.flightDate }}</div></div>
+        </div>
+      </div>
+      <div style="display:flex;padding:18px 22px">
+        <sc-for list="{{ d.steps }}" as="st" hint-placeholder-count="9">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0">
+            <div style="display:flex;align-items:center;width:100%"><div style="flex:1;height:2px;background:{{ st.lineL }}"></div><div style="width:24px;height:24px;border-radius:12px;background:{{ st.bg }};border:2px solid {{ st.bd }};color:{{ st.cIn }};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">{{ st.mark }}</div><div style="flex:1;height:2px;background:{{ st.lineR }}"></div></div>
+            <div style="font-size:10px;color:{{ st.c }};font-weight:{{ st.w }};text-align:center;line-height:1.25;padding:0 2px">{{ st.l }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <sc-if value="{{ d.hasDisc }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;gap:10px;align-items:center;background:#FDE8E8;border:1px solid #F1C4C4;border-radius:10px;padding:11px 16px;font-size:12.5px;margin-top:12px"><span style="font-weight:800;color:#C92A2A">WEIGHT</span><span>{{ d.discBanner }}</span></div>
+    </sc-if>
+    <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1.6;min-width:340px;display:flex;flex-direction:column;gap:14px">
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px">Shipment</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+          <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Supplier</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ d.supLabel }}</div></div>
+          <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Product</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ d.type }}</div><div style="font-size:11px;color:#5B5E63;margin-top:1px">{{ d.desc }}</div></div>
+          <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Booked (CN)</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ d.kg }} kg</div></div>
+          <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Weighed (BD)</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ d.weighedVal }} <span style="color:#C92A2A;font-size:11px;font-weight:700">{{ d.disc }}</span></div></div>
+          <sc-if value="{{ d.hasSerials }}" hint-placeholder-val="{{ false }}"><div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Serial / IMEI</div><div style="font-size:12px;font-weight:700;margin-top:3px">{{ d.serialsLabel }}</div></div></sc-if>
+          <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Created</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ d.date }}</div></div>
+          <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Last mile</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ d.lmLabel }}</div></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <div style="width:74px;height:54px;background:#F3F2EE;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:#5B5E63">Photo ×{{ d.photos }}</div>
+          <div style="width:74px;height:54px;background:{{ d.vidBg }};border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:{{ d.vidC }}">{{ d.vidLabel }}</div>
+          <button onClick="{{ d.addPhoto }}" style="border:1px dashed #C9C6BF;background:none;border-radius:9px;padding:0 14px;font-size:11px;color:#5B5E63;cursor:pointer">+ Photo</button>
+          <button onClick="{{ d.addVideo }}" style="border:1px dashed #C9C6BF;background:none;border-radius:9px;padding:0 14px;font-size:11px;color:#5B5E63;cursor:pointer">+ Packing video</button>
+        </div>
+      </div>
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">Payment</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:12.5px">
+          <div style="color:#5B5E63">Status</div><div><span style="background:{{ d.payBg }};color:{{ d.payC }};font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">{{ d.pay }}</span></div>
+          <div style="color:#5B5E63">Method</div><div style="font-weight:600">{{ d.method }}</div>
+          <div style="color:#5B5E63">Receipt</div><div style="font-weight:600">{{ d.receiptLabel }}</div>
+          <div style="color:#5B5E63">After-sales</div><div style="font-weight:600">{{ d.afterLabel }}</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <sc-if value="{{ d.canMarkPaid }}" hint-placeholder-val="{{ false }}"><button onClick="{{ d.markPaid }}" style="background:#1B7A3D;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Mark paid (cash)</button></sc-if>
+          <button onClick="{{ d.addAfter }}" style="background:#fff;border:1px solid #E7E5E0;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ Damage/lost fee ৳500</button>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;overflow:hidden">
+        <div style="padding:18px 18px 14px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px">Costs &amp; profit</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+            <div style="display:flex;justify-content:space-between;align-items:center;background:#FAFAF8;border-radius:8px;padding:8px 12px"><span style="font-weight:600">Shipment charge</span><b style="font-size:13.5px">{{ d.charge }}</b></div>
+            <div style="display:flex;justify-content:space-between;padding:0 12px"><span style="color:#5B5E63">Ticket share ({{ d.kg }} kg of {{ d.space }} kg)</span><span style="color:#C92A2A">− {{ d.fareShare }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0 12px"><span style="color:#5B5E63">CN transport</span><span style="color:#C92A2A">− {{ d.cnFare }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0 12px"><span style="color:#5B5E63">BD transport</span><span style="color:#C92A2A">− {{ d.bdFare }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0 12px"><span style="color:#5B5E63">Customs tax</span><span style="color:#C92A2A">− {{ d.tax }}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0 12px"><span style="color:#5B5E63">After-sales fee</span><span style="color:#C92A2A">− {{ d.after }}</span></div>
+            <sc-for list="{{ d.extraLines }}" as="xl" hint-placeholder-count="0">
+              <div style="display:flex;justify-content:space-between;padding:0 12px"><span style="color:#5B5E63">{{ xl.label }}</span><span style="color:#C92A2A">− {{ xl.amt }}</span></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed #E7E5E0;padding-top:12px">
+            <select onChange="{{ f.xcat }}" style="padding:7px 8px;border:1px solid #E7E5E0;border-radius:8px;font-size:11.5px;background:#fff"><option>Packaging</option><option>Courier</option><option>Transport</option><option>Customs</option><option>Others</option></select>
+            <input onInput="{{ f.xamt }}" placeholder="৳" style="width:64px;padding:7px 8px;border:1px solid #E7E5E0;border-radius:8px;font-size:11.5px">
+            <input onInput="{{ f.xreason }}" placeholder="Reason" style="flex:1;min-width:90px;padding:7px 8px;border:1px solid #E7E5E0;border-radius:8px;font-size:11.5px">
+            <button onClick="{{ d.addExp }}" style="background:#1A1C1E;color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">+ Expense</button>
+          </div>
+        </div>
+        <div style="background:#1A1C1E;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:10px"><span style="background:{{ d.profitTagBg }};font-size:10px;font-weight:800;letter-spacing:.08em;padding:3px 9px;border-radius:10px">{{ d.profitTag }}</span><span style="font-size:11.5px;color:#B9BCC1">{{ d.profitPct }}</span></div>
+          <div style="font-size:20px;font-weight:800;color:{{ d.profitC }}">{{ d.profit }}</div>
+        </div>
+      </div>
+      </sc-if>
+      </div>
+      <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:14px">
+      <sc-if value="{{ notCustomer }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">BD hub handling</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+          <div style="display:flex;gap:8px;align-items:center"><span style="color:#5B5E63;width:110px">Weighed (kg)</span><input onInput="{{ f.weigh }}" placeholder="{{ d.weighedPh }}" style="width:80px;padding:7px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px"><button onClick="{{ d.saveWeigh }}" style="background:#0E4DA4;color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">Save</button></div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="color:#5B5E63;width:110px">BD transport ৳</span><input onInput="{{ f.bdfare }}" placeholder="{{ d.bdFarePh }}" style="width:80px;padding:7px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px"><button onClick="{{ d.saveBdFare }}" style="background:#0E4DA4;color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">Save</button></div>
+          <div style="display:flex;gap:8px;align-items:center"><span style="color:#5B5E63;width:110px">Last mile</span>
+            <select onChange="{{ f.courier }}" style="padding:7px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px;background:#fff"><option>Pathao</option><option>Steadfast</option><option>Hub pickup</option></select>
+            <input onInput="{{ f.lmref }}" placeholder="booking ref" style="width:100px;padding:7px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px"><button onClick="{{ d.saveLm }}" style="background:#0E4DA4;color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">Book</button></div>
+          <div style="color:#5B5E63">Current booking: <b style="color:#1A1C1E">{{ d.lmLabel }}</b></div>
+        </div>
+      </div>
+      </sc-if>
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px">Edit log</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ d.log }}" as="lg" hint-placeholder-count="3"><div style="font-size:12px;color:#5B5E63;border-left:2px solid #E7E5E0;padding-left:10px;line-height:1.45">{{ lg }}</div></sc-for>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vFlights }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Flights">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="font-size:23px;font-weight:800">Flights</div>
+      <button onClick="{{ openAddFlight }}" style="background:#0F766E;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer">+ Add flight</button>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:8px 16px">
+      <div style="display:flex;gap:12px;font-size:11px;color:#5B5E63;text-transform:uppercase;letter-spacing:.06em;padding:10px 6px;border-bottom:1px solid #E7E5E0">
+        <div style="width:76px">Flight</div><div style="width:92px">Date</div><div style="flex:1;min-width:130px">Flyers</div><div style="width:170px">Load</div><div style="width:76px;text-align:right">Fare</div><div style="width:76px;text-align:right">Cost</div><div style="width:76px;text-align:right">Margin</div><div style="width:88px">Status</div><div style="width:76px;text-align:right">Shipments</div>
+      </div>
+      <sc-for list="{{ flightCards }}" as="fl" hint-placeholder-count="3">
+        <div onClick="{{ fl.open }}" style="display:flex;gap:12px;align-items:center;font-size:12.5px;padding:13px 6px;border-bottom:1px solid #F3F2EE;cursor:pointer" style-hover="background:#FAFAF8">
+          <div style="width:76px;font-weight:800;color:#0F766E">{{ fl.id }}</div>
+          <div style="width:92px;font-weight:600">{{ fl.date }}</div>
+          <div style="flex:1;min-width:130px;color:#44474C">{{ fl.flyersLabel }}</div>
+          <div style="width:170px;display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:#F3F2EE;border-radius:3px"><div style="width:{{ fl.pct }};height:6px;background:{{ fl.barC }};border-radius:3px"></div></div><span style="font-size:11.5px;color:#44474C;white-space:nowrap">{{ fl.booked }}/{{ fl.space }}</span></div>
+          <div style="width:76px;text-align:right">{{ fl.fare }}</div>
+          <div style="width:76px;text-align:right">{{ fl.actual }}</div>
+          <div style="width:76px;text-align:right;font-weight:700;color:#1B7A3D">{{ fl.margin }}</div>
+          <div style="width:88px"><span style="background:{{ fl.stBg }};color:{{ fl.stC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ fl.status }}</span></div>
+          <div style="width:76px;text-align:right;font-weight:700">{{ fl.nShips }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vFlyers }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Flyers">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="font-size:23px;font-weight:800">Flyer registry</div>
+      <button onClick="{{ openAddFlyer }}" style="background:#0F766E;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer">+ Register flyer</button>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:8px 16px">
+      <div style="display:flex;gap:12px;font-size:11px;color:#5B5E63;text-transform:uppercase;letter-spacing:.06em;padding:10px 6px;border-bottom:1px solid #E7E5E0">
+        <div style="width:160px">Name</div><div style="flex:1;min-width:150px">University · Program</div><div style="width:80px">Batch</div><div style="width:140px">CN number</div><div style="width:150px">BD number</div><div style="width:100px">WeChat</div><div style="width:210px">Documents</div>
+      </div>
+      <sc-for list="{{ flyerCards }}" as="fy" hint-placeholder-count="3">
+        <div onClick="{{ fy.open }}" style="display:flex;gap:12px;align-items:center;font-size:12.5px;padding:13px 6px;border-bottom:1px solid #F3F2EE;cursor:pointer" style-hover="background:#FAFAF8">
+          <div style="width:160px;display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;background:#E3F0EE;color:#0F766E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0">{{ fy.initial }}</div><b>{{ fy.name }}</b></div>
+          <div style="flex:1;min-width:150px;color:#44474C">{{ fy.uni }} · {{ fy.prog }}</div>
+          <div style="width:80px;color:#44474C">{{ fy.batch }}</div>
+          <div style="width:140px;color:#44474C">{{ fy.cn }}</div>
+          <div style="width:150px;color:#44474C">{{ fy.bd }} {{ fy.wa }}</div>
+          <div style="width:100px;color:#44474C">{{ fy.wechat }}</div>
+          <div style="width:210px;display:flex;gap:5px;flex-wrap:wrap">
+            <span style="background:{{ fy.sidBg }};color:{{ fy.sidC }};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">ID {{ fy.sidMark }}</span>
+            <span style="background:{{ fy.visaBg }};color:{{ fy.visaC }};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">Visa {{ fy.visaMark }}</span>
+            <span style="background:{{ fy.admBg }};color:{{ fy.admC }};font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">JW {{ fy.admMark }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vFlightDetail }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Flight Detail">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div onClick="{{ goFlights }}" style="font-size:12.5px;color:#0E4DA4;font-weight:600;cursor:pointer">← Flights</div>
+      <button onClick="{{ fd.addShip }}" style="background:#0F766E;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">+ Add shipment to this flight</button>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1.7;min-width:380px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+          <div style="background:#1A1C1E;color:#fff;padding:16px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="width:32px;height:32px;background:#0F766E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">SB</div>
+            <div style="font-size:20px;font-weight:800">{{ fd.id }}</div>
+            <span style="background:{{ fd.stBg }};color:{{ fd.stC }};font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:20px">{{ fd.status }}</span>
+            <div style="margin-left:auto;font-size:12.5px;color:#B9BCC1">{{ fd.date }} · {{ fd.via }}</div>
+          </div>
+          <div style="padding:22px;display:flex;align-items:center;gap:18px">
+            <div style="flex-shrink:0"><div style="font-size:34px;font-weight:800;line-height:1">CTU</div><div style="font-size:11px;color:#5B5E63;margin-top:4px">Chengdu Tianfu</div><div style="font-size:15px;font-weight:800;color:#0F766E;margin-top:4px">{{ fd.depT }}</div></div>
+            <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:80px"><div style="flex:1;border-top:2px dashed #C9C6BF"></div><div style="color:#0F766E;font-size:17px">✈</div><div style="flex:1;border-top:2px dashed #C9C6BF"></div></div>
+            <div style="flex-shrink:0;text-align:right"><div style="font-size:34px;font-weight:800;line-height:1">DAC</div><div style="font-size:11px;color:#5B5E63;margin-top:4px">Hazrat Shahjalal, Dhaka</div><div style="font-size:15px;font-weight:800;color:#0F766E;margin-top:4px">{{ fd.arrT }}</div></div>
+          </div>
+          <div style="border-top:1px dashed #E7E5E0;padding:16px 22px">
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:7px;flex-wrap:wrap;gap:6px"><span style="color:#5B5E63;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:11px">Cargo space</span><span><b>{{ fd.booked }} kg</b> of {{ fd.space }} kg · <b style="color:#1B7A3D">{{ fd.left }} kg free</b> · + 2 mobiles + 1 laptop</span></div>
+            <div style="height:10px;background:#F3F2EE;border-radius:5px"><div style="width:{{ fd.pct }};height:10px;background:{{ fd.barC }};border-radius:5px"></div></div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:20px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:12px">Bookings · {{ fd.n }}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ fd.bookings }}" as="r" hint-placeholder-count="3">
+              <div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:14px;padding:11px 14px;background:#FAFAF8;border-radius:10px;cursor:pointer;flex-wrap:wrap">
+                <div style="font-weight:700;font-size:13px;width:66px">{{ r.id }}</div>
+                <div style="flex:1;font-size:12.5px;color:#5B5E63;min-width:130px">{{ r.supLabel }} · {{ r.desc }}</div>
+                <div style="font-size:12.5px">{{ r.kg }}</div>
+                <div style="background:{{ r.chipBg }};color:{{ r.chipC }};font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px">{{ r.status }}</div>
+                <div style="font-weight:700;font-size:13px;width:70px;text-align:right">{{ r.charge }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px">Flyers on this flight</div>
+          <div style="position:relative;margin-bottom:12px">
+            <input onInput="{{ fd.setQ }}" value="{{ fd.fq }}" placeholder="Search flyer to add…" style="padding:9px 14px;border:1px dashed #C9C6BF;border-radius:10px;font-size:12.5px;width:100%;box-sizing:border-box;background:#FAFAF8">
+            <sc-if value="{{ fd.hasSug }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:40px;left:0;right:0;background:#fff;border:1px solid #E7E5E0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:20;overflow:hidden">
+                <sc-for list="{{ fd.sugs }}" as="sg" hint-placeholder-count="1">
+                  <div onClick="{{ sg.add }}" style="padding:10px 14px;font-size:12.5px;cursor:pointer;display:flex;justify-content:space-between;gap:10px" style-hover="background:#E3F0EE"><b>{{ sg.name }}</b><span style="color:#5B5E63">{{ sg.bd }}</span></div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ fd.showNew }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:40px;left:0;right:0;background:#fff;border:1px solid #E7E5E0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:20;overflow:hidden">
+                <div onClick="{{ fd.regNew }}" style="padding:10px 14px;font-size:12.5px;cursor:pointer;color:#0F766E;font-weight:700" style-hover="background:#E3F0EE">+ Add "{{ fd.fq }}" as a new flyer</div>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ fd.flyerChips }}" as="fc" hint-placeholder-count="1">
+              <div style="display:flex;align-items:center;gap:10px;background:#FAFAF8;border-radius:10px;padding:10px 12px">
+                <div style="width:32px;height:32px;border-radius:9px;background:#E3F0EE;color:#0F766E;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">{{ fc.initial }}</div>
+                <div style="flex:1;min-width:0"><div onClick="{{ fc.go }}" style="font-weight:700;font-size:12.5px;color:#0E4DA4;cursor:pointer">{{ fc.name }} →</div><div style="font-size:11px;color:#5B5E63">{{ fc.bd }}</div></div>
+                <div onClick="{{ fc.remove }}" style="width:22px;height:22px;border-radius:11px;background:#fff;border:1px solid #F1C4C4;color:#C92A2A;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;cursor:pointer;flex-shrink:0">×</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;overflow:hidden">
+          <div style="padding:18px 18px 12px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:12px">Ticket economics</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:#5B5E63">Fare charged to flyer</span><b>{{ fd.fare }}</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:#5B5E63">Actual ticket cost</span><span style="color:#C92A2A">− {{ fd.actual }}</span></div>
+              <div style="display:flex;justify-content:space-between;border-top:1px dashed #E7E5E0;padding-top:8px"><span style="color:#5B5E63">Shipment charges on board</span><b>{{ fd.revenue }}</b></div>
+            </div>
+          </div>
+          <div style="background:#1A1C1E;color:#fff;padding:13px 18px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#B9BCC1">TICKET MARGIN</span>
+            <span style="font-size:18px;font-weight:800;color:{{ fd.marginC2 }}">{{ fd.margin }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vFlyerDetail }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Flyer Detail">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div onClick="{{ goFlyers }}" style="font-size:12.5px;color:#0E4DA4;font-weight:600;cursor:pointer">← Flyers</div>
+      <button onClick="{{ yd.addFlight }}" style="background:#0F766E;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">+ Add flight for this flyer</button>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1.7;min-width:380px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+          <div style="background:#1A1C1E;color:#fff;padding:16px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="width:40px;height:40px;border-radius:11px;background:#0F766E;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px">{{ yd.initial }}</div>
+            <div><div style="font-size:19px;font-weight:800">{{ yd.name }}</div><div style="font-size:12px;color:#B9BCC1">{{ yd.uni }} · {{ yd.batch }} · {{ yd.prog }}</div></div>
+          </div>
+          <div style="padding:20px 22px">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">China number</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ yd.cn }}</div></div>
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">BD number</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ yd.bd }}</div><div style="font-size:10.5px;color:#1B7A3D;font-weight:600">{{ yd.wa }}</div></div>
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">WeChat</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ yd.wechat }}</div></div>
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Home address</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ yd.home }}</div></div>
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#5B5E63">Emergency contact</div><div style="font-size:13px;font-weight:700;margin-top:3px">{{ yd.emg }}</div></div>
+            </div>
+            <div style="border-top:1px dashed #E7E5E0;margin-top:16px;padding-top:14px">
+              <div style="font-size:11px;color:#5B5E63;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Documents</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <span style="background:{{ yd.sidBg }};color:{{ yd.sidC }};font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px">Student ID {{ yd.sidMark }}</span>
+                <span style="background:{{ yd.visaBg }};color:{{ yd.visaC }};font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px">Visa / Residence Permit {{ yd.visaMark }}</span>
+                <span style="background:{{ yd.admBg }};color:{{ yd.admC }};font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px">Admission / JW {{ yd.admMark }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:20px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:12px">Flights · {{ yd.nFlights }}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ yd.flights }}" as="q" hint-placeholder-count="2">
+              <div onClick="{{ q.open }}" style="display:flex;align-items:center;gap:14px;padding:11px 14px;background:#FAFAF8;border-radius:10px;cursor:pointer;flex-wrap:wrap">
+                <div style="font-weight:700;font-size:13px;width:70px">{{ q.id }}</div>
+                <div style="font-size:12.5px;color:#5B5E63;width:84px">{{ q.date }}</div>
+                <div style="flex:1;font-size:12.5px;color:#5B5E63;min-width:120px">{{ q.booked }} of {{ q.space }}</div>
+                <span style="background:{{ q.stBg }};color:{{ q.stC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ q.status }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;overflow:hidden">
+          <div style="padding:18px 18px 12px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:12px">Flyer stats</div>
+            <div style="display:flex;flex-direction:column;gap:9px;font-size:13.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:#44474C">Flights flown</span><b>{{ yd.nFlights }}</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:#44474C">Cargo carried</span><b>{{ yd.totalKg }} kg</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:#44474C">Allowance per flight</span><b>44/52 kg + 2 mob + 1 laptop</b></div>
+            </div>
+          </div>
+          <div style="background:#0F766E;color:#fff;padding:14px 18px">
+            <div style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#fff">NEXT FLIGHT</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px"><span style="font-size:19px;font-weight:800">{{ yd.nextId }}</span><span style="font-size:13px;font-weight:700;color:#fff">{{ yd.nextDate }}</span></div>
+            <div style="font-size:12.5px;color:#fff;margin-top:4px">{{ yd.nextRoute }}</div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12.5px"><span style="font-weight:800">{{ yd.nextStatus }}</span><span style="color:#fff">{{ yd.nextKg }}</span></div>
+          </div>
+          <div style="background:#1A1C1E;color:#fff;padding:14px 18px">
+            <div style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#E3E5E8">LAST FLIGHT</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px"><span style="font-size:19px;font-weight:800">{{ yd.lastId }}</span><span style="font-size:13px;font-weight:700;color:#E3E5E8">{{ yd.lastDate }}</span></div>
+            <div style="font-size:12.5px;color:#E3E5E8;margin-top:4px">{{ yd.lastRoute }}</div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12.5px"><span style="color:#7CE79A;font-weight:800">{{ yd.lastStatus }}</span><span style="color:#E3E5E8">{{ yd.lastKg }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vSupDetail }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Supplier Detail">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div onClick="{{ goSuppliers }}" style="font-size:12.5px;color:#0E4DA4;font-weight:600;cursor:pointer">← Suppliers</div>
+      <sc-if value="{{ sd.isMonthly }}" hint-placeholder-val="{{ false }}"><button onClick="{{ sd.stmt }}" style="background:#0F766E;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">August statement →</button></sc-if>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1.7;min-width:380px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+          <div style="background:#1A1C1E;color:#fff;padding:16px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="height:40px;border-radius:11px;background:#0F766E;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 13px">{{ sd.code }}</div>
+            <div><div style="font-size:19px;font-weight:800">{{ sd.name }}</div><div style="font-size:12.5px;color:#E3E5E8">{{ sd.num }} · {{ sd.addr }}</div></div>
+            <span style="margin-left:auto;background:{{ sd.tBg }};color:{{ sd.tC }};font-size:11.5px;font-weight:700;padding:5px 13px;border-radius:20px">{{ sd.terms }}</span>
+          </div>
+          <div style="padding:18px 22px">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#44474C">Orders</div><div style="font-size:16px;font-weight:800;margin-top:3px">{{ sd.n }}</div></div>
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#44474C">Delivered</div><div style="font-size:16px;font-weight:800;margin-top:3px">{{ sd.delivered }}</div></div>
+              <div style="background:#FAFAF8;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#44474C">Total weight</div><div style="font-size:16px;font-weight:800;margin-top:3px">{{ sd.kg }} kg</div></div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:20px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:12px">All orders · {{ sd.n }}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ sd.orders }}" as="r" hint-placeholder-count="3">
+              <div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:14px;padding:11px 14px;background:#FAFAF8;border-radius:10px;cursor:pointer;flex-wrap:wrap">
+                <div style="font-weight:700;font-size:13px;width:66px">{{ r.id }}</div>
+                <div style="flex:1;font-size:12.5px;color:#44474C;min-width:130px">{{ r.desc }}</div>
+                <div style="font-size:12.5px;width:80px">{{ r.kg }} <span style="color:#C92A2A;font-weight:700;font-size:11px">{{ r.disc }}</span></div>
+                <div style="background:{{ r.chipBg }};color:{{ r.chipC }};font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px">{{ r.status }}</div>
+                <div style="width:70px"><span style="background:{{ r.payBg }};color:{{ r.payC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ r.pay }}</span></div>
+                <div style="font-weight:700;font-size:13px;width:70px;text-align:right">{{ r.charge }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;overflow:hidden">
+          <div style="padding:18px 18px 12px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:12px">Account</div>
+            <div style="display:flex;flex-direction:column;gap:9px;font-size:13.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:#44474C">Billed (all time)</span><b>{{ sd.billed }}</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:#44474C">Paid</span><b style="color:#1B7A3D">{{ sd.paid }}</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:#44474C">Payment terms</span><b>{{ sd.terms }}</b></div>
+            </div>
+          </div>
+          <div style="background:#1A1C1E;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#E3E5E8">BALANCE DUE</span>
+            <span style="font-size:19px;font-weight:800;color:{{ sd.balC2 }}">{{ sd.bal }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vSuppliers }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Suppliers">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="font-size:23px;font-weight:800">Suppliers</div>
+      <button onClick="{{ openAddSupplier }}" style="background:#0F766E;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer">+ Add supplier</button>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:8px 16px">
+      <div style="display:flex;gap:12px;font-size:11px;color:#5B5E63;text-transform:uppercase;letter-spacing:.06em;padding:10px 6px;border-bottom:1px solid #E7E5E0">
+        <div style="width:80px">Code</div><div style="width:150px">Name</div><div style="width:150px">Number</div><div style="flex:1;min-width:120px">Delivery address</div><div style="width:70px">Terms</div><div style="width:80px;text-align:right">Shipped</div><div style="width:86px;text-align:right">Balance due</div>
+      </div>
+      <sc-for list="{{ supRows }}" as="s" hint-placeholder-count="4">
+        <div onClick="{{ s.open }}" style="display:flex;gap:12px;align-items:center;font-size:12.5px;padding:12px 6px;border-bottom:1px solid #F3F2EE;cursor:pointer" style-hover="background:#FAFAF8">
+          <div style="width:80px;font-weight:700;color:#0F766E">{{ s.code }}</div>
+          <div style="width:150px;font-weight:600">{{ s.name }}</div>
+          <div style="width:150px;color:#5B5E63">{{ s.num }}</div>
+          <div style="flex:1;min-width:120px;color:#5B5E63">{{ s.addr }}</div>
+          <div style="width:70px"><span style="background:{{ s.tBg }};color:{{ s.tC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ s.terms }}</span></div>
+          <div style="width:80px;text-align:right">{{ s.kg }} kg</div>
+          <div style="width:86px;text-align:right;font-weight:700;color:{{ s.balC }}">{{ s.bal }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:11.5px;color:#5B5E63;margin-top:8px">Hub Manager sees short codes only — names are Admin-visible.</div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vFinance }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Finance">
+    <div style="font-size:23px;font-weight:800;margin-bottom:12px">Finance</div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+      <div style="background:#1A1C1E;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#E3E5E8">MONTHLY P&amp;L</span>
+        <select onChange="{{ setFinMonth }}" value="{{ finMonth }}" style="background:#2A2D31;color:#fff;border:1px solid #44474C;border-radius:8px;padding:7px 10px;font-size:12.5px;font-weight:600"><option value="2026-08">August 2026</option><option value="2026-07">July 2026</option><option value="2026-06">June 2026</option></select>
+        <span style="margin-left:auto;font-size:12px;color:#E3E5E8">Net income</span>
+        <span style="font-size:19px;font-weight:800;color:{{ netMC }}">{{ netM }}</span>
+      </div>
+      <div style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Cash in hand (all accounts)</div><div style="font-size:19px;font-weight:800;margin-top:4px">{{ cashBdt }}</div><div style="font-size:11.5px;color:#44474C;margin-top:2px">¥{{ cashCnyN }} → worth <b style="color:#1A1C1E">{{ cashWorth }}</b></div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Invested in business</div><div style="font-size:19px;font-weight:800;margin-top:4px">{{ investBdt }}</div><div style="font-size:11.5px;color:#44474C;margin-top:2px">¥{{ investCnyN }} → worth <b style="color:#1A1C1E">{{ investWorth }}</b></div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Received — {{ monthLabel }}</div><div style="font-size:19px;font-weight:800;margin-top:4px;color:#1B7A3D">{{ recvM }}</div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Expenses — {{ monthLabel }}</div><div style="font-size:19px;font-weight:800;margin-top:4px;color:#C92A2A">{{ expM }}</div></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px">
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;overflow:hidden;align-self:start">
+        <div style="padding:18px 18px 14px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:10px">Accounts &amp; funds</div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{ accRows }}" as="ac" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;padding:9px 0;border-bottom:1px solid #F3F2EE">
+                <div style="flex:1;font-weight:600">{{ ac.name }}</div>
+                <span style="background:#F3F2EE;color:#44474C;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px">{{ ac.kind }}</span>
+                <div style="width:90px;text-align:right;font-weight:800">{{ ac.balF }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center">
+            <input onInput="{{ f.acName }}" placeholder="Account / fund name" style="flex:1;min-width:110px;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px">
+            <select onChange="{{ f.acCur }}" style="padding:8px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px;background:#fff"><option>BDT</option><option>CNY</option></select>
+            <input onInput="{{ f.acBal }}" placeholder="Balance" style="width:76px;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px">
+            <button onClick="{{ addAccount }}" style="background:#1A1C1E;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Add</button>
+          </div>
+        </div>
+        <div style="background:#1A1C1E;color:#fff;padding:13px 18px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#E3E5E8">TOTAL WORTH</span>
+          <span style="font-size:18px;font-weight:800;color:#7CE79A">{{ cashWorth }}</span>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px;align-self:start">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">Expenses — {{ monthLabel }}</div>
+        <sc-for list="{{ expRows }}" as="e" hint-placeholder-count="5">
+          <div style="display:flex;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px solid #F3F2EE;align-items:center">
+            <div style="width:56px;color:#5B5E63">{{ e.d }}</div>
+            <div style="width:78px"><span style="background:#F3F2EE;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ e.cat }}</span></div>
+            <div style="flex:1;color:#5B5E63">{{ e.r }} <sc-if value="{{ e.shipTag }}" hint-placeholder-val="{{ false }}"><span style="color:#0F766E;font-weight:700;font-size:11px">{{ e.shipTag }}</span></sc-if></div>
+            <div style="font-weight:700">{{ e.amt }}</div>
+          </div>
+        </sc-for>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+          <select onChange="{{ f.ecat }}" style="padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px;background:#fff"><option>Ticket</option><option>Packaging</option><option>Courier</option><option>Salary</option><option>Others</option></select>
+          <select onChange="{{ f.eship }}" style="padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px;background:#fff"><option>No shipment</option><sc-for list="{{ shipOpts }}" as="o" hint-placeholder-count="3"><option>{{ o }}</option></sc-for></select>
+          <input onInput="{{ f.eamt }}" placeholder="Amount ৳" style="width:84px;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px">
+          <input onInput="{{ f.ereason }}" placeholder="Reason (required)" style="flex:1;min-width:120px;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px">
+          <button onClick="{{ addExpense }}" style="background:#1A1C1E;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Add</button>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px;align-self:start">
+        <div style="font-size:14px;font-weight:700;margin-bottom:2px">Monthly statements — {{ monthLabel }}</div>
+        <div style="font-size:11.5px;color:#5B5E63;margin-bottom:10px">Ledger of monthly-terms suppliers · billing cycle closes month-end</div>
+        <sc-for list="{{ stmtRows }}" as="m" hint-placeholder-count="2">
+          <div style="border:1px solid #F3F2EE;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:13px">{{ m.name }} <span style="color:#0F766E;font-size:11.5px">{{ m.code }}</span></div><button onClick="{{ m.gen }}" style="background:#fff;border:1px solid #E7E5E0;padding:5px 11px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer">Statement →</button></div>
+            <div style="display:flex;gap:18px;font-size:12px;margin-top:8px;flex-wrap:wrap">
+              <div><span style="color:#5B5E63">Billed</span> <b>{{ m.billed }}</b></div>
+              <div><span style="color:#5B5E63">Paid</span> <b style="color:#1B7A3D">{{ m.paid }}</b></div>
+              <div><span style="color:#5B5E63">Balance</span> <b style="color:{{ m.balC }}">{{ m.bal }}</b></div>
+              <div><span style="color:#5B5E63">Shipments</span> <b>{{ m.n }}</b></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vReview }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Review Queue">
+    <div style="font-size:23px;font-weight:800">Receipt review queue</div>
+    <div style="font-size:12.5px;color:#5B5E63;margin-top:2px">Customer-uploaded payment receipts — confirm received or not received.</div>
+    <sc-if value="{{ reviewEmpty }}" hint-placeholder-val="{{ false }}"><div style="background:#fff;border:1px dashed #C9C6BF;border-radius:14px;padding:40px;text-align:center;color:#5B5E63;font-size:13px;margin-top:18px">Queue is clear — no receipts waiting.</div></sc-if>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-top:18px">
+      <sc-for list="{{ reviewRows }}" as="q" hint-placeholder-count="1">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:800;font-size:14px">{{ q.id }} · {{ q.sup }}</div><div style="font-weight:800;font-size:15px">{{ q.amt }}</div></div>
+          <div style="font-size:12px;color:#5B5E63;margin-top:2px">{{ q.method }} · uploaded {{ q.date }}</div>
+          <div style="height:110px;background:#F3F2EE;border-radius:10px;margin-top:12px;display:flex;align-items:center;justify-content:center;font-size:11.5px;color:#5B5E63">Receipt image · {{ q.method }} TXN {{ q.txn }}</div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button onClick="{{ q.approve }}" style="flex:1;background:#1B7A3D;color:#fff;border:none;padding:10px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer">Received ✓</button>
+            <button onClick="{{ q.reject }}" style="flex:1;background:#fff;color:#C92A2A;border:1px solid #F1C4C4;padding:10px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer">Not received</button>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vTodos }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="To-do">
+    <div style="font-size:23px;font-weight:800">To-do</div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:10px 18px;max-width:640px">
+      <sc-for list="{{ todoRows }}" as="t" hint-placeholder-count="4">
+        <div style="display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #F3F2EE">
+          <div onClick="{{ t.toggle }}" style="width:20px;height:20px;border-radius:6px;border:2px solid {{ t.boxBd }};background:{{ t.boxBg }};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:800">{{ t.check }}</div>
+          <div style="flex:1;font-size:13px;color:{{ t.c }};text-decoration:{{ t.deco }}">{{ t.t }}</div>
+          <sc-if value="{{ t.auto }}" hint-placeholder-val="{{ false }}"><span style="background:#E7F0FE;color:#0E4DA4;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">AUTO</span></sc-if>
+        </div>
+      </sc-for>
+      <div style="display:flex;gap:8px;padding:12px 0">
+        <input onInput="{{ f.todo }}" placeholder="Add a task…" style="flex:1;padding:9px 12px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px">
+        <button onClick="{{ addTodo }}" style="background:#1A1C1E;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer">Add</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vSettings }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Settings">
+    <div style="font-size:23px;font-weight:800">Settings</div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:20px;max-width:480px;display:flex;flex-direction:column;gap:16px">
+      <div><div style="font-size:13px;font-weight:700">Exchange rate</div><div style="font-size:12px;color:#5B5E63;margin:3px 0 8px">Used for total-worth figures across CNY and BDT</div><div style="display:flex;align-items:center;gap:8px;font-size:13px">¥1 = ৳ <input onInput="{{ setRate }}" value="{{ rate }}" style="width:80px;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:13px"></div></div>
+      <div><div style="font-size:13px;font-weight:700">Weight discrepancy alert</div><div style="font-size:12px;color:#5B5E63;margin:3px 0 8px">Alert when BD weighed weight differs from CN booked weight by at least</div><div style="display:flex;align-items:center;gap:8px;font-size:13px"><input onInput="{{ setThreshold }}" value="{{ threshold }}" style="width:80px;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:13px"> kg</div></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vHub }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Hub Overview">
+    <div style="font-size:23px;font-weight:800;margin-bottom:12px">Good morning, Salam</div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+      <div style="background:#1A1C1E;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="width:32px;height:32px;background:#0F766E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">SB</div>
+        <span style="font-size:11.5px;font-weight:800;letter-spacing:.08em;color:#E3E5E8">BASHUNDHARA HUB · DHAKA</span>
+        <span style="margin-left:auto;font-size:12.5px;color:#E3E5E8">Sat 29 Aug 2026 · short codes only</span>
+      </div>
+      <div style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">At BD hub now</div><div style="font-size:20px;font-weight:800;margin-top:4px">{{ hubAtCount }}</div><div style="font-size:11.5px;color:#44474C;margin-top:2px">shipments to process</div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Incoming · CA945 Sun</div><div style="font-size:20px;font-weight:800;margin-top:4px">{{ hubIncomingKg }} kg</div><div style="font-size:11.5px;color:#44474C;margin-top:2px">{{ hubIncomingN }} shipments in transit</div></div>
+        <div style="background:#FAFAF8;border-radius:10px;padding:14px 16px"><div style="font-size:11px;color:#44474C">Open tasks</div><div style="font-size:20px;font-weight:800;margin-top:4px;color:#0F766E">{{ hubTaskCount }}</div><div style="font-size:11.5px;color:#44474C;margin-top:2px">on your to-do list</div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+      <sc-for list="{{ notices }}" as="nt" hint-placeholder-count="1">
+        <div style="display:flex;gap:10px;align-items:center;background:{{ nt.bg }};border:1px solid {{ nt.bd }};border-radius:10px;padding:10px 14px;font-size:12.5px"><span style="font-weight:800;color:{{ nt.c }}">{{ nt.tag }}</span><span>{{ nt.text }}</span></div>
+      </sc-for>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:16px;padding:20px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:12px">To process — weigh, photo, book last mile</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ hubRows }}" as="r" hint-placeholder-count="2">
+          <div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:14px;padding:11px 14px;background:#FAFAF8;border-radius:10px;cursor:pointer;flex-wrap:wrap">
+            <div style="font-weight:700;font-size:13px;width:76px">{{ r.id }}</div>
+            <div style="font-size:12.5px;color:#0F766E;font-weight:700;width:80px">{{ r.supLabel }}</div>
+            <div style="flex:1;font-size:12.5px;color:#5B5E63;min-width:120px">{{ r.desc }}</div>
+            <div style="font-size:12.5px">{{ r.kg }} <span style="color:#C92A2A;font-weight:700;font-size:11px">{{ r.disc }}</span></div>
+            <div style="background:{{ r.chipBg }};color:{{ r.chipC }};font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px">{{ r.status }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vPortal }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Customer Tracking">
+    <div style="font-size:23px;font-weight:800">Your shipments</div>
+    <div style="font-size:12.5px;color:#5B5E63;margin-top:2px">Rahim Traders · Chengdu → Dhaka</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-top:18px">
+      <sc-for list="{{ portalRows }}" as="p" hint-placeholder-count="2">
+        <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:800;font-size:14px">{{ p.id }}</div><span style="background:{{ p.chipBg }};color:{{ p.chipC }};font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">{{ p.status }}</span></div>
+          <div style="font-size:12.5px;color:#5B5E63;margin-top:3px">{{ p.desc }} · {{ p.kg }} kg · flight {{ p.flight }}</div>
+          <div style="display:flex;align-items:center;margin-top:16px">
+            <sc-for list="{{ p.steps }}" as="ps" hint-placeholder-count="5">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:6px;background:{{ ps.dot }}"></div><div style="font-size:9.5px;color:{{ ps.c }};font-weight:600;text-align:center">{{ ps.l }}</div></div>
+            </sc-for>
+          </div>
+          <div style="font-size:12px;color:#5B5E63;margin-top:14px;border-top:1px solid #F3F2EE;padding-top:10px">{{ p.note }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ vBills }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Customer Bills">
+    <div style="font-size:23px;font-weight:800">Bills &amp; payments</div>
+    <div style="font-size:12.5px;color:#5B5E63;margin-top:2px">Rahim Traders · monthly terms — August cycle closes on the 31st</div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden;margin-top:16px;max-width:720px">
+      <div style="padding:16px 20px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px"><span style="color:#44474C">Monthly terms · August cycle closes on the 31st</span><b>Rahim Traders · SUP-014</b></div>
+      <div style="background:#0F766E;color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div><div style="font-size:11.5px;font-weight:800;letter-spacing:.08em">AUGUST BALANCE DUE</div><div style="font-size:22px;font-weight:800;margin-top:2px">{{ myBalance }}</div></div>
+        <button onClick="{{ payBalance }}" style="background:#fff;color:#0F766E;border:none;padding:11px 22px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">Pay now</button>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:14px;margin-top:14px;padding:8px 16px;max-width:720px">
+      <sc-for list="{{ billRows }}" as="b" hint-placeholder-count="3">
+        <div style="display:flex;gap:12px;align-items:center;font-size:12.5px;padding:12px 6px;border-bottom:1px solid #F3F2EE;flex-wrap:wrap">
+          <div style="width:66px;font-weight:700">{{ b.id }}</div>
+          <div style="flex:1;color:#5B5E63;min-width:140px">{{ b.desc }}</div>
+          <div style="width:150px"><span style="background:{{ b.payBg }};color:{{ b.payC }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px">{{ b.payLabel }}</span></div>
+          <div style="width:76px;text-align:right;font-weight:700">{{ b.amt }}</div>
+          <sc-if value="{{ b.canPay }}" hint-placeholder-val="{{ false }}"><button onClick="{{ b.pay }}" style="background:#1A1C1E;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer">Pay</button></sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isTrack }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Public Tracking" style="min-height:100vh;background:#FAFAF8">
+  <div style="background:#1A1C1E;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:10px">
+    <div style="width:32px;height:32px;background:#0F766E;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">SB</div>
+    <div style="font-weight:800;font-size:14px">Sichuan Bangla Express</div>
+    <div style="margin-left:auto;font-size:11.5px;color:#E3E5E8">Shipment tracking</div>
+    <sc-if value="{{ tr.canBack }}" hint-placeholder-val="{{ false }}"><div onClick="{{ tr.back }}" style="font-size:12px;color:#7CC4FF;font-weight:700;cursor:pointer;margin-left:14px">← Back to app</div></sc-if>
+  </div>
+  <div style="max-width:680px;margin:0 auto;padding:26px 18px;display:flex;flex-direction:column;gap:14px">
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+      <div style="background:#0F766E;color:#fff;padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#CDE7E3">TRACKING</div><div style="font-size:21px;font-weight:800;margin-top:2px">{{ tr.id }}</div></div>
+        <span style="margin-left:auto;background:#fff;color:#0F766E;font-size:12px;font-weight:800;padding:6px 14px;border-radius:20px">{{ tr.status }}</span>
+      </div>
+      <div style="padding:18px 20px">
+        <div style="display:flex;align-items:center">
+          <sc-for list="{{ tr.steps }}" as="ts" hint-placeholder-count="5">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:14px;height:14px;border-radius:7px;background:{{ ts.dot }}"></div><div style="font-size:10px;color:{{ ts.c }};font-weight:700;text-align:center">{{ ts.l }}</div></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:24px;margin-top:18px;padding-top:14px;border-top:1px solid #F3F2EE;font-size:12.5px;flex-wrap:wrap">
+          <div><div style="font-size:10.5px;color:#5B5E63;text-transform:uppercase">Contents</div><b>{{ tr.desc }}</b></div>
+          <div><div style="font-size:10.5px;color:#5B5E63;text-transform:uppercase">Weight</div><b>{{ tr.kg }}</b></div>
+          <div><div style="font-size:10.5px;color:#5B5E63;text-transform:uppercase">Flight</div><b>{{ tr.flight }}</b></div>
+          <div><div style="font-size:10.5px;color:#5B5E63;text-transform:uppercase">Route</div><b>Chengdu → Dhaka</b></div>
+        </div>
+        <div style="font-size:12.5px;color:#44474C;margin-top:12px">{{ tr.note }}</div>
+      </div>
+    </div>
+    <sc-if value="{{ tr.showPay }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#fff;border:1px solid #E7E5E0;border-radius:16px;overflow:hidden">
+      <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="font-size:14px;font-weight:800">Payment</div>
+        <div style="font-size:13px"><span style="color:#5B5E63">Amount due</span> <b style="font-size:16px;color:#C92A2A">{{ tr.due }}</b></div>
+      </div>
+      <div style="padding:0 20px 18px">
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ tr.tabs }}" as="tt" hint-placeholder-count="2">
+            <div onClick="{{ tt.pick }}" style="flex:1;text-align:center;padding:10px 4px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;background:{{ tt.bg }};color:{{ tt.c }};border:1px solid {{ tt.bd }}">{{ tt.l }}</div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:14px;align-items:center">
+          <div style="width:104px;height:104px;border-radius:12px;border:1px solid #E7E5E0;background:repeating-linear-gradient(0deg,#1A1C1E 0 6px,#fff 6px 12px),repeating-linear-gradient(90deg,#1A1C1E 0 6px,#fff 6px 12px);background-blend-mode:screen;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="background:#fff;padding:4px 8px;font-size:10px;font-weight:800;border:1px solid #1A1C1E">QR</div></div>
+          <div style="font-size:12.5px;color:#44474C;line-height:1.65"><b style="color:#1A1C1E">{{ tr.acctName }}</b><br>{{ tr.acct1 }}<br>{{ tr.acct2 }}</div>
+        </div>
+        <div style="border-top:1px solid #F3F2EE;margin-top:14px;padding-top:12px">
+          <div style="font-size:12px;color:#5B5E63;margin-bottom:8px">After paying, upload the receipt — our team confirms it manually.</div>
+          <button onClick="{{ tr.upload }}" style="width:100%;background:#0F766E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">Upload payment receipt</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+    <sc-if value="{{ tr.showPaid }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#E6F7EC;border:1px solid #BBE5C8;border-radius:14px;padding:16px 20px;font-size:13px;font-weight:700;color:#1B7A3D">Payment received ✓ — thank you.</div>
+    </sc-if>
+    <sc-if value="{{ tr.showPending }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#FEF3C7;border:1px solid #EED9A4;border-radius:14px;padding:16px 20px;font-size:13px;font-weight:700;color:#B45309">Receipt uploaded — payment confirmation pending.</div>
+    </sc-if>
+    <div style="text-align:center;font-size:11.5px;color:#5B5E63">Sichuan Bangla Express · Bashundhara R/A, Dhaka · WhatsApp +880 1711 220 340</div>
+  </div>
+</div>
+</sc-if>
+<sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;background:rgba(26,28,30,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px" onClick="{{ closeModal }}">
+<div onClick="{{ stop }}" style="background:#fff;border-radius:16px;padding:26px;width:100%;max-width:460px;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+
+  <sc-if value="{{ mNewShipment }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:17px;font-weight:800;margin-bottom:14px">New shipment</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+      <select onChange="{{ f.nsSup }}" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#fff;font-size:12.5px"><option value="">Supplier…</option><sc-for list="{{ supplierOpts }}" as="o" hint-placeholder-count="4"><option>{{ o }}</option></sc-for></select>
+      <sc-if value="{{ nsFlightLocked }}" hint-placeholder-val="{{ false }}"><div style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#FAFAF8;font-size:12.5px;font-weight:600">✈ {{ nsFlightLocked }}</div></sc-if>
+      <sc-if value="{{ nsFlightFree }}" hint-placeholder-val="{{ true }}"><select onChange="{{ f.nsFlight }}" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#fff;font-size:12.5px;width:100%"><option value="">Flight…</option><sc-for list="{{ flightOpts }}" as="o" hint-placeholder-count="3"><option>{{ o }}</option></sc-for></select></sc-if>
+      <div style="border:1px solid #E7E5E0;border-radius:9px;padding:10px">
+        <div style="font-size:11px;color:#5B5E63;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Categories</div>
+        <sc-if value="{{ hasCats }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <sc-for list="{{ catChips }}" as="cc" hint-placeholder-count="0">
+            <span style="background:#E3F0EE;color:#0F766E;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:6px">{{ cc.name }} <span onClick="{{ cc.remove }}" style="cursor:pointer;font-weight:800">×</span></span>
+          </sc-for>
+        </div>
+        </sc-if>
+        <div style="position:relative">
+          <input onInput="{{ setCatQ }}" onFocus="{{ catFocus }}" value="{{ catQ }}" placeholder="Search or pick a category…" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px">
+          <sc-if value="{{ catOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #E7E5E0;border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.14);z-index:20;max-height:190px;overflow:auto;padding:4px">
+            <sc-for list="{{ catSugs }}" as="cs" hint-placeholder-count="0">
+              <div onClick="{{ cs.pick }}" style="padding:9px 12px;font-size:12.5px;font-weight:600;border-radius:7px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" style-hover="background:#E3F0EE;color:#0F766E"><span>{{ cs.name }}</span><span style="font-size:11px;color:#9B9EA3">select</span></div>
+            </sc-for>
+            <sc-if value="{{ showAddCat }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ addCat }}" style="padding:9px 12px;font-size:12.5px;font-weight:700;border-radius:7px;cursor:pointer;color:#0F766E;border-top:1px solid #F3F2EE" style-hover="background:#E3F0EE">+ Add category "{{ catQ }}"</div>
+            </sc-if>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ devMode }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #A8CFCA;background:#F4FAF9;border-radius:9px;padding:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="font-size:11px;color:#0F766E;font-weight:700;text-transform:uppercase;letter-spacing:.05em;flex:1">Devices (mobile/laptop)</div>
+          <span style="font-size:11.5px;color:#5B5E63">Count</span>
+          <input type="number" onInput="{{ setDevN }}" value="{{ devN }}" min="1" max="6" style="width:52px;padding:6px 8px;border:1px solid #E7E5E0;border-radius:8px;font-size:12.5px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ devRows }}" as="dv" hint-placeholder-count="1">
+            <div style="display:flex;gap:6px;align-items:center">
+              <span style="font-size:11px;color:#5B5E63;width:16px">{{ dv.n }}</span>
+              <input onInput="{{ dv.ser }}" placeholder="Serial / IMEI" style="flex:1;padding:8px 10px;border:1px solid #E7E5E0;border-radius:8px;font-size:12px">
+              <button onClick="{{ dv.img }}" style="border:1px dashed #C9C6BF;background:#fff;border-radius:8px;padding:8px 10px;font-size:11px;color:#5B5E63;cursor:pointer;white-space:nowrap">+ Image</button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+      <div style="display:flex;gap:10px"><input onInput="{{ f.nsKg }}" placeholder="Weight kg" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input onInput="{{ f.nsCharge }}" placeholder="Charge ৳" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <input onInput="{{ f.nsDesc }}" placeholder="Description (e.g. 3 cartons / 2 mobiles / 1 drone)" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <select onChange="{{ f.nsPay }}" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#fff;font-size:12.5px"><option>Unpaid</option><option>Paid</option><option>COD</option><option>Monthly</option></select>
+      <div style="display:flex;gap:8px"><div style="flex:1;border:1px dashed #C9C6BF;border-radius:9px;padding:10px;text-align:center;color:#5B5E63;font-size:11.5px">+ Product photo</div><div style="flex:1;border:1px dashed #C9C6BF;border-radius:9px;padding:10px;text-align:center;color:#5B5E63;font-size:11.5px">+ Packing video</div></div>
+      <button onClick="{{ addShipment }}" style="background:#0F766E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:4px">Create shipment</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mAddFlight }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:17px;font-weight:800;margin-bottom:14px">Add flight</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+      <sc-if value="{{ afFlyerLocked }}" hint-placeholder-val="{{ false }}"><div style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#FAFAF8;font-size:12.5px;font-weight:600">✓ Flyer: {{ afFlyerLocked }}</div></sc-if>
+      <sc-if value="{{ afFlyerFree }}" hint-placeholder-val="{{ true }}"><select onChange="{{ f.afFlyer }}" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#fff;font-size:12.5px;width:100%"><option value="">Flyer…</option><sc-for list="{{ flyerOpts }}" as="o" hint-placeholder-count="3"><option>{{ o }}</option></sc-for></select></sc-if>
+      <div onClick="{{ goRegFlyer }}" style="font-size:12px;color:#0E4DA4;font-weight:600;cursor:pointer">+ Register a new flyer instead</div>
+      <div style="display:flex;gap:10px"><input onInput="{{ f.afNo }}" placeholder="Flight no (e.g. CA945)" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input type="date" onChange="{{ f.afDate }}" style="flex:1;padding:9px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <div style="display:flex;gap:10px"><input onInput="{{ f.afDep }}" placeholder="Departs CTU (e.g. 13:40)" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input onInput="{{ f.afArr }}" placeholder="Arrives DAC (e.g. 17:25)" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <div style="display:flex;gap:10px"><input onInput="{{ f.afFare }}" placeholder="Ticket fare charged ৳" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input onInput="{{ f.afActual }}" placeholder="Actual ticket cost ৳" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <select onChange="{{ f.afSpace }}" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#fff;font-size:12.5px"><option value="44">44 kg + 2 mobiles + 1 laptop</option><option value="52">52 kg + 2 mobiles + 1 laptop</option></select>
+      <button onClick="{{ addFlight }}" style="background:#0F766E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:4px">Add flight</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mAddFlyer }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:17px;font-weight:800;margin-bottom:14px">Register flyer</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+      <input onInput="{{ f.fyName }}" defaultValue="{{ flyPrefill }}" placeholder="LAST NAME First name" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <div style="display:flex;gap:10px"><input onInput="{{ f.fyCn }}" placeholder="China number" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input onInput="{{ f.fyBd }}" placeholder="BD number (WA?)" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <div style="display:flex;gap:10px"><input onInput="{{ f.fyUni }}" placeholder="University" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input onInput="{{ f.fyBatch }}" placeholder="Batch" style="width:80px;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <div style="display:flex;gap:10px"><input onInput="{{ f.fyProg }}" placeholder="Program" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"><input onInput="{{ f.fyWechat }}" placeholder="WeChat ID" style="flex:1;padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px"></div>
+      <input onInput="{{ f.fyHome }}" placeholder="Home address" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <input onInput="{{ f.fyEmg }}" placeholder="Emergency contact" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <div style="display:flex;gap:8px"><div style="flex:1;border:1px dashed #C9C6BF;border-radius:9px;padding:10px;text-align:center;color:#5B5E63;font-size:11px">+ Student ID</div><div style="flex:1;border:1px dashed #C9C6BF;border-radius:9px;padding:10px;text-align:center;color:#5B5E63;font-size:11px">+ Visa / RP</div><div style="flex:1;border:1px dashed #C9C6BF;border-radius:9px;padding:10px;text-align:center;color:#5B5E63;font-size:11px">+ JW / Adm.</div></div>
+      <button onClick="{{ addFlyer }}" style="background:#0F766E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:4px">Register flyer</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mAddSupplier }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:17px;font-weight:800;margin-bottom:14px">Add supplier</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
+      <input onInput="{{ f.spCode }}" placeholder="Short code (auto: {{ nextCode }})" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <input onInput="{{ f.spName }}" placeholder="Name" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <input onInput="{{ f.spNum }}" placeholder="Number" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <input onInput="{{ f.spAddr }}" placeholder="Delivery address (optional)" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;font-size:12.5px">
+      <select onChange="{{ f.spTerms }}" style="padding:10px;border:1px solid #E7E5E0;border-radius:9px;background:#fff;font-size:12.5px"><option>Instant</option><option>Monthly</option></select>
+      <button onClick="{{ addSupplier }}" style="background:#0F766E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:4px">Add supplier</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mInvoice }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div><div style="font-size:17px;font-weight:800">{{ inv.title }}</div><div style="font-size:11.5px;color:#5B5E63">{{ inv.no }} · 29 Aug 2026</div></div>
+      <div style="width:30px;height:30px;background:#0F766E;border-radius:8px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">SB</div>
+    </div>
+    <div style="font-size:12px;color:#5B5E63;margin-top:12px">Billed to</div>
+    <div style="font-size:13.5px;font-weight:700">{{ inv.to }}</div>
+    <div style="border-top:1px solid #E7E5E0;margin-top:14px;padding-top:6px">
+      <sc-for list="{{ inv.lines }}" as="l" hint-placeholder-count="3">
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;border-bottom:1px solid #F3F2EE"><span style="color:#5B5E63">{{ l.label }}</span><b>{{ l.amt }}</b></div>
+      </sc-for>
+      <div style="display:flex;justify-content:space-between;font-size:15px;padding:12px 0"><span style="font-weight:800">Total due</span><span style="font-weight:800;color:#0F766E">{{ inv.total }}</span></div>
+    </div>
+    <div style="font-size:11px;color:#5B5E63">Sichuan Bangla Express · Bashundhara R/A, Dhaka · Pay via bKash, BD Bank, Alipay or WeChat</div>
+  </sc-if>
+
+  <sc-if value="{{ mTrackLink }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:17px;font-weight:800">Tracking link — {{ tlId }}</div>
+    <div style="font-size:12px;color:#5B5E63;margin-top:2px">Share this with the customer — no login needed. It shows live status and payment info.</div>
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+      <div style="flex:1;background:#FAFAF8;border:1px solid #E7E5E0;border-radius:9px;padding:11px 12px;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tlUrl }}</div>
+      <button onClick="{{ tlCopy }}" style="background:#1A1C1E;color:#fff;border:none;padding:11px 16px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer">Copy</button>
+    </div>
+    <button onClick="{{ tlOpen }}" style="width:100%;background:#0F766E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:12px">Preview tracking page →</button>
+  </sc-if>
+
+  <sc-if value="{{ mPay }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:17px;font-weight:800">Pay {{ payAmt }}</div>
+    <div style="font-size:12px;color:#5B5E63;margin-top:2px">{{ payFor }}</div>
+    <div style="display:flex;gap:6px;margin-top:14px">
+      <sc-for list="{{ payTabs }}" as="pt" hint-placeholder-count="4">
+        <div onClick="{{ pt.pick }}" style="flex:1;text-align:center;padding:9px 4px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;background:{{ pt.bg }};color:{{ pt.c }};border:1px solid {{ pt.bd }}">{{ pt.l }}</div>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:16px;align-items:center">
+      <div style="width:110px;height:110px;border-radius:12px;border:1px solid #E7E5E0;background:repeating-linear-gradient(0deg,#1A1C1E 0 6px,#fff 6px 12px),repeating-linear-gradient(90deg,#1A1C1E 0 6px,#fff 6px 12px);background-blend-mode:screen;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="background:#fff;padding:4px 8px;font-size:10px;font-weight:800;border:1px solid #1A1C1E">QR</div></div>
+      <div style="font-size:12.5px;color:#5B5E63;line-height:1.6"><b style="color:#1A1C1E">{{ payAcctName }}</b><br>{{ payAcct1 }}<br>{{ payAcct2 }}</div>
+    </div>
+    <div style="border-top:1px solid #F3F2EE;margin-top:16px;padding-top:14px">
+      <div style="font-size:12px;color:#5B5E63;margin-bottom:8px">After paying, upload your receipt — Admin reviews it manually.</div>
+      <button onClick="{{ uploadReceipt }}" style="width:100%;background:#1A1C1E;color:#fff;border:none;padding:12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">Upload payment receipt</button>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A1C1E;color:#fff;padding:12px 22px;border-radius:12px;font-size:13px;font-weight:600;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.3)">{{ toast }}</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820},&quot;startRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;login&quot;,&quot;admin&quot;,&quot;hub&quot;],&quot;default&quot;:&quot;login&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo&quot;}}">
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.S = ['Pending','Received at CN Hub','Ready for Shipment','In Transit','Customs Cleared','Received at BD Hub','Ready for Last Mile','Out for Delivery','Delivered'];
+    this.CHIP = {0:['#F3F2EE','#5B5E63'],1:['#FFF4DE','#8A6D1C'],2:['#EDE9FE','#6D28D9'],3:['#E7F0FE','#0E4DA4'],4:['#DCFCE7','#166534'],5:['#E0F2F1','#0F766E'],6:['#E3F0EE','#0F766E'],7:['#FEF3C7','#B45309'],8:['#E6F7EC','#1B7A3D']};
+    this.PCHIP = {Paid:['#E6F7EC','#1B7A3D'],Unpaid:['#FDE8E8','#C92A2A'],COD:['#FEF3C7','#B45309'],Monthly:['#E7F0FE','#0E4DA4']};
+    this.FST = {Upcoming:['#E7F0FE','#0E4DA4'],Departed:['#FEF3C7','#B45309'],Completed:['#F3F2EE','#5B5E63']};
+    this.state = {
+      role:null, view:'overview', detailId:null, modal:null, payShip:null, payMethod:'bKash', toast:'', fx:{},
+      filters:{status:'All statuses',supplier:'All suppliers',from:'',to:''},
+      rate:17.05, threshold:1,
+      invest:{bdt:350000,cny:20000}, finMonth:'2026-08',
+      recvByMonth:{'2026-06':228400,'2026-07':281200,'2026-08':312400},
+      accounts:[
+        {id:1,name:'Cash — Dhaka office',kind:'Cash',cur:'BDT',bal:182300},
+        {id:2,name:'bKash Merchant',kind:'Mobile',cur:'BDT',bal:120000},
+        {id:3,name:'City Bank A/C',kind:'Bank',cur:'BDT',bal:180000},
+        {id:4,name:'Alipay',kind:'Wallet',cur:'CNY',bal:8480},
+        {id:5,name:'WeChat Pay',kind:'Wallet',cur:'CNY',bal:4000}
+      ],
+      flyers:[
+        {name:'HOSSAIN Tanvir',cn:'+86 138 8034 2211',bd:'+880 1711 402 358',wa:true,uni:'Sichuan University',batch:'Batch 2023',prog:'MBBS',wechat:'tanvir_scu',home:'Mirpur 10, Dhaka',emg:'+880 1912 774 120 (brother)',sid:true,visa:true,adm:true},
+        {name:'AKTER Nusrat',cn:'+86 152 2841 9903',bd:'+880 1815 662 041',wa:true,uni:'Chengdu Univ. of Technology',batch:'Batch 2024',prog:'Computer Science',wechat:'nusrat_cdut',home:'Khulshi, Chattogram',emg:'+880 1712 003 415 (father)',sid:true,visa:true,adm:false},
+        {name:'ISLAM Sabbir',cn:'+86 130 5577 8102',bd:'+880 1620 118 733',wa:false,uni:'SWUFE, Chengdu',batch:'Batch 2022',prog:'Economics',wechat:'sabbir_swufe',home:'Uttara 7, Dhaka',emg:'+880 1811 220 976 (mother)',sid:true,visa:false,adm:true}
+      ],
+      flights:[
+        {id:'CA945',flyers:['HOSSAIN Tanvir'],date:'2026-08-31',depT:'13:40',arrT:'17:25',via:'Direct',fare:42000,actual:38500,space:44,status:'Upcoming'},
+        {id:'MU2075',flyers:['AKTER Nusrat','ISLAM Sabbir'],date:'2026-09-12',depT:'10:55',arrT:'16:40',via:'Via KMG Kunming',fare:45500,actual:41200,space:52,status:'Upcoming'},
+        {id:'CZ3059',flyers:['ISLAM Sabbir'],date:'2026-08-10',depT:'09:30',arrT:'13:05',via:'Direct',fare:39800,actual:39800,space:44,status:'Completed'}
+      ],
+      suppliers:[
+        {code:'SUP-014',name:'Rahim Traders',num:'+880 1711 220 340',addr:'Islampur Rd, Dhaka',terms:'Monthly'},
+        {code:'SUP-009',name:'Mim Cosmetics',num:'+880 1918 445 209',addr:'Chawkbazar, Dhaka',terms:'Instant'},
+        {code:'CTU-051',name:'Bhuiyan Electronics',num:'+86 173 0812 5540',addr:'—',terms:'Instant'},
+        {code:'SUP-022',name:'Karim Fashion',num:'+880 1552 371 664',addr:'Banga Bazar, Dhaka',terms:'Monthly'}
+      ],
+      ships:[
+        {id:'SH-101',sup:'SUP-014',flight:'CA945',kg:22.4,desc:'3 cartons, garments',charge:15680,type:'Garments',st:3,pay:'Monthly',method:'—',weighed:null,cnFare:850,bdFare:null,tax:0,after:0,lm:null,receipt:null,photos:2,video:true,date:'2026-08-24',log:['Admin · 24 Aug 14:05 — Created, booked 22.4 kg on CA945','Admin · 25 Aug 10:12 — Product photos ×2, packing video uploaded','Admin · 28 Aug 09:30 — Status → In Transit']},
+        {id:'SH-102',sup:'CTU-051',flight:'CA945',kg:8,desc:'1 carton + 2 mobiles',charge:9900,type:'Electronics',st:1,pay:'Unpaid',method:'—',weighed:null,cnFare:320,bdFare:null,tax:0,after:0,lm:null,receipt:null,photos:1,video:false,date:'2026-08-26',log:['Admin · 26 Aug 16:40 — Created, booked on CA945','Admin · 27 Aug 11:00 — Received at CN Hub, 8.0 kg']},
+        {id:'SH-103',sup:'SUP-009',flight:'CZ3059',kg:11.2,desc:'2 cartons, cosmetics',charge:8060,type:'Cosmetics',st:8,pay:'Unpaid',method:'—',weighed:12.4,cnFare:410,bdFare:260,tax:0,after:0,lm:{courier:'Pathao',ref:'PTH-88412'},receipt:{status:'pending',method:'bKash',amt:8060,date:'27 Aug',txn:'9HK2L40X'},photos:2,video:false,date:'2026-08-06',log:['Admin · 06 Aug 13:20 — Created, booked on CZ3059','Hub · 12 Aug 18:05 — Weighed 12.4 kg (Δ +1.2 kg vs booked)','Hub · 14 Aug 10:30 — Last mile booked: Pathao PTH-88412','Hub · 15 Aug 17:22 — Delivered','Customer · 27 Aug 20:14 — bKash receipt uploaded']},
+        {id:'SH-104',sup:'SUP-022',flight:'CZ3059',kg:18,desc:'2 cartons, mixed goods',charge:12600,type:'Mix',st:5,pay:'COD',method:'—',weighed:18.3,cnFare:520,bdFare:340,tax:600,after:0,lm:null,receipt:null,photos:3,video:true,date:'2026-08-05',log:['Admin · 05 Aug 11:10 — Created','Admin · 11 Aug 09:00 — Customs tax ৳600 recorded','Hub · 13 Aug 15:45 — Received at BD hub, weighed 18.3 kg']},
+        {id:'SH-105',sup:'SUP-014',flight:'CZ3059',kg:9.6,desc:'1 carton, shoes',charge:6720,type:'Shoe',st:8,pay:'Paid',method:'Bank',weighed:9.6,cnFare:300,bdFare:220,tax:0,after:0,lm:{courier:'Steadfast',ref:'SF-30291'},receipt:{status:'approved',method:'Bank',amt:6720,date:'14 Aug',txn:'TRX-58810'},photos:1,video:false,date:'2026-08-04',log:['Admin · 04 Aug 10:00 — Created','Hub · 14 Aug 12:10 — Delivered via Steadfast SF-30291','Admin · 14 Aug 19:00 — Bank payment received ✓']},
+        {id:'SH-106',sup:'SUP-009',flight:'MU2075',kg:4.2,desc:'1 box, ornaments',charge:4620,type:'Ornaments',st:0,pay:'Unpaid',method:'—',weighed:null,cnFare:0,bdFare:null,tax:0,after:0,lm:null,receipt:null,photos:0,video:false,date:'2026-08-28',log:['Admin · 28 Aug 15:30 — Created, booked on MU2075']},
+        {id:'SH-107',sup:'CTU-051',flight:'MU2075',kg:0,desc:'1 laptop + 1 drone',charge:6800,type:'Electronics',st:2,pay:'Unpaid',method:'—',weighed:null,cnFare:180,bdFare:null,tax:0,after:0,lm:null,receipt:null,photos:2,video:true,date:'2026-08-22',log:['Admin · 22 Aug 12:00 — Created (device slots)','Admin · 27 Aug 17:10 — Ready for shipment, packed & sealed']},
+        {id:'SH-108',sup:'SUP-022',flight:'CZ3059',kg:14,desc:'2 cartons, garments',charge:9800,type:'Garments',st:8,pay:'Paid',method:'bKash',weighed:14,cnFare:460,bdFare:300,tax:0,after:500,lm:{courier:'Pathao',ref:'PTH-87104'},receipt:{status:'approved',method:'bKash',amt:9300,date:'18 Aug',txn:'8XX10PQ2'},photos:2,video:false,date:'2026-08-03',log:['Admin · 03 Aug 09:40 — Created','Hub · 13 Aug 16:20 — Weighed 14.0 kg','Admin · 17 Aug 10:05 — Damage fee ৳500 credited (1 item)','Admin · 18 Aug 21:00 — bKash receipt approved ✓','Hub · 18 Aug 13:30 — Delivered']}
+      ],
+      expenses:[
+        {m:'2026-06',d:'01 Jun',cat:'Salary',amt:25000,r:'Hub manager salary — June'},
+        {m:'2026-06',d:'14 Jun',cat:'Packaging',amt:3600,r:'Cartons and tape restock'},
+        {m:'2026-07',d:'01 Jul',cat:'Salary',amt:25000,r:'Hub manager salary — July'},
+        {m:'2026-07',d:'06 Jul',cat:'Ticket',amt:37200,r:'CZ8331 ticket — S. Islam'},
+        {m:'2026-07',d:'22 Jul',cat:'Courier',amt:2400,r:'Pathao bulk runs, week 4'},
+        {m:'2026-08',d:'01 Aug',cat:'Salary',amt:25000,r:'Hub manager salary — August'},
+        {m:'2026-08',d:'02 Aug',cat:'Ticket',amt:38500,r:'CA945 ticket — T. Hossain'},
+        {m:'2026-08',d:'05 Aug',cat:'Packaging',amt:4200,r:'Cartons, tape, bubble wrap'},
+        {m:'2026-08',d:'16 Aug',cat:'Ticket',amt:28000,r:'MU2075 advance — N. Akter'},
+        {m:'2026-08',d:'18 Aug',cat:'Others',amt:1800,r:'Label printing'},
+        {m:'2026-08',d:'25 Aug',cat:'Packaging',amt:600,r:'Extra cartons + strapping',ship:'SH-101'}
+      ],
+      categories:['Garments','Ornaments','Cosmetics','Electronics','Mix','Shoe','Mobile','Laptop','Drone'],
+      nsCats:[], catQ:'', nsDevN:1,
+      todos:[
+        {id:1,role:'admin',t:'Review bKash receipt — SH-103 (৳8,060)',auto:true,done:false},
+        {id:2,role:'admin',t:'Send August statement to Rahim Traders (SUP-014)',auto:true,done:false},
+        {id:3,role:'admin',t:'Buy packing tape & cartons for CA945',auto:false,done:false},
+        {id:4,role:'hub',t:'Weigh SUP-022 cartons (SH-104)',auto:true,done:true},
+        {id:5,role:'hub',t:'Book last mile for SH-104 (COD)',auto:true,done:false},
+        {id:6,role:'hub',t:'Collect BD transport fare receipt — Aug 22 run',auto:false,done:false}
+      ]
+    };
+    this.tt = null;
+  }
+  componentDidMount(){ const r=this.props.startRole; if(r && r!=='login') this.login(r); }
+  toast(m){ clearTimeout(this.tt); this.setState({toast:m}); this.tt=setTimeout(()=>this.setState({toast:''}),2600); }
+  login(r){ this.setState({role:r, view:r==='admin'?'overview':r==='hub'?'hub':'portal'}); }
+  logAdd(s,who,msg){ s.log=[...s.log, who+' · 29 Aug — '+msg]; }
+  upd(id,fn,msg){ this.setState(st=>{ const ships=st.ships.map(x=>({...x})); const s=ships.find(x=>x.id===id); if(s){fn(s,st);} return {ships}; }); if(msg) this.toast(msg); }
+  fset(k){ return e=>{ this.state.fx[k]=e.target.value; }; }
+  credit(method,amt){ this.setState(p=>{ const accounts=[...p.accounts]; let val=amt, i=-1;
+    if(method==='bKash') i=accounts.findIndex(a=>a.name.toLowerCase().includes('bkash'));
+    else if(method==='Bank') i=accounts.findIndex(a=>a.kind==='Bank');
+    else if(method==='Alipay'||method==='WeChat'){ i=accounts.findIndex(a=>a.name.toLowerCase().includes(method.toLowerCase())); val=Math.round(amt/p.rate); }
+    if(i<0) i=accounts.findIndex(a=>a.kind==='Cash'&&a.cur==='BDT');
+    if(i<0) i=0;
+    accounts[i]={...accounts[i],bal:accounts[i].bal+val};
+    return {accounts, recvByMonth:{...p.recvByMonth,'2026-08':(p.recvByMonth['2026-08']||0)+amt}}; }); }
+  debit(amt){ this.setState(p=>{ let i=p.accounts.findIndex(a=>a.kind==='Cash'&&a.cur==='BDT'); if(i<0)i=0; const accounts=p.accounts.map((a,j)=>j===i?{...a,bal:a.bal-amt}:a); return {accounts}; }); }
+  F(n){ return '৳'+Math.round(n||0).toLocaleString('en-IN'); }
+  flightOf(s){ return this.state.flights.find(f=>f.id===s.flight)||{actual:0,space:44,fare:0}; }
+  fareShare(s){ const f=this.flightOf(s); return s.kg>0? f.actual*s.kg/f.space : (s.charge?600:0); }
+  extrasSum(s){ return this.state.expenses.filter(e=>e.ship===s.id).reduce((a,e)=>a+e.amt,0); }
+  profit(s){ return s.charge - this.fareShare(s) - (s.cnFare||0) - (s.bdFare||0) - (s.tax||0) - (s.after||0) - this.extrasSum(s); }
+  desc(s){ return s.type+' · '+s.desc; }
+  supName(code){ const x=this.state.suppliers.find(s=>s.code===code); return x?x.name:code; }
+  supLabel(code){ return this.state.role==='hub'? code : code+' · '+this.supName(code); }
+  disc(s){ return (s.weighed!=null && Math.abs(s.weighed-s.kg)>=this.state.threshold) ? 'Δ'+(s.weighed-s.kg>0?'+':'')+(Math.round((s.weighed-s.kg)*10)/10)+'kg' : ''; }
+  openShip(id){ return ()=>this.setState({view:'detail',detailId:id,fx:{}}); }
+  openInvoice(s){ const lines=[{label:'Shipment charge — '+this.desc(s),amt:this.F(s.charge)}]; if(s.tax) lines.push({label:'Customs tax',amt:this.F(s.tax)}); if(s.after) lines.push({label:'After-sales credit (damage/lost)',amt:'− '+this.F(s.after)}); const total=s.charge+(s.tax||0)-(s.after||0); this.setState({modal:'invoice',inv:{title:'Invoice',no:'INV-2608-'+s.id,to:this.supName(s.sup)+' ('+s.sup+')',lines,total:this.F(total)}}); }
+  openStatement(code){ const rows=this.state.ships.filter(s=>s.sup===code && s.date.startsWith('2026-08')); const lines=rows.map(s=>({label:s.id+' · '+this.desc(s)+(s.pay==='Paid'?' (paid)':''),amt:this.F(s.charge+(s.tax||0)-(s.after||0))})); const total=rows.filter(s=>s.pay!=='Paid').reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0); this.setState({modal:'invoice',inv:{title:'Monthly statement — August 2026',no:'STMT-2608-'+code,to:this.supName(code)+' ('+code+')',lines,total:this.F(total)}}); }
+  renderVals(){
+    const st=this.state, S=this.S, F=this.F.bind(this), role=st.role;
+    const go=v=>()=>this.setState({view:v});
+    const navDef = role==='admin' ? [['Overview','overview'],['Shipments','shipments'],['Flights','flights'],['Flyers','flyers'],['Suppliers','suppliers'],['Finance','finance'],['Review queue','review'],['To-do','todos'],['Settings','settings']] : role==='hub' ? [['Hub overview','hub'],['Shipments','shipments'],['To-do','todos']] : [['Tracking','portal'],['Bills & payments','bills']];
+    const reviewRowsSrc = st.ships.filter(s=>s.receipt && s.receipt.status==='pending');
+    const myTodos = st.todos.filter(t=>t.role===(role==='hub'?'hub':'admin'));
+    const openTodoN = myTodos.filter(t=>!t.done).length;
+    const badge = l=> l==='Review queue'? (reviewRowsSrc.length||false) : l==='To-do'? (openTodoN||false) : false;
+    const parentOf={detail:'shipments',flightDetail:'flights',flyerDetail:'flyers',supDetail:'suppliers'};
+    const activeView = parentOf[st.view]||st.view;
+    const nav = navDef.map(([label,v])=>({label,go:go(v),badge:badge(label),bg:activeView===v?'#E3F0EE':'transparent',color:activeView===v?'#0F766E':'#5B5E63',w:activeView===v?700:500}));
+    const chip=s=>this.CHIP[s.st], pchip=s=>this.PCHIP[s.pay]||['#F3F2EE','#5B5E63'];
+    const row=s=>({id:s.id,supLabel:this.supLabel(s.sup),desc:this.desc(s),kg:s.kg>0?(s.weighed!=null?s.weighed:s.kg)+' kg':'devices',disc:this.disc(s),status:S[s.st],chipBg:chip(s)[0],chipC:chip(s)[1],pay:s.pay,payBg:pchip(s)[0],payC:pchip(s)[1],charge:F(s.charge),open:this.openShip(s.id)});
+    // filters
+    const fl=st.filters;
+    let filtered=st.ships.filter(s=>(fl.status==='All statuses'||S[s.st]===fl.status)&&(fl.supplier==='All suppliers'||s.sup===fl.supplier)&&(!fl.from||s.date>=fl.from)&&(!fl.to||s.date<=fl.to));
+    if(role==='customer') filtered=filtered.filter(s=>s.sup==='SUP-014');
+    const shipRows=filtered.map(row);
+    const delRows=filtered.filter(s=>s.st===8);
+    // KPIs
+    const expAugN=st.expenses.filter(e=>e.m==='2026-08').reduce((a,e)=>a+e.amt,0);
+    const cashB=st.accounts.filter(a=>a.cur==='BDT').reduce((a,x)=>a+x.bal,0);
+    const cashC=st.accounts.filter(a=>a.cur==='CNY').reduce((a,x)=>a+x.bal,0);
+    const recvAugN=st.recvByMonth['2026-08']||0;
+    const mLabels={'2026-06':'June 2026','2026-07':'July 2026','2026-08':'August 2026'};
+    const recvMN=st.recvByMonth[st.finMonth]||0;
+    const expMN=st.expenses.filter(e=>e.m===st.finMonth).reduce((a,e)=>a+e.amt,0);
+    const unpaid=st.ships.filter(s=>s.pay==='Unpaid'||s.pay==='COD').reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);
+    const nf=st.flights.find(f=>f.status==='Upcoming');
+    const bookedOn=f=>st.ships.filter(s=>s.flight===f.id).reduce((a,s)=>a+s.kg,0);
+    const nfB=nf?bookedOn(nf):0;
+    // notices
+    const notices=[];
+    st.ships.forEach(s=>{ const d=this.disc(s); if(d) notices.push({tag:'WEIGHT',text:s.id+' ('+(role==='hub'?s.sup:this.supLabel(s.sup))+') weighed '+s.weighed+' kg vs '+s.kg+' kg booked — '+d,bg:'#FDE8E8',bd:'#F1C4C4',c:'#C92A2A'}); });
+    if(nf) notices.push({tag:'FLIGHT',text:nf.id+' departs '+(nf.date==='2026-08-31'?'Sunday 31 Aug':nf.date)+' — '+(Math.round((nf.space-nfB)*10)/10)+' kg space left. Flyer: '+(nf.flyers||[]).join(', '),bg:'#E7F0FE',bd:'#C4D8F5',c:'#0E4DA4'});
+    if(role==='admin') notices.push({tag:'DUE',text:'August billing cycle closes 31 Aug — Rahim Traders (SUP-014) balance ৳15,680 outstanding',bg:'#FFF4DE',bd:'#EED9A4',c:'#8A6D1C'});
+    // flights
+    const flightCards=st.flights.map(f=>{const b=Math.round(bookedOn(f)*10)/10,pct=Math.min(100,Math.round(b/f.space*100)); const bks=st.ships.filter(s=>s.flight===f.id).map(s=>({id:s.id,sup:this.supLabel(s.sup),amt:s.kg>0?s.kg+' kg':s.desc})); return {id:f.id,date:f.date,flyersLabel:(f.flyers||[]).join(', '),open:()=>this.setState({view:'flightDetail',flightId:f.id}),booked:b,space:f.space,devices:'2 mob + 1 laptop',pct:pct+'%',barC:pct>90?'#C92A2A':'#0F766E',fare:F(f.fare),actual:F(f.actual),margin:F(f.fare-f.actual),status:f.status,stBg:(this.FST[f.status]||this.FST.Completed)[0],stC:(this.FST[f.status]||this.FST.Completed)[1],bookings:bks,nShips:bks.length};});
+    // flyers
+    const dk=(ok)=>ok?['#E6F7EC','#1B7A3D','✓']:['#FDE8E8','#C92A2A','missing'];
+    const flyerCards=st.flyers.map(y=>{const a=dk(y.sid),b=dk(y.visa),c=dk(y.adm);return {...y,initial:y.name.charAt(0),open:()=>this.setState({view:'flyerDetail',flyerId:y.name}),wa:y.wa?'· WhatsApp ✓':'',sidBg:a[0],sidC:a[1],sidMark:a[2],visaBg:b[0],visaC:b[1],visaMark:b[2],admBg:c[0],admC:c[1],admMark:c[2]};});
+    // suppliers
+    const supRows=st.suppliers.map(x=>{const rows=st.ships.filter(s=>s.sup===x.code);const kg=Math.round(rows.reduce((a,s)=>a+(s.weighed!=null?s.weighed:s.kg),0)*10)/10;const bal=rows.filter(s=>s.pay!=='Paid').reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);return {...x,open:()=>this.setState({view:'supDetail',supCode:x.code}),kg,bal:F(bal),balC:bal>0?'#C92A2A':'#1B7A3D',tBg:x.terms==='Monthly'?'#E7F0FE':'#E6F7EC',tC:x.terms==='Monthly'?'#0E4DA4':'#1B7A3D'};});
+    // finance
+    const stmtRows=st.suppliers.filter(x=>x.terms==='Monthly').map(x=>{const rows=st.ships.filter(s=>s.sup===x.code&&s.date.startsWith(st.finMonth));const billed=rows.reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);const paid=rows.filter(s=>s.pay==='Paid').reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);const bal=billed-paid;return {code:x.code,name:x.name,billed:F(billed),paid:F(paid),bal:F(bal),balC:bal>0?'#C92A2A':'#1B7A3D',n:rows.length,gen:()=>this.openStatement(x.code)};});
+    // review queue
+    const reviewRows=reviewRowsSrc.map(s=>({id:s.id,sup:this.supLabel(s.sup),amt:F(s.receipt.amt),method:s.receipt.method,date:s.receipt.date,txn:s.receipt.txn,
+      approve:()=>{this.upd(s.id,(x,stt)=>{x.pay='Paid';x.method=x.receipt.method;x.receipt={...x.receipt,status:'approved'};this.logAdd(x,'Admin','Receipt approved, payment received ✓');},'Payment marked received — '+s.id); this.credit(s.receipt.method,s.receipt.amt);},
+      reject:()=>this.upd(s.id,x=>{x.receipt={...x.receipt,status:'rejected'};this.logAdd(x,'Admin','Receipt rejected — payment not found');},'Receipt rejected — '+s.id)}));
+    // todos
+    const todoRows=myTodos.map(t=>({...t,check:t.done?'✓':'',boxBg:t.done?'#1B7A3D':'#fff',boxBd:t.done?'#1B7A3D':'#C9C6BF',c:t.done?'#9B9E A3'.replace(' ',''):'#1A1C1E',deco:t.done?'line-through':'none',toggle:()=>this.setState(p=>({todos:p.todos.map(x=>x.id===t.id?{...x,done:!x.done}:x)}))}));
+    // hub
+    const hubSrc=st.ships.filter(s=>s.st>=5&&s.st<8);
+    const hubRows=hubSrc.map(row);
+    const inTransit=st.ships.filter(s=>s.st===3||s.st===4);
+    // portal
+    const mySrc=st.ships.filter(s=>s.sup==='SUP-014');
+    const condensed=[[1,'CN Hub'],[3,'In Transit'],[4,'Customs'],[5,'BD Hub'],[8,'Delivered']];
+    const portalRows=mySrc.map(s=>({id:s.id,desc:this.desc(s),kg:s.weighed!=null?s.weighed:s.kg,flight:s.flight,status:S[s.st],chipBg:chip(s)[0],chipC:chip(s)[1],
+      steps:condensed.map(([i,l])=>({l,dot:s.st>=i?'#0F766E':'#E7E5E0',c:s.st>=i?'#1A1C1E':'#9B9EA3'})),
+      note:s.st===8?('Delivered'+(s.lm?' via '+s.lm.courier+' ('+s.lm.ref+')':'')):s.st>=5?'At Bashundhara hub — last mile booking soon':s.st>=3?'Flying CTU → DAC':'Being prepared at Chengdu hub'}));
+    const myBillsSrc=mySrc.filter(s=>s.charge>0);
+    const myBalance=myBillsSrc.filter(s=>s.pay!=='Paid').reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);
+    const billRows=myBillsSrc.map(s=>{const amt=s.charge+(s.tax||0)-(s.after||0);const pending=s.receipt&&s.receipt.status==='pending';const lbl=s.pay==='Paid'?'Paid ✓ ('+s.method+')':pending?'Receipt under review':s.pay==='Monthly'?'On monthly ledger':s.pay;const pc=s.pay==='Paid'?this.PCHIP.Paid:pending?['#FEF3C7','#B45309']:this.PCHIP[s.pay]||this.PCHIP.Unpaid;
+      return {id:s.id,desc:this.desc(s)+' · '+s.date.slice(8)+' Aug',amt:F(amt),payLabel:lbl,payBg:pc[0],payC:pc[1],canPay:s.pay!=='Paid'&&!pending,pay:()=>this.setState({modal:'pay',payShip:s.id,payAmtN:amt,payForTxt:s.id+' · '+this.desc(s)})};});
+    // detail
+    const ds=st.ships.find(s=>s.id===st.detailId);
+    let d={};
+    if(ds){
+      const c=chip(ds),pc=pchip(ds);
+      const canAdvance=ds.st<8 && (role==='admin' || (role==='hub'&&ds.st>=4));
+      const dv=this.disc(ds);
+      d={id:ds.id,status:S[ds.st],chipBg:c[0],chipC:c[1],pay:ds.pay,payBg:pc[0],payC:pc[1],supLabel:this.supLabel(ds.sup),flight:ds.flight+' · '+this.flightOf(ds).date,flightNo:ds.flight,flightDate:this.flightOf(ds).date,type:ds.type,desc:ds.desc,kg:ds.kg,space:this.flightOf(ds).space,weighed:ds.weighed!=null?ds.weighed+' kg':'— not yet',weighedVal:ds.weighed!=null?ds.weighed+' kg':'—',hasDisc:!!dv,discBanner:'Weight discrepancy: weighed '+ds.weighed+' kg vs '+ds.kg+' kg booked ('+dv+'). Verify with CN hub before billing.',weighedPh:ds.weighed!=null?String(ds.weighed):'0.0',bdFarePh:ds.bdFare!=null?String(ds.bdFare):'0',disc:dv,date:ds.date,photos:ds.photos,vidLabel:ds.video?'Video ✓':'No video',vidBg:ds.video?'#E6F7EC':'#F3F2EE',vidC:ds.video?'#1B7A3D':'#9B9EA3',method:ds.method,
+        receiptLabel:ds.receipt?(ds.receipt.method+' · '+ds.receipt.status):'—',afterLabel:ds.after?F(ds.after)+' credited':'—',
+        charge:F(ds.charge),fareShare:F(this.fareShare(ds)),cnFare:F(ds.cnFare),bdFare:F(ds.bdFare),tax:F(ds.tax),after:F(ds.after),profit:F(this.profit(ds)),profitC:this.profit(ds)>=0?'#7CE79A':'#FF8F8F',profitPct:ds.charge>0?(Math.round(this.profit(ds)/ds.charge*100)+'% margin'):'—',profitTag:this.profit(ds)>=0?'PROFIT':'LOSS',profitTagBg:this.profit(ds)>=0?'#1B7A3D':'#C92A2A',
+        extraLines:st.expenses.filter(e=>e.ship===ds.id).map(e=>({label:e.cat+' — '+e.r,amt:F(e.amt)})),
+        addExp:()=>{const a=parseFloat(st.fx.xamt);if(isNaN(a)||!st.fx.xreason){this.toast('Amount and reason required');return;}const cat=st.fx.xcat||'Packaging';this.setState(p=>({expenses:[...p.expenses,{m:'2026-08',d:'29 Aug',cat,amt:a,r:st.fx.xreason,ship:ds.id}]}));this.debit(a);this.upd(ds.id,x=>this.logAdd(x,role==='hub'?'Hub':'Admin','Expense: '+cat+' ৳'+a+' — '+st.fx.xreason),'Expense added to '+ds.id);},
+        lmLabel:ds.lm?ds.lm.courier+' · '+ds.lm.ref:'none',log:ds.log.slice().reverse(),next:S[ds.st+1]||'',canAdvance,canMarkPaid:role==='admin'&&ds.pay!=='Paid',
+        steps:S.map((l,i)=>({l,mark:ds.st>i?'✓':String(i+1),bg:ds.st>i?'#0F766E':i===ds.st?'#fff':'#F3F2EE',bd:ds.st>=i?'#0F766E':'#E7E5E0',cIn:ds.st>i?'#fff':i===ds.st?'#0F766E':'#9B9EA3',lineL:i===0?'transparent':(ds.st>=i?'#0F766E':'#E7E5E0'),lineR:i===8?'transparent':(ds.st>i?'#0F766E':'#E7E5E0'),c:i===ds.st?'#0F766E':ds.st>i?'#1A1C1E':'#9B9EA3',w:i===ds.st?800:500})),
+        advance:()=>this.upd(ds.id,x=>{x.st++;this.logAdd(x,role==='hub'?'Hub':'Admin','Status → '+S[x.st]);},'Status updated'),
+        invoice:()=>this.openInvoice(ds),
+        trackLink:()=>this.setState({modal:'trackLink',tlId:ds.id}),
+        markPaid:()=>{this.upd(ds.id,x=>{x.pay='Paid';x.method='Cash';this.logAdd(x,'Admin','Marked paid — cash');},'Marked paid');this.credit('Cash',ds.charge);},
+        addAfter:()=>this.upd(ds.id,x=>{x.after=(x.after||0)+500;this.logAdd(x,'Admin','After-sales fee ৳500 credited');},'৳500 after-sales credit added'),
+        addPhoto:()=>this.upd(ds.id,x=>{x.photos++;this.logAdd(x,role==='hub'?'Hub':'Admin','Product photo uploaded');},'Photo uploaded (demo)'),
+        addVideo:()=>this.upd(ds.id,x=>{x.video=true;this.logAdd(x,role==='hub'?'Hub':'Admin','Packing video uploaded');},'Packing video uploaded (demo)'),
+        saveWeigh:()=>{const v=parseFloat(st.fx.weigh);if(!isNaN(v))this.upd(ds.id,x=>{x.weighed=v;this.logAdd(x,'Hub','Weighed '+v+' kg'+(Math.abs(v-x.kg)>=st.threshold?' — DISCREPANCY':''));},'Weight saved');},
+        saveBdFare:()=>{const v=parseFloat(st.fx.bdfare);if(!isNaN(v))this.upd(ds.id,x=>{x.bdFare=v;this.logAdd(x,'Hub','BD transport fare ৳'+v);},'BD fare saved');},
+        saveLm:()=>{const cr=st.fx.courier||'Pathao',ref=st.fx.lmref||('BK-'+Math.floor(1000+Math.random()*9000));this.upd(ds.id,x=>{x.lm={courier:cr,ref};if(x.st===6){x.st=7;this.logAdd(x,'Hub','Status → Out for Delivery');}this.logAdd(x,'Hub','Last mile booked: '+cr+' '+ref);},'Last mile booked: '+cr);}
+      };
+    }
+    // entity detail pages
+    let fd={bookings:[]}, yd={flights:[]}, sd={orders:[]};
+    if(st.view==='flightDetail'){
+      const q=st.flights.find(x=>x.id===st.flightId);
+      if(q){ const rows=st.ships.filter(s=>s.flight===q.id); const b=Math.round(rows.reduce((a,s)=>a+s.kg,0)*10)/10; const pct=Math.min(100,Math.round(b/q.space*100));
+        const cur=q.flyers||[];
+        const fq=(st.flyerQ||'').trim();
+        const sugs=st.flyers.filter(z=>!cur.includes(z.name)&&fq&&z.name.toLowerCase().includes(fq.toLowerCase())).slice(0,5).map(z=>({name:z.name,bd:z.bd,add:()=>{this.setState(p=>({flights:p.flights.map(w=>w.id===q.id?{...w,flyers:[...(w.flyers||[]),z.name]}:w),flyerQ:''}));this.toast(z.name+' added to '+q.id);}}));
+        fd={id:q.id,date:q.date,depT:q.depT||'—',arrT:q.arrT||'—',via:q.via||'Direct',
+          marginC2:q.fare-q.actual>=0?'#7CE79A':'#FF8F8F',
+          flyerChips:cur.map(n=>{const fz=st.flyers.find(z=>z.name===n)||{};return {name:n,initial:n.charAt(0),bd:fz.bd||'',go:()=>this.setState({view:'flyerDetail',flyerId:n}),remove:()=>{this.setState(p=>({flights:p.flights.map(w=>w.id===q.id?{...w,flyers:(w.flyers||[]).filter(m=>m!==n)}:w)}));this.toast(n+' removed from '+q.id);}};}),
+          fq, setQ:e=>this.setState({flyerQ:e.target.value}), sugs, hasSug:sugs.length>0,
+          showNew:fq.length>1&&sugs.length===0,
+          regNew:()=>{this.state.fx.assignFlight=q.id;this.state.fx.fyName=fq;this.setState({modal:'addFlyer',flyerQ:''});},
+          addShip:()=>this.setState({modal:'newShipment',fx:{nsFlight:q.id+' · '+q.date}}),status:q.status,stBg:(this.FST[q.status]||this.FST.Completed)[0],stC:(this.FST[q.status]||this.FST.Completed)[1],booked:b,space:q.space,left:Math.round((q.space-b)*10)/10,pct:pct+'%',barC:pct>90?'#C92A2A':'#0F766E',fare:F(q.fare),actual:F(q.actual),margin:F(q.fare-q.actual),marginC:q.fare-q.actual>=0?'#1B7A3D':'#C92A2A',revenue:F(rows.reduce((a,s)=>a+s.charge,0)),n:rows.length,bookings:rows.map(row)};
+      }
+    }
+    if(st.view==='flyerDetail'){
+      const y=st.flyers.find(x=>x.name===st.flyerId);
+      if(y){ const fls=st.flights.filter(x=>(x.flyers||[]).includes(y.name)); const card=flyerCards.find(c2=>c2.name===y.name)||{};
+        const lastF=fls.filter(x=>x.status!=='Upcoming').sort((a,b)=>a.date<b.date?1:-1)[0];
+        const nextF=fls.filter(x=>x.status==='Upcoming').sort((a,b)=>a.date>b.date?1:-1)[0];
+        yd={...card,initial:y.name.charAt(0),addFlight:()=>{this.state.fx.afFlyer=y.name;this.setState({modal:'addFlight'});},nFlights:fls.length,totalKg:Math.round(fls.reduce((a,x)=>a+bookedOn(x),0)*10)/10,
+          lastId:lastF?lastF.id:'—',lastDate:lastF?lastF.date:'none yet',lastStatus:lastF?lastF.status:'',lastRoute:lastF?(lastF.depT+' CTU → DAC '+lastF.arrT):'',lastKg:lastF?Math.round(bookedOn(lastF)*10)/10+' kg carried':'',
+          nextId:nextF?nextF.id:'—',nextDate:nextF?nextF.date:'none scheduled',nextStatus:nextF?nextF.status:'',nextRoute:nextF?(nextF.depT+' CTU → DAC '+nextF.arrT):'',nextKg:nextF?Math.round(bookedOn(nextF)*10)/10+' kg booked':'',
+          flights:fls.map(x=>{const b=Math.round(bookedOn(x)*10)/10;return {id:x.id,date:x.date,space:x.space+' kg + 2 mob + 1 laptop',booked:b+' kg',fare:F(x.fare),actual:F(x.actual),margin:F(x.fare-x.actual),status:x.status,stBg:x.status==='Upcoming'?'#E7F0FE':'#F3F2EE',stC:x.status==='Upcoming'?'#0E4DA4':'#5B5E63',open:()=>this.setState({view:'flightDetail',flightId:x.id})};})};
+      }
+    }
+    if(st.view==='supDetail'){
+      const x=st.suppliers.find(z=>z.code===st.supCode);
+      if(x){ const rows=st.ships.filter(s=>s.sup===x.code);
+        const billed=rows.reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);
+        const paid=rows.filter(s=>s.pay==='Paid').reduce((a,s)=>a+s.charge+(s.tax||0)-(s.after||0),0);
+        sd={code:x.code,name:x.name,num:x.num,addr:x.addr,terms:x.terms,tBg:x.terms==='Monthly'?'#E7F0FE':'#E6F7EC',tC:x.terms==='Monthly'?'#0E4DA4':'#1B7A3D',n:rows.length,delivered:rows.filter(s=>s.st===8).length,kg:Math.round(rows.reduce((a,s)=>a+(s.weighed!=null?s.weighed:s.kg),0)*10)/10,billed:F(billed),paid:F(paid),bal:F(billed-paid),balC:billed-paid>0?'#C92A2A':'#1B7A3D',balC2:billed-paid>0?'#FF8F8F':'#7CE79A',isMonthly:x.terms==='Monthly',stmt:()=>this.openStatement(x.code),orders:rows.map(row)};
+      }
+    }
+    // pay modal
+    const PM={'bKash':['Sichuan Bangla Express','bKash merchant: 01711-220340','Reference: your shipment ID'],'BD Bank':['SB Express Ltd.','City Bank · A/C 2201-448812-001','Branch: Bashundhara, Dhaka'],'Alipay':['速联巴拉物流 (SBX)','Alipay ID: sbx-cargo@188.com','成都市武侯区'],'WeChat':['SBX Cargo 成都','WeChat Pay ID: wxid_sbx2026','Scan QR in WeChat']};
+    const payTabs=['bKash','BD Bank','Alipay','WeChat'].map(m=>({l:m,pick:()=>this.setState({payMethod:m}),bg:st.payMethod===m?'#1A1C1E':'#fff',c:st.payMethod===m?'#fff':'#5B5E63',bd:st.payMethod===m?'#1A1C1E':'#E7E5E0'}));
+    const pm=PM[st.payMethod];
+    // forms handlers
+    const f={};
+    ['weigh','bdfare','courier','lmref','ecat','eamt','ereason','eship','xcat','xamt','xreason','acName','acCur','acBal','todo','nsSup','nsFlight','nsType','nsKg','nsCharge','nsDesc','nsPay','afFlyer','afNo','afDate','afDep','afArr','afFare','afActual','afSpace','fyName','fyCn','fyBd','fyUni','fyBatch','fyProg','fyWechat','fyHome','fyEmg','spCode','spName','spNum','spAddr','spTerms'].forEach(k=>f[k]=this.fset(k));
+    const v=st.view;
+    return {
+      isLogin:!role&&v!=='track', isApp:!!role&&v!=='track', isTrack:v==='track', isAdmin:role==='admin', notCustomer:role!=='customer',
+      tr:(()=>{ if(v!=='track')return {steps:[],tabs:[]}; const s=st.ships.find(x=>x.id===st.trackId); if(!s)return {steps:[],tabs:[]};
+        const condensed2=[[0,'Booked'],[1,'CN Hub'],[3,'In Transit'],[5,'BD Hub'],[8,'Delivered']];
+        const amt=s.charge+(s.tax||0)-(s.after||0);
+        const pending=s.receipt&&s.receipt.status==='pending';
+        const TPM={'bKash':['Sichuan Bangla Express','bKash merchant: 01711-220340','Reference: '+s.id],'BD Bank':['SB Express Ltd.','City Bank · A/C 2201-448812-001','Branch: Bashundhara, Dhaka · Ref: '+s.id]};
+        const meth=(st.payMethod==='bKash'||st.payMethod==='BD Bank')?st.payMethod:'bKash';
+        const pm2=TPM[meth];
+        return { id:s.id, status:this.S[s.st], desc:s.type+' · '+s.desc, kg:(s.weighed!=null?s.weighed:s.kg)>0?(s.weighed!=null?s.weighed:s.kg)+' kg':'devices', flight:s.flight,
+          steps:condensed2.map(([i,l])=>({l,dot:s.st>=i?'#0F766E':'#E7E5E0',c:s.st>=i?'#1A1C1E':'#9B9EA3'})),
+          note:s.st===8?('Delivered'+(s.lm?' via '+s.lm.courier+' ('+s.lm.ref+')':'')+'.'):s.st>=5?'At our Bashundhara hub — out for delivery soon.':s.st>=3?'In the air, Chengdu → Dhaka.':'Being prepared at our Chengdu hub.',
+          showPay:s.pay!=='Paid'&&!pending, showPaid:s.pay==='Paid', showPending:pending, due:this.F(amt),
+          tabs:['bKash','BD Bank'].map(m=>({l:m,pick:()=>this.setState({payMethod:m}),bg:meth===m?'#1A1C1E':'#fff',c:meth===m?'#fff':'#5B5E63',bd:meth===m?'#1A1C1E':'#E7E5E0'})),
+          acctName:pm2[0], acct1:pm2[1], acct2:pm2[2],
+          upload:()=>{this.upd(s.id,x=>{x.receipt={status:'pending',method:meth,amt,date:'29 Aug',txn:'TX'+Math.floor(100000+Math.random()*900000)};this.logAdd(x,'Customer',meth+' receipt uploaded via tracking page');});this.toast('Receipt uploaded — pending confirmation');this.setState(p=>({todos:[...p.todos,{id:Date.now(),role:'admin',t:'Review '+meth+' receipt — '+s.id+' ('+this.F(amt)+')',auto:true,done:false}]}));},
+          canBack:!!role, back:()=>this.setState({view:'detail',detailId:s.id}) }; })(),
+      loginAdmin:()=>this.login('admin'), loginHub:()=>this.login('hub'),
+      logout:()=>this.setState({role:null,view:'overview'}),
+      userName:role==='admin'?'Rafiq Ahmed':role==='hub'?'Salam Mia':'Rahim Traders',
+      userRole:role==='admin'?'Admin':role==='hub'?'Hub Manager · Dhaka':'Customer · SUP-014',
+      nav, toast:st.toast||false,
+      vOverview:v==='overview', vShipments:v==='shipments', vDetail:v==='detail', vFlights:v==='flights', vFlyers:v==='flyers', vSuppliers:v==='suppliers', vFinance:v==='finance', vReview:v==='review', vTodos:v==='todos', vSettings:v==='settings', vHub:v==='hub', vPortal:v==='portal', vBills:v==='bills',
+      vFlightDetail:v==='flightDetail', vFlyerDetail:v==='flyerDetail', vSupDetail:v==='supDetail', fd, yd, sd,
+      goShipments:go('shipments'), goReview:go('review'), goFlights:go('flights'), goFlyers:go('flyers'), goSuppliers:go('suppliers'),
+      rate:st.rate, threshold:st.threshold,
+      cashBdt:F(cashB), cashCny:'¥'+cashC.toLocaleString('en-IN'), cashCnyN:cashC.toLocaleString('en-IN'), cashWorth:F(cashB+cashC*st.rate),
+      investBdt:F(st.invest.bdt), investCnyN:st.invest.cny.toLocaleString('en-IN'), investWorth:F(st.invest.bdt+st.invest.cny*st.rate),
+      recvAug:F(recvAugN), expAug:F(expAugN), netAug:F(recvAugN-expAugN),
+      finMonth:st.finMonth, monthLabel:mLabels[st.finMonth]||st.finMonth, recvM:F(recvMN), expM:F(expMN), netM:F(recvMN-expMN), netMC:recvMN-expMN>=0?'#7CE79A':'#FF8F8F',
+      setFinMonth:e=>this.setState({finMonth:e.target.value}),
+      accRows:st.accounts.map(a=>({name:a.name,kind:a.kind,cur:a.cur,balF:(a.cur==='CNY'?'¥':'৳')+a.bal.toLocaleString('en-IN')})),
+      addAccount:()=>{if(!st.fx.acName){this.toast('Account name required');return;}this.setState(p=>({accounts:[...p.accounts,{id:Date.now(),name:st.fx.acName,kind:'Fund',cur:st.fx.acCur||'BDT',bal:parseFloat(st.fx.acBal)||0}]}));this.toast('Account added');},
+      unpaidTotal:F(unpaid), reviewCount:reviewRowsSrc.length,
+      nextFlight:nf?{id:nf.id,dateLabel:'· Sun 31 Aug',booked:Math.round(nfB*10)/10,space:nf.space,pct:Math.min(100,Math.round(nfB/nf.space*100))+'%'}:{id:'—',dateLabel:'',booked:0,space:0,pct:'0%'},
+      notices, activeRows:st.ships.filter(s=>s.st<8).map(row),
+      ovFlights:st.flights.slice().sort((a,b)=>a.status==='Upcoming'&&b.status!=='Upcoming'?-1:b.status==='Upcoming'&&a.status!=='Upcoming'?1:a.date<b.date?-1:1).map(x=>{const b=Math.round(bookedOn(x)*10)/10;const n=st.ships.filter(s=>s.flight===x.id).length;return {id:x.id,date:x.date,flyers:(x.flyers||[]).join(', ')||'no flyer yet',kg:b+' / '+x.space+' kg',pct:Math.min(100,Math.round(b/x.space*100))+'%',status:x.status,n,stBg:x.status==='Upcoming'?'#E7F0FE':'#E6F7EC',stC:x.status==='Upcoming'?'#0E4DA4':'#1B7A3D',open:()=>this.setState({view:'flightDetail',flightId:x.id})};}),
+      shipRows, supplierCodes:st.suppliers.map(x=>x.code),
+      filterSummary:shipRows.length+' shipment(s)',
+      setFStatus:e=>this.setState(p=>({filters:{...p.filters,status:e.target.value}})),
+      setFSupplier:e=>this.setState(p=>({filters:{...p.filters,supplier:e.target.value}})),
+      setFFrom:e=>this.setState(p=>({filters:{...p.filters,from:e.target.value}})),
+      setFTo:e=>this.setState(p=>({filters:{...p.filters,to:e.target.value}})),
+      showDeliveredCard:fl.status==='Delivered', delCount:delRows.length, delKg:Math.round(delRows.reduce((a,s)=>a+(s.weighed!=null?s.weighed:s.kg),0)*10)/10, delCharge:F(delRows.reduce((a,s)=>a+s.charge,0)),
+      d, flightCards, flyerCards, supRows, expRows:st.expenses.filter(e=>e.m===st.finMonth).map(e=>({...e,amt:F(e.amt),shipTag:e.ship||false})), shipOpts:st.ships.map(s=>s.id), stmtRows, reviewRows, reviewEmpty:reviewRowsSrc.length===0, todoRows,
+      hubAtCount:hubSrc.length, hubIncomingKg:Math.round(inTransit.reduce((a,s)=>a+s.kg,0)*10)/10, hubIncomingN:inTransit.length, hubTaskCount:openTodoN, hubRows,
+      portalRows, billRows, myBalance:F(myBalance),
+      payBalance:()=>{const first=myBillsSrc.find(s=>s.pay!=='Paid'&&!(s.receipt&&s.receipt.status==='pending')); if(first) this.setState({modal:'pay',payShip:first.id,payAmtN:myBalance,payForTxt:'August balance — Rahim Traders'}); else this.toast('Nothing payable — receipts under review');},
+      payAmt:F(st.payAmtN||0), payFor:st.payForTxt||'', payTabs, payAcctName:pm[0], payAcct1:pm[1], payAcct2:pm[2],
+      uploadReceipt:()=>{const id=st.payShip; this.upd(id,x=>{x.receipt={status:'pending',method:st.payMethod,amt:st.payAmtN,date:'29 Aug',txn:'TX'+Math.floor(100000+Math.random()*900000)};this.logAdd(x,'Customer',st.payMethod+' receipt uploaded');}); this.setState({modal:null}); this.toast('Receipt uploaded — Admin will review'); this.setState(p=>({todos:[...p.todos,{id:Date.now(),role:'admin',t:'Review '+st.payMethod+' receipt — '+id+' ('+F(st.payAmtN)+')',auto:true,done:false}]}));},
+      modalOpen:!!st.modal, mNewShipment:st.modal==='newShipment', mAddFlight:st.modal==='addFlight', mAddFlyer:st.modal==='addFlyer', mAddSupplier:st.modal==='addSupplier', mInvoice:st.modal==='invoice', mPay:st.modal==='pay', mTrackLink:st.modal==='trackLink',
+      tlId:st.tlId||'', tlUrl:'https://sbx.express/t/'+(st.tlId||'').toLowerCase()+'-x7k2',
+      tlCopy:()=>{try{navigator.clipboard.writeText('https://sbx.express/t/'+(st.tlId||'').toLowerCase()+'-x7k2');}catch(e){}this.toast('Link copied');},
+      tlOpen:()=>this.setState({modal:null,view:'track',trackId:st.tlId}),
+      inv:st.inv||{lines:[]},
+      openNewShipment:()=>this.setState({modal:'newShipment',fx:{},nsCats:[],catQ:'',catOpen:false,nsDevN:1}), openAddFlight:()=>this.setState({modal:'addFlight',fx:{}}), openAddFlyer:()=>this.setState({modal:'addFlyer',fx:{}}), openAddSupplier:()=>this.setState({modal:'addSupplier',fx:{}}),
+      closeModal:()=>this.setState({modal:null}), stop:e=>e.stopPropagation(),
+      catQ:st.catQ||'', setCatQ:e=>this.setState({catQ:e.target.value,catOpen:true}),
+      catOpen:!!st.catOpen, catFocus:()=>this.setState({catOpen:true}),
+      catChips:(st.nsCats||[]).map(c=>({name:c,remove:()=>this.setState(p=>({nsCats:p.nsCats.filter(x=>x!==c)}))})),
+      hasCats:(st.nsCats||[]).length>0,
+      catSugs:(st.categories||[]).filter(c=>!(st.nsCats||[]).includes(c)&&(!(st.catQ||'').trim()||c.toLowerCase().includes(st.catQ.trim().toLowerCase()))).slice(0,8).map(c=>({name:c,pick:()=>this.setState(p=>({nsCats:[...(p.nsCats||[]),c],catQ:'',catOpen:false}))})),
+      hasCatSugs:(st.categories||[]).filter(c=>!(st.nsCats||[]).includes(c)&&(!(st.catQ||'').trim()||c.toLowerCase().includes(st.catQ.trim().toLowerCase()))).length>0,
+      showAddCat:!!(st.catQ||'').trim()&&!(st.categories||[]).some(c=>c.toLowerCase()===(st.catQ||'').trim().toLowerCase()),
+      addCat:()=>{const c=(st.catQ||'').trim();if(!c)return;this.setState(p=>({categories:[...(p.categories||[]),c],nsCats:[...(p.nsCats||[]),c],catQ:'',catOpen:false}));this.toast('Category "'+c+'" added');},
+      devMode:(st.nsCats||[]).some(c=>/mobile|laptop/i.test(c)),
+      devN:st.nsDevN||1,
+      setDevN:e=>{const n=Math.max(1,Math.min(6,parseInt(e.target.value)||1));this.setState({nsDevN:n});},
+      devRows:Array.from({length:st.nsDevN||1},(_,i)=>({n:(i+1)+'.',ser:e=>{this.state.fx['devSer'+i]=e.target.value;},img:()=>this.toast('Device image attached (demo)')})),
+      supplierOpts:st.suppliers.map(x=>x.code+' · '+x.name), flightOpts:st.flights.filter(x=>x.status==='Upcoming').map(x=>x.id+' · '+x.date), flyerOpts:st.flyers.map(x=>x.name), nsFlightLocked:st.fx.nsFlight||false, nsFlightFree:!st.fx.nsFlight,
+      nextCode:'SUP-0'+(23+st.suppliers.length-4),
+      f,
+      addExpense:()=>{const a=parseFloat(st.fx.eamt);if(isNaN(a)||!st.fx.ereason){this.toast('Amount and reason are required');return;}const sh=st.fx.eship&&st.fx.eship!=='No shipment'?st.fx.eship:undefined;this.setState(p=>({expenses:[...p.expenses,{m:'2026-08',d:'29 Aug',cat:st.fx.ecat||'Ticket',amt:a,r:st.fx.ereason,ship:sh}]}));this.debit(a);this.toast(sh?'Expense recorded against '+sh:'Expense recorded');},
+      addTodo:()=>{if(!st.fx.todo)return;this.setState(p=>({todos:[...p.todos,{id:Date.now(),role:role==='hub'?'hub':'admin',t:st.fx.todo,auto:false,done:false}]}));this.toast('Task added');},
+      addShipment:()=>{const x=st.fx;if(!x.nsSup||!x.nsFlight){this.toast('Pick supplier and flight');return;}if(!(st.nsCats||[]).length){this.toast('Pick at least one category');return;}const sup=x.nsSup.split(' ·')[0],fli=x.nsFlight.split(' ·')[0];const id='SH-'+(109+st.ships.length-8);const isDev=(st.nsCats||[]).some(c=>/mobile|laptop/i.test(c));const serials=isDev?Array.from({length:st.nsDevN||1},(_,i)=>(x['devSer'+i]||'').trim()).filter(Boolean):[];const type=st.nsCats.join(', ');const log=['Admin · 29 Aug — Created, booked on '+fli];if(serials.length)log.push('Admin · 29 Aug — Device serials recorded: '+serials.join(', '));this.setState(p=>({ships:[...p.ships,{id,sup,flight:fli,kg:parseFloat(x.nsKg)||0,desc:x.nsDesc||(isDev?(st.nsDevN||1)+' device(s)':'—'),charge:parseFloat(x.nsCharge)||0,type,serials,st:0,pay:x.nsPay||'Unpaid',method:'—',weighed:null,cnFare:0,bdFare:null,tax:0,after:0,lm:null,receipt:null,photos:0,video:false,date:'2026-08-29',log}],modal:null}));this.toast('Shipment '+id+' created');},
+      addFlight:()=>{const x=st.fx;if(!x.afNo||!x.afFlyer){this.toast('Flyer and flight no required');return;}this.setState(p=>({flights:[...p.flights,{id:x.afNo.toUpperCase(),flyers:[x.afFlyer],date:x.afDate||'2026-09-20',depT:x.afDep||'—',arrT:x.afArr||'—',via:'Direct',fare:parseFloat(x.afFare)||0,actual:parseFloat(x.afActual)||0,space:parseInt(x.afSpace)||44,status:'Upcoming'}],modal:null}));this.toast('Flight added');},
+      addFlyer:()=>{const x=st.fx;if(!x.fyName){this.toast('Name required');return;}const back=x.returnToFlight;const assign=x.assignFlight;this.setState(p=>({flights:assign?p.flights.map(z=>z.id===assign?{...z,flyers:[...(z.flyers||[]),x.fyName]}:z):p.flights,flyers:[...p.flyers,{name:x.fyName,cn:x.fyCn||'—',bd:x.fyBd||'—',wa:true,uni:x.fyUni||'—',batch:x.fyBatch?'Batch '+x.fyBatch:'—',prog:x.fyProg||'—',wechat:x.fyWechat||'—',home:x.fyHome||'—',emg:x.fyEmg||'—',sid:true,visa:false,adm:false}],modal:back?'addFlight':null}));if(back){this.state.fx.afFlyer=x.fyName;this.state.fx.returnToFlight=false;this.toast('Flyer registered — now finish the flight');}else if(assign){this.state.fx.assignFlight=null;this.toast('Flyer registered & assigned to flight');}else{this.toast('Flyer registered');}},
+      goRegFlyer:()=>{this.state.fx.returnToFlight=true;this.setState({modal:'addFlyer'});},
+      afFlyerLocked:st.fx.afFlyer||false, afFlyerFree:!st.fx.afFlyer, flyPrefill:st.fx.fyName||'',
+      addSupplier:()=>{const x=st.fx;if(!x.spName){this.toast('Name required');return;}this.setState(p=>({suppliers:[...p.suppliers,{code:x.spCode||('SUP-0'+(23+p.suppliers.length-4)),name:x.spName,num:x.spNum||'—',addr:x.spAddr||'—',terms:x.spTerms||'Instant'}],modal:null}));this.toast('Supplier added');},
+      setRate:e=>{const v=parseFloat(e.target.value);if(!isNaN(v))this.setState({rate:v});},
+      setThreshold:e=>{const v=parseFloat(e.target.value);if(!isNaN(v))this.setState({threshold:v});}
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+# The project name must stay distinct from the old N:\CCD\sichuan-bangla stack:
+# a shared compose project name means a shared volume namespace, and this stack
+# would silently mount that stack's postgres data (initialized with different
+# credentials) instead of its own.
+name: sichuan-bangla-new
+
+# Host ports are shifted off the defaults: 5432/6379 are taken on this machine,
+# 5433/6380 belong to near-explorer and 5434/6381 to sichuan-bangla, so all
+# three stacks can run at once.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: sichuan-bangla-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: sichuan-bangla
+    ports:
+      - '5435:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d sichuan-bangla']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sichuan-bangla-redis
+    restart: unless-stopped
+    # Sessions, rate-limit buckets and dashboard cache entries are all
+    # short-TTL keys — nothing worth persisting across a restart.
+    command: redis-server --maxmemory 128mb --maxmemory-policy volatile-ttl --save ''
+    ports:
+      - '6382:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

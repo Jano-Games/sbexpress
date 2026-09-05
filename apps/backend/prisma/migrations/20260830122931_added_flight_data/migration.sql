@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Flight" ADD COLUMN     "laptops" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "mobiles" INTEGER NOT NULL DEFAULT 2;
