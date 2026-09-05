@@ -8,7 +8,7 @@ import { Button } from '@/components/beui/button'
 import { AnimatedNumber } from '@/components/beui/animated-number'
 import { BillFigure, Card, Chip, ErrorBlock, FlightCode, KpiTile, LoadingBlock, NoticeList, ProgressBar, SbMark, StatusChip } from '@/components/ui'
 import { AddFlightModal } from '@/modals/AddFlightModal'
-import { FLIGHT_CHIP, PAY_CHIP, PAY_LABEL, deltaLabel, fmtBdt, fmtDate, supplierLabel } from '@/lib/format'
+import { displayFlightCode, FLIGHT_CHIP, PAY_CHIP, PAY_LABEL, deltaLabel, fmtBdt, fmtDate, supplierLabel } from '@/lib/format'
 
 export function Overview() {
   const { user } = useAuth()
@@ -66,7 +66,7 @@ export function Overview() {
           <KpiTile label="Receipts to review" value={data.reviewCount} sub="Pending approval" onClick={() => navigate('/review')} />
           {data.nextFlight ? (
             <KpiTile
-              label={`Next flight · ${data.nextFlight.code} · ${fmtDate(data.nextFlight.date)}`}
+              label={`Next flight · ${displayFlightCode(data.nextFlight.code)} · ${fmtDate(data.nextFlight.date)}`}
               value={
                 <>
                   {data.nextFlight.bookedKg}{' '}

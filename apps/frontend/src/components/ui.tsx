@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { cn } from '@/lib/utils'
-import { fmtBdt, NOTICE_STYLE, STATUS_CHIP, type ChipColors } from '@/lib/format'
+import { displayFlightCode, fmtBdt, NOTICE_STYLE, STATUS_CHIP, type ChipColors } from '@/lib/format'
 import type { Notice } from '@/api/types'
 
 export function Chip({ colors, children, className }: { colors: ChipColors; children: ReactNode; className?: string }) {
@@ -72,16 +72,7 @@ export function Field({ label, children, className }: { label: string; children:
 
 /** Itinerary codes ("CZ3444+CZ391") render one segment per line, no "+". */
 export function FlightCode({ code, className }: { code: string | null | undefined; className?: string }) {
-  if (!code) return <span className={className}>—</span>
-  return (
-    <span className={cn('leading-tight', className)}>
-      {code.split('+').map((part, i) => (
-        <span key={`${part}-${i}`} className="block">
-          {part}
-        </span>
-      ))}
-    </span>
-  )
+  return <span className={cn('leading-tight break-words', className)}>{displayFlightCode(code)}</span>
 }
 
 export function SbMark({ size = 32 }: { size?: number }) {

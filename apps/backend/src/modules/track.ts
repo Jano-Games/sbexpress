@@ -1,3 +1,4 @@
+import { invoicePdf } from '../shared/invoicePdf'
 import { draftBillLines } from '../shared/shipmentBilling'
 import { receivingFundName } from '../shared/bankAccounts'
 /** Public bearer-capability pages. Tokens are random, hashed at rest,
@@ -120,6 +121,15 @@ export const trackRoutes = new Hono()
       },
     }
     return c.json(payload)
+  })
+
+  .get('/:token/invoice.pdf', async c=>{
+    if(!(await rateLimit('track-pdf:public',60))) throw new HttpError(429,'Too many downloads — try again shortly')
+    const {shipment}=await findByToken(c.req.param('token'))
+    const pdf=await invoicePdf(shipment)
+    c.header('Content-Type','application/pdf')
+    c.header('Content-Disposition',`${c.req.query('download')==='1'?'attachment':'inline'}; filename="invoice-${shipment.code.replace(/[^A-Za-z0-9_-]/g,'')}.pdf"`)
+    return c.body(new Uint8Array(pdf))
   })
 
   .post('/:token/receipt', async (c) => {

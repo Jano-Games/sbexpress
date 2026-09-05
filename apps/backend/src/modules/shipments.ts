@@ -1,3 +1,4 @@
+import { invoicePdf } from '../shared/invoicePdf'
 import { addShipmentBillCharge } from '../shared/shipmentBilling'
 import { snapshotInvoice, releaseExcessPaid } from '../shared/customerCredit'
 import { randomBytes } from 'node:crypto'
@@ -452,6 +453,14 @@ export const shipmentRoutes = new Hono<AppEnv>()
     await log(shipment.id, actorOf(user), `Expense: ${body.category} ৳${body.amount} — ${body.reason}`)
     await invalidateReads()
     return c.json({ ok: true })
+  })
+
+  .get('/:code/invoice.pdf', requireRole('admin'), async c=>{
+    const shipment=await findByCode(c.req.param('code')!)
+    const pdf=await invoicePdf(shipment)
+    c.header('Content-Type','application/pdf')
+    c.header('Content-Disposition',`attachment; filename="invoice-${shipment.code.replace(/[^A-Za-z0-9_-]/g,'')}.pdf"`)
+    return c.body(new Uint8Array(pdf))
   })
 
   .get('/:code/invoice', requireRole('admin'), async (c) => {

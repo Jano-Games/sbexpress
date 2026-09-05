@@ -80,3 +80,7 @@ export const NOTICE_STYLE: Record<string, { bg: string; bd: string; fg: string }
 /** Composes the supplier label the current role is allowed to see. */
 export const supplierLabel = (code: string, name: string | null): string =>
   name ? `${code} · ${name}` : code
+
+/** Keep airline numbers separate from the internal booking reference. */
+export const displayFlightCode = (code: string | null | undefined): string =>
+  code ? code.replace(/-\d{8}-[a-z0-9]+$/i, '').replace(/\+/g, '-') : '—'

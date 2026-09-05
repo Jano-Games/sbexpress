@@ -1,3 +1,4 @@
+import { InvoicePdfActions } from '@/components/InvoicePdfActions'
 import { ShipmentMedia } from '@/components/ShipmentMedia'
 import { useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -218,6 +219,7 @@ export function Track() {
             <Card className="overflow-hidden">
               <div className="border-b border-border px-5 py-4">
                 <h2 className="text-base font-bold">Bill breakdown</h2>
+                <div className="mt-3"><InvoicePdfActions path={`/track/${encodeURIComponent(token??'')}/invoice.pdf`} filename={`invoice-${data.shipment.code}.pdf`} /></div>
                 <p className="mt-1 text-xs text-muted-foreground">{data.shipment.invoiceNumber ?? data.shipment.code} · All amounts in BDT</p>
               </div>
               <div className="px-5 py-3">

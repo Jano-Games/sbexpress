@@ -1,3 +1,4 @@
+import { InvoicePdfActions } from '@/components/InvoicePdfActions'
 import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import type { ShipmentInvoice } from '@/api/types'
@@ -152,6 +153,7 @@ export function ShipmentInvoiceModal({
             </div>
           </div>
 
+          {saved && <div className="mt-4"><p className="mb-2 text-xs text-muted-foreground">PDF reflects the saved invoice. Save edits before downloading.</p><InvoicePdfActions path={`/shipments/${encodeURIComponent(code)}/invoice.pdf`} filename={`invoice-${code}.pdf`} /></div>}
           {saved && <Button className="mt-3" variant="secondary" onClick={() => setSharing(true)}>Share saved invoice / request partial payment</Button>}
           <div className="mt-4 flex gap-2">
             <Button className="flex-1" size="lg" disabled={busy} onClick={save}>

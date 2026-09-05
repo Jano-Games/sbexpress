@@ -1,3 +1,4 @@
+import { displayFlightCode } from '@/lib/format'
 import { EmptyState } from '@/components/Workspace'
 import { FlyerSettlement } from '@/components/FlyerSettlement'
 import { useEffect, useMemo, useState } from 'react'
@@ -141,7 +142,7 @@ export function FlightDetail() {
           <Card className="overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 bg-ink px-5.5 py-4 text-white">
               <SbMark />
-              <h1 className="m-0 break-words text-[24px] font-extrabold">{f.code.split('+').join(' · ')}</h1>
+              <h1 className="m-0 break-words text-[24px] font-extrabold">{displayFlightCode(f.code)}</h1>
               <Chip colors={FLIGHT_CHIP[f.status] ?? FLIGHT_CHIP.completed!} className="px-3 py-1 text-[11.5px] font-bold">
                 {f.statusLabel}
               </Chip>
