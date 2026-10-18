@@ -1,25 +1,173 @@
-import { PageHeader, RecordList, SummaryStrip } from '@/components/Workspace'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useFetch } from '@/state/useFetch'
-import type { FlightSummary } from '@/api/types'
-import { Button } from '@/components/beui/button'
-import { Card, Chip, ErrorBlock, FlightCode, LoadingBlock, PageTitle, ProgressBar } from '@/components/ui'
-import { AddFlightModal } from '@/modals/AddFlightModal'
-import { FLIGHT_CHIP, fmtBdt, fmtDate } from '@/lib/format'
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import {
+  PageHeader,
+  PageTabs,
+  RecordList,
+  SummaryStrip,
+  usePageSection,
+} from "@/components/Workspace";
+import { useFetch } from "@/state/useFetch";
+import type { FlightSummary } from "@/api/types";
+import { Button } from "@/components/beui/button";
+import {
+  Chip,
+  ErrorBlock,
+  FlightCode,
+  LoadingBlock,
+  ProgressBar,
+} from "@/components/ui";
+import { AddFlightModal } from "@/modals/AddFlightModal";
+import { FLIGHT_CHIP, fmtBdt, fmtDate } from "@/lib/format";
 
 export function Flights() {
-  const navigate = useNavigate()
-  const { data, error, loading, reload } = useFetch<{ flights: FlightSummary[] }>('/flights')
-  const [adding, setAdding] = useState(false)
+  const { data, error, loading, reload } = useFetch<{
+    flights: FlightSummary[];
+  }>("/flights");
+  const [adding, setAdding] = useState(false);
+  const [view, setView] = usePageSection(
+    "all",
+    ["all", "upcoming", "departed", "completed"],
+    "view",
+  );
 
-  if (error) return <ErrorBlock message={error} />
-  if (loading || !data) return <LoadingBlock />
+  if (error) return <ErrorBlock message={error} />;
+  if (loading || !data) return <LoadingBlock />;
+  const upcoming = data.flights.filter(
+    (flight) => flight.status === "upcoming",
+  );
 
-  return <div><PageHeader title="Flights" description="Plan departures, assign flyers and keep an eye on available capacity." actions={<Button onClick={()=>setAdding(true)}>+ Add flight</Button>}/><SummaryStrip items={[{label:'Flight bookings',value:data.flights.length},{label:'Upcoming',value:data.flights.filter(f=>f.status==='upcoming').length},{label:'Shipments assigned',value:data.flights.reduce((a,f)=>a+f.shipmentCount,0)}]}/>
-  <RecordList rows={data.flights} recordKey={f=>f.code} href={f=>`/flights/${encodeURIComponent(f.code)}`} searchText={f=>`${f.code} ${f.date} ${f.flyers.join(' ')} ${f.statusLabel}`} placeholder="Search flight, flyer or date…" emptyTitle="No flights booked yet" emptyDescription="Add a flight, set its capacity and assign the flyers carrying your shipments." columns={[
-   {label:'Booking',render:f=><FlightCode code={f.code}/>},{label:'Departure',render:f=>fmtDate(f.date)},{label:'Flyers',render:f=>f.flyers.join(', ')||'Not assigned'},
-   {label:'Cargo capacity',render:f=><div className="min-w-[110px]"><span>{f.bookedKg} / {f.spaceKg} kg</span><ProgressBar className="mt-2" pct={f.spaceKg>0?f.bookedKg/f.spaceKg*100:0} danger={f.bookedKg>f.spaceKg}/></div>},
-   {label:'Status',render:f=><Chip colors={FLIGHT_CHIP[f.status]??FLIGHT_CHIP.completed!}>{f.statusLabel}</Chip>},{label:'Flyer balance',render:f=>fmtBdt(f.flyerDue)},{label:'Shipments',render:f=>f.shipmentCount,mobile:false}
-  ]}/><AddFlightModal open={adding} onClose={()=>setAdding(false)} onDone={()=>void reload()}/></div>
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Flights"
+        description="Manage flight schedules, cargo capacity and flyer payments."
+        actions={
+          <Button onClick={() => setAdding(true)}>
+            <Plus size={16} />
+            Add flight
+          </Button>
+        }
+      />
+      <SummaryStrip
+        items={[
+          { label: "All flights", value: data.flights.length },
+          { label: "Upcoming", value: upcoming.length },
+          {
+            label: "Upcoming available capacity",
+            value: `${upcoming.reduce((total, flight) => total + Math.max(0, flight.leftKg), 0)} kg`,
+          },
+          {
+            label: "Shipments assigned",
+            value: data.flights.reduce(
+              (total, flight) => total + flight.shipmentCount,
+              0,
+            ),
+          },
+        ]}
+      />
+      <RecordList
+        views={
+          <PageTabs
+            value={view}
+            onChange={setView}
+            items={[
+              { value: "all", label: "All flights" },
+              { value: "upcoming", label: "Upcoming" },
+              { value: "departed", label: "Departed" },
+              { value: "completed", label: "Completed" },
+            ]}
+          />
+        }
+        rows={data.flights.filter(
+          (flight) => view === "all" || flight.status === view,
+        )}
+        recordKey={(flight) => flight.code}
+        href={(flight) => `/flights/${encodeURIComponent(flight.code)}`}
+        searchText={(flight) =>
+          `${flight.code} ${flight.date} ${flight.via} ${flight.flyers.join(" ")} ${flight.statusLabel}`
+        }
+        placeholder="Search flight, route, flyer or date"
+        emptyTitle="No flights in this view"
+        emptyDescription="Choose another status, or add a flight to start planning cargo."
+        columns={[
+          {
+            label: "Flight / route",
+            render: (flight) => (
+              <div>
+                <FlightCode code={flight.code} />
+                <p className="mt-1 text-xs font-normal text-muted-foreground">
+                  {flight.via || "Route not specified"}
+                </p>
+              </div>
+            ),
+          },
+          {
+            label: "Departure",
+            render: (flight) => (
+              <div>
+                {fmtDate(flight.date)}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {flight.depTime}
+                </p>
+              </div>
+            ),
+          },
+          {
+            label: "Flyers",
+            render: (flight) => flight.flyers.join(", ") || "Unassigned",
+          },
+          {
+            label: "Cargo capacity",
+            render: (flight) => (
+              <div className="min-w-32">
+                <p>
+                  {flight.bookedKg} / {flight.spaceKg} kg
+                </p>
+                <ProgressBar
+                  className="my-2"
+                  height={4}
+                  pct={
+                    flight.spaceKg > 0
+                      ? (flight.bookedKg / flight.spaceKg) * 100
+                      : 0
+                  }
+                  danger={flight.bookedKg > flight.spaceKg}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {flight.leftKg} kg available
+                </p>
+              </div>
+            ),
+          },
+          {
+            label: "Status",
+            render: (flight) => (
+              <Chip
+                colors={FLIGHT_CHIP[flight.status] ?? FLIGHT_CHIP.completed!}
+              >
+                {flight.statusLabel}
+              </Chip>
+            ),
+          },
+          {
+            label: "Flyer due (BDT)",
+            align: "right",
+            render: (flight) => fmtBdt(flight.flyerDue),
+          },
+          {
+            label: "Shipments",
+            align: "right",
+            render: (flight) => flight.shipmentCount,
+            mobile: false,
+          },
+        ]}
+      />
+      <AddFlightModal
+        open={adding}
+        onClose={() => setAdding(false)}
+        onDone={() => void reload()}
+      />
+    </div>
+  );
 }

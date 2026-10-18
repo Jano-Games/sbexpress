@@ -36,4 +36,17 @@ describe('R2 upload and download security',()=>{
   const copy=send.mock.calls[2]![0] as CopyObjectCommand
   expect(copy).toBeInstanceOf(CopyObjectCommand);expect(copy.input.Key).toBe(sample.objectKey);expect(copy.input.CopySourceIfMatch).toBe('verified-etag')
  })
+ it('accepts real PDF headers only for document uploads, leaving photo/video rules intact',async()=>{
+  const send=vi.spyOn(S3Client.prototype,'send')
+  const pdf={...sample,contentType:'application/pdf'}
+  const head={ContentLength:32,ContentType:'application/pdf',ETag:'pdf-etag'}
+  const bytes={Body:{transformToByteArray:async()=>new TextEncoder().encode('%PDF-1.7\n')}}
+  send.mockResolvedValueOnce(head as never).mockResolvedValueOnce(bytes as never).mockResolvedValueOnce({} as never)
+  await expect(finalizeUpload(pdf,{allowPdf:true})).resolves.toBeUndefined()
+  send.mockResolvedValueOnce(head as never).mockResolvedValueOnce(bytes as never)
+  await expect(finalizeUpload(pdf)).rejects.toMatchObject({status:400})
+  send.mockResolvedValueOnce(head as never).mockResolvedValueOnce({Body:{transformToByteArray:async()=>new TextEncoder().encode('<html>')}} as never)
+  await expect(finalizeUpload(pdf,{allowPdf:true})).rejects.toMatchObject({status:400})
+ })
+
 })

@@ -1,14 +1,18 @@
 import { financialSummary } from '../shared/financialSummary'
 import { Hono } from 'hono'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../core/db'
 import { cacheGetJson, cacheSetJson } from '../core/redis'
 import { requireRole, type AppEnv } from './auth'
-import { autoCompletePastFlights } from './flights'
 import { effectiveKg, weightDelta } from '../shared/compute'
 import { effectiveBill, num, numOrNull, isoDate, shipmentRow } from '../shared/serialize'
-import { getSettings } from '../shared/settings'
+import { getSettings, type AppSettings } from '../shared/settings'
+import { STATUS_ORDER } from '../shared/status'
 
-const INCLUDE = { supplier: true, flight: true, receipt: true, expenses: true, invoice: true } as const
+const INCLUDE = { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } as const
+const FLIGHT_INCLUDE = { flyers: { include: { flyer: true } }, shipments: true } as const
+type DashboardShipment = Prisma.ShipmentGetPayload<{ include: typeof INCLUDE }>
+type DashboardFlight = Prisma.FlightGetPayload<{ include: typeof FLIGHT_INCLUDE }>
 
 const CACHE_TTL_SECONDS = 10
 
@@ -17,13 +21,7 @@ interface Notice {
   text: string
 }
 
-async function buildNotices(role: 'admin' | 'hub'): Promise<Notice[]> {
-  const settings = await getSettings()
-  const [ships, flights] = await Promise.all([
-    prisma.shipment.findMany({ include: INCLUDE }),
-    prisma.flight.findMany({ include: { flyers: { include: { flyer: true } }, shipments: true } }),
-  ])
-
+function buildNotices(role: 'admin' | 'hub', settings: AppSettings, ships: DashboardShipment[], flights: DashboardFlight[]): Notice[] {
   const notices: Notice[] = []
   for (const s of ships) {
     const delta = weightDelta(num(s.bookedKg), numOrNull(s.weighedKg), settings.threshold)
@@ -50,14 +48,16 @@ async function buildNotices(role: 'admin' | 'hub'): Promise<Notice[]> {
 
   if (role === 'admin') {
     const month = new Date().toISOString().slice(0, 7)
-    const monthly = await prisma.supplier.findMany({
-      where: { terms: 'monthly' },
-      include: { shipments: { include: { invoice: true } } },
-    })
-    for (const sup of monthly) {
-      const due = sup.shipments
-        .filter((s) => s.createdAt.toISOString().startsWith(month))
-        .reduce((a, s) => a + Math.max(0, effectiveBill(s) - num(s.paidAmount)), 0)
+    const monthly = new Map<string, { name: string; code: string; due: number }>()
+    for (const shipment of ships) {
+      if (shipment.paymentTerms !== 'monthly' || shipment.invoice?.state!=='issued' || shipment.invoice.needsReview || !shipment.createdAt.toISOString().startsWith(month)) continue
+      const supplier = shipment.supplier
+      const account = monthly.get(supplier.id) ?? { name: supplier.name, code: supplier.code, due: 0 }
+      account.due += Math.max(0, effectiveBill(shipment) - num(shipment.paidAmount))
+      monthly.set(supplier.id, account)
+    }
+    for (const sup of monthly.values()) {
+      const due = sup.due
       if (due > 0) {
         const cycleEnd = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 0))
         const closeLabel = cycleEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -72,21 +72,40 @@ async function buildNotices(role: 'admin' | 'hub'): Promise<Notice[]> {
 }
 
 export const dashboardRoutes = new Hono<AppEnv>()
+  .get('/counts', requireRole('admin', 'hub'), async (c) => {
+    const role = c.get('user').role
+    if (role === 'hub') {
+      const openTodoCount = await prisma.todo.count({ where: { role: 'hub', done: false } })
+      return c.json({ reviewCount: 0, openTodoCount })
+    }
+    const [shipmentReceipts, statementReceipts, openTodoCount] = await Promise.all([
+      prisma.receipt.count({ where: { status: 'pending' } }),
+      prisma.statementReceipt.count({ where: { status: 'pending' } }),
+      prisma.todo.count({ where: { role: 'admin', done: false } }),
+    ])
+    return c.json({ reviewCount: shipmentReceipts + statementReceipts, openTodoCount })
+  })
   .get('/overview', requireRole('admin'), async (c) => {
-    await autoCompletePastFlights()
 
+    // Materialize each Prisma promise once, then reuse that response snapshot in
+    // both the financial summary and notices instead of repeating remote reads.
+    const settingsRead = getSettings()
+    const shipmentsRead = Promise.resolve(prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } }))
+    const flightsRead = Promise.resolve(prisma.flight.findMany({ include: FLIGHT_INCLUDE }))
     const [settings, money, ships, flights, todos] = await Promise.all([
-      getSettings(),
-      financialSummary('week'),
-      prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } }),
-      prisma.flight.findMany({ include: { flyers: { include: { flyer: true } }, shipments: true } }),
+      settingsRead,
+      financialSummary('week', { settings: settingsRead, shipments: shipmentsRead, flights: flightsRead }),
+      shipmentsRead,
+      flightsRead,
       prisma.todo.findMany({ where: { role: 'admin', done: false } }),
     ])
 
     // "This week" = the current calendar week, Monday through today.
     const now = new Date()
     const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)))
-    const reviewCount = ships.filter((s) => s.receipt?.status === 'pending').length
+    const reviewCount = ships.filter((s) => s.receipts.some(r => r.status === 'pending')).length
+    const stageCounts: Record<string, number> = Object.fromEntries(STATUS_ORDER.map(status => [status, 0]))
+    for (const shipment of ships) stageCounts[shipment.status] = (stageCounts[shipment.status] ?? 0) + 1
 
     const upcoming = flights
       .filter((f) => f.status === 'upcoming')
@@ -136,17 +155,20 @@ export const dashboardRoutes = new Hono<AppEnv>()
             spaceKg: upcoming.spaceKg,
           }
         : null,
-      notices: await buildNotices('admin'),
+      notices: buildNotices('admin', settings, ships, flights),
       flights: flightRows,
+      stageCounts,
+      activeShipmentCount: ships.filter(s => s.status !== 'delivered').length,
       activeShipments: ships
         .filter((s) => s.status !== 'delivered')
+        .sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime() || b.code.localeCompare(a.code))
+        .slice(0, 8)
         .map((s) => shipmentRow(s, 'admin', settings.threshold)),
     }
     return c.json(payload)
   })
 
   .get('/hub', requireRole('hub'), async (c) => {
-    await autoCompletePastFlights()
     const cached = await cacheGetJson<object>('dashboard:hub')
     if (cached) return c.json(cached)
 
@@ -154,7 +176,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
       getSettings(),
       prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } }),
       prisma.todo.findMany({ where: { role: 'hub', done: false } }),
-      prisma.flight.findMany({ where: { status: 'upcoming' }, include: { shipments: true }, orderBy: { date: 'asc' } }),
+      prisma.flight.findMany({ where: { status: 'upcoming' }, include: FLIGHT_INCLUDE, orderBy: { date: 'asc' } }),
     ])
 
     const statusIdx = (s: (typeof ships)[number]) =>
@@ -174,7 +196,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
         flightDate: nextFlight ? isoDate(nextFlight.date) : null,
       },
       openTodoCount: todos.length,
-      notices: await buildNotices('hub'),
+      notices: buildNotices('hub', settings, ships, flights),
       toProcess: atHub.map((s) => shipmentRow(s, 'hub', settings.threshold)),
     }
     await cacheSetJson('dashboard:hub', payload, CACHE_TTL_SECONDS)

@@ -1,0 +1,969 @@
+.customer-track {
+  min-height: 100vh;
+  background: #f4f6f9;
+  color: #243449;
+}
+.customer-track .track-container {
+  width: min(100% - 64px, 1184px);
+  margin-inline: auto;
+}
+.customer-track a {
+  text-underline-offset: 3px;
+}
+.track-skip {
+  position: fixed;
+  z-index: 100;
+  top: 8px;
+  left: 8px;
+  transform: translateY(-200%);
+  padding: 12px 18px;
+  color: white;
+  background: #2459b8;
+}
+.track-skip:focus {
+  transform: none;
+}
+.track-header {
+  background: white;
+  border-bottom: 1px solid #dce3ed;
+}
+.track-header-inner {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.track-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.track-brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #2459b8;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+.track-brand strong {
+  display: block;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+}
+.track-brand div > span {
+  display: block;
+  font-size: 12px;
+  color: #617085;
+  margin-top: 2px;
+}
+.track-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 13px;
+}
+.track-header-actions a,
+.track-support-card a,
+.track-payment-help a,
+.track-payment-empty a,
+.track-unavailable a {
+  color: #2459b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.customer-track a:hover {
+  text-decoration: underline;
+}
+.track-main {
+  padding-block: 32px 40px;
+}
+.track-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.track-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: #617085;
+}
+.track-page-heading h1 {
+  font-size: 26px;
+  line-height: 1.3;
+  letter-spacing: -0.6px;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+.track-page-heading nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.track-page-heading nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 13px;
+  min-height: 40px;
+  border: 1px solid #d4deeb;
+  background: white;
+  border-radius: 6px;
+  color: #2459b8;
+  font-size: 13px;
+  font-weight: 500;
+}
+.track-card {
+  min-width: 0;
+  background: white;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+}
+.track-journey {
+  margin-bottom: 24px;
+}
+.track-journey-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 36px;
+  padding: 28px 32px;
+}
+.track-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #2459b8;
+  font-weight: 500;
+}
+.track-status-label > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.track-status-copy h2 {
+  font-size: 28px;
+  letter-spacing: -0.7px;
+  line-height: 1.3;
+  margin-top: 9px;
+}
+.track-status-copy > p {
+  color: #617085;
+  font-size: 13px;
+  line-height: 1.7;
+  max-width: 540px;
+  margin-top: 8px;
+}
+.track-route {
+  min-width: 225px;
+  padding: 18px 22px;
+  background: #f7f9fc;
+  border: 1px solid #e5eaf1;
+  border-radius: 6px;
+}
+.track-route strong {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 21px;
+  letter-spacing: 0.2px;
+  margin-block: 8px 5px;
+}
+.track-route svg {
+  color: #617085;
+}
+.track-subtext {
+  font-size: 12px;
+  color: #617085;
+  line-height: 1.6;
+}
+.track-steps {
+  margin: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 8px 32px 28px;
+}
+.track-steps li {
+  position: relative;
+  text-align: center;
+  color: #65758b;
+}
+.track-steps li::before {
+  content: "";
+  position: absolute;
+  height: 2px;
+  background: #e3e8f0;
+  top: 21px;
+  left: calc(-50% + 26px);
+  right: calc(50% + 26px);
+}
+.track-steps li:first-child::before {
+  display: none;
+}
+.track-step-marker {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dce3ed;
+  border-radius: 50%;
+  background: #f8fafc;
+  margin: 0 auto 12px;
+}
+.track-steps strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+.track-steps div > span {
+  display: block;
+  font-size: 11px;
+  color: #718095;
+  margin-top: 4px;
+}
+.track-steps .is-current {
+  color: #2459b8;
+}
+.track-steps .is-current .track-step-marker {
+  background: #2459b8;
+  color: white;
+  border-color: #2459b8;
+}
+.track-steps .is-current strong {
+  font-weight: 600;
+}
+.track-steps .is-current div > span {
+  color: #2459b8;
+}
+.track-steps .is-complete .track-step-marker {
+  border-color: #b9d2f7;
+  background: #edf3fd;
+  color: #2459b8;
+}
+.track-steps .is-complete::before,
+.track-steps .is-current::before {
+  background: #90b4e9;
+}
+.is-delivered .track-status-label {
+  color: #287348;
+}
+.is-delivered .track-steps .is-current .track-step-marker {
+  background: #287348;
+  border-color: #287348;
+  color: white;
+}
+.track-journey-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  border-top: 1px solid #e5eaf1;
+  padding: 13px 32px;
+  font-size: 11px;
+  color: #617085;
+}
+.track-journey-footer > span:last-child {
+  margin-left: auto;
+}
+.track-content.has-billing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 392px;
+  gap: 24px;
+  align-items: start;
+}
+.track-primary-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.track-card-heading {
+  padding: 24px 26px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.track-card-heading h2 {
+  font-size: 18px;
+  letter-spacing: -0.3px;
+  margin-top: 5px;
+}
+.track-card-heading .track-subtext {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.track-card-heading > svg {
+  color: #718095;
+}
+.track-details-grid {
+  padding: 0 26px 24px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.track-details-grid dt {
+  font-size: 12px;
+  color: #617085;
+  margin-bottom: 5px;
+}
+.track-details-grid dd {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.track-details-grid .track-contents {
+  grid-column: span 2;
+}
+.track-currency {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  border: 1px solid #dce3ed;
+  border-radius: 4px;
+  padding: 3px 7px;
+  background: #f7f9fc;
+  color: #617085;
+  flex-shrink: 0;
+}
+.track-invoice-table {
+  padding: 0 26px;
+}
+.track-invoice table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.track-invoice th {
+  background: #f6f8fb;
+  color: #617085;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  padding: 11px 12px;
+  border-block: 1px solid #e5eaf1;
+}
+.track-invoice th:last-child {
+  width: 38%;
+}
+.track-invoice td {
+  font-size: 13px;
+  padding: 17px 12px;
+  border-bottom: 1px solid #e5eaf1;
+  overflow-wrap: anywhere;
+}
+.track-invoice th:last-child,
+.track-invoice td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.track-invoice-totals {
+  padding: 20px 38px 12px;
+  font-size: 13px;
+}
+.track-invoice-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 11px;
+}
+.track-invoice-totals dt {
+  color: #617085;
+}
+.track-invoice-totals dd {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.track-invoice-totals .track-invoice-total {
+  margin-block: 16px;
+  font-weight: 600;
+}
+.track-invoice-total dt,
+.track-invoice-due dt {
+  color: #243449;
+}
+.track-invoice-totals .track-invoice-due {
+  border-top: 1px solid #dce3ed;
+  padding-top: 16px;
+  margin-top: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.track-invoice-rate {
+  padding: 0 38px 16px;
+}
+.track-invoice-note {
+  margin: 0 26px 20px;
+  padding: 14px;
+  border-left: 2px solid #dce3ed;
+  font-size: 12px;
+  color: #617085;
+}
+.track-invoice-note p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}
+.track-invoice-actions {
+  padding: 18px 26px;
+  border-top: 1px solid #e5eaf1;
+}
+.track-payment-summary {
+  padding: 24px;
+  background: #f1f5fc;
+  border-bottom: 1px solid #dce3ed;
+  border-radius: 10px 10px 0 0;
+}
+.track-payment-summary.is-paid {
+  background: #eff7f2;
+}
+.track-payment-summary.is-pending {
+  background: #fcf8ef;
+}
+.track-payment-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.track-payment-title h2 {
+  font-size: 17px;
+  letter-spacing: -0.2px;
+}
+.track-payment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #2459b8;
+  font-weight: 500;
+}
+.is-paid .track-payment-badge {
+  color: #287348;
+}
+.is-pending .track-payment-badge {
+  color: #8b601b;
+}
+.track-balance {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.9px;
+  line-height: 1.3;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.track-payment-message {
+  color: #526580;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 12px;
+}
+.track-partial {
+  font-size: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dce3ed;
+}
+.track-payment-body {
+  padding: 24px;
+}
+.track-payment-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.track-payment-step > span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #f0f3f8;
+  color: #526580;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.track-payment-step h3 {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.track-payment-step p {
+  font-size: 12px;
+  color: #617085;
+  margin-top: 2px;
+}
+.track-account-select {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+.track-account-select select {
+  margin-top: 7px;
+  font-size: 13px;
+}
+.track-account {
+  padding: 16px;
+  background: #fafbfc;
+  border: 1px solid #e0e6ee;
+  border-radius: 6px;
+}
+.track-account-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.track-account-heading strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.track-account-number {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin-block: 2px 12px;
+}
+.track-account-number strong {
+  font-size: 17px;
+  letter-spacing: 0.1px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.track-account-number button {
+  flex-shrink: 0;
+  color: #2459b8;
+}
+.track-account-details {
+  display: grid;
+  gap: 12px;
+}
+.track-account-details dt {
+  font-size: 11px;
+  color: #617085;
+  margin-bottom: 2px;
+}
+.track-account-details dd {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.track-account-qr {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+.track-account-qr img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  background: white;
+}
+.track-account-note {
+  font-size: 12px;
+  white-space: pre-wrap;
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+  color: #617085;
+}
+.track-payment form {
+  border-top: 1px solid #e5eaf1;
+  margin-top: 24px;
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.track-payment form .track-payment-step {
+  margin-bottom: 0;
+}
+.track-payment form .input-field label {
+  font-size: 12px;
+}
+.track-payment form .form-control {
+  font-size: 13px;
+  min-height: 42px;
+}
+.track-payment form > .track-subtext {
+  margin-top: -9px;
+  font-size: 11px;
+}
+.track-payment .receipt-upload-help {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.track-payment .receipt-upload-label > span {
+  font-size: 12px;
+}
+.track-payment .receipt-upload-control {
+  background: #fafbfc;
+}
+.track-submit {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+  font-size: 13px;
+}
+.track-verification-note {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #617085;
+}
+.track-verification-note svg {
+  flex-shrink: 0;
+}
+.track-form-error {
+  color: #ac3036;
+  background: #fcf0f1;
+  border: 1px solid #efd2d4;
+  border-radius: 5px;
+  padding: 10px;
+  font-size: 12px;
+}
+.track-payment-help {
+  padding: 20px 24px;
+  font-size: 12px;
+}
+.track-payment-empty h3 {
+  font-size: 15px;
+}
+.track-payment-empty p {
+  font-size: 13px;
+  color: #617085;
+  margin-block: 10px 18px;
+}
+.track-support-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 6px 2px;
+}
+.track-support-card > svg {
+  color: #718095;
+  flex-shrink: 0;
+}
+.track-support-card h2 {
+  font-size: 13px;
+}
+.track-support-card p {
+  font-size: 12px;
+  color: #617085;
+  margin-top: 4px;
+}
+.track-support-card a {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.track-footer {
+  border-top: 1px solid #dce3ed;
+  padding-block: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 11px;
+  color: #617085;
+}
+.track-footer div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.track-footer div:last-child {
+  text-align: right;
+}
+.track-footer strong {
+  font-weight: 500;
+  color: #526580;
+}
+.track-footer a {
+  color: #2459b8;
+}
+.track-unavailable,
+.track-loading {
+  max-width: 600px;
+  margin: 40px auto 80px;
+  padding: 32px;
+}
+.track-unavailable > svg,
+.track-loading > svg {
+  color: #617085;
+  margin-bottom: 20px;
+}
+.track-unavailable h1,
+.track-loading h1 {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+.track-unavailable p,
+.track-loading p {
+  color: #617085;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.track-unavailable > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  margin-top: 24px;
+}
+@media (max-width: 1050px) {
+  .track-content.has-billing {
+    grid-template-columns: minmax(0, 1fr) 352px;
+    gap: 20px;
+  }
+  .track-journey-top {
+    padding: 24px;
+    gap: 24px;
+  }
+  .track-status-copy h2 {
+    font-size: 25px;
+  }
+  .track-route {
+    min-width: 200px;
+  }
+  .track-card-heading {
+    padding: 22px 20px 18px;
+  }
+  .track-details-grid {
+    padding-inline: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .track-details-grid .track-contents {
+    grid-column: 1 / -1;
+  }
+  .track-invoice-table,
+  .track-invoice-actions {
+    padding-inline: 20px;
+  }
+  .track-invoice-totals,
+  .track-invoice-rate {
+    padding-inline: 24px;
+  }
+  .track-support-card {
+    flex-wrap: wrap;
+  }
+  .track-support-card a {
+    margin-left: 37px;
+  }
+}
+@media (max-width: 800px) {
+  .customer-track .track-container {
+    width: min(100% - 40px, 640px);
+  }
+  .track-content.has-billing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .track-header-inner {
+    min-height: 80px;
+  }
+  .track-header-actions {
+    gap: 8px;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 12px;
+  }
+  .track-brand strong {
+    font-size: 13px;
+  }
+  .track-journey-top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .track-route {
+    padding: 12px 16px;
+  }
+  .track-route strong {
+    font-size: 19px;
+    margin-block: 4px;
+  }
+  .track-steps {
+    padding-inline: 16px;
+  }
+  .track-steps strong {
+    font-size: 12px;
+  }
+  .track-journey-footer {
+    padding-inline: 24px;
+  }
+  .track-journey-footer > span:last-child {
+    display: none;
+  }
+  .track-primary-column {
+    gap: 20px;
+  }
+  .track-support-card {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  .customer-track .track-container {
+    width: calc(100% - 32px);
+  }
+  .track-header-inner {
+    min-height: 76px;
+    gap: 12px;
+  }
+  .track-brand {
+    gap: 9px;
+  }
+  .track-brand-mark {
+    width: 35px;
+    height: 35px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  .track-brand strong {
+    max-width: 150px;
+    line-height: 1.4;
+  }
+  .track-brand div > span {
+    font-size: 10px;
+  }
+  .track-header-actions a {
+    gap: 5px;
+    font-size: 11px;
+  }
+  .track-header-actions a:first-child:not(:last-child) {
+    display: none;
+  }
+  .track-main {
+    padding-block: 24px;
+  }
+  .track-page-heading {
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .track-page-heading h1 {
+    font-size: 24px;
+  }
+  .track-page-heading nav {
+    width: 100%;
+  }
+  .track-page-heading nav a {
+    flex: 1;
+    font-size: 12px;
+  }
+  .track-journey {
+    margin-bottom: 20px;
+  }
+  .track-journey-top {
+    padding: 22px 20px 18px;
+  }
+  .track-status-copy h2 {
+    font-size: 25px;
+  }
+  .track-steps {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 20px 20px;
+  }
+  .track-steps li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    min-height: 58px;
+  }
+  .track-steps li::before {
+    height: auto;
+    width: 2px;
+    left: 17px;
+    right: auto;
+    top: -11px;
+    bottom: calc(50% + 21px);
+  }
+  .track-step-marker {
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .track-step-marker svg {
+    width: 17px;
+    height: 17px;
+  }
+  .track-steps li > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex: 1;
+  }
+  .track-steps strong {
+    font-size: 13px;
+  }
+  .track-steps div > span {
+    margin: 0;
+    font-size: 10px;
+  }
+  .track-journey-footer {
+    padding: 13px 20px;
+    font-size: 10px;
+  }
+  .track-card-heading h2 {
+    font-size: 17px;
+  }
+  .track-invoice-table {
+    padding-inline: 12px;
+  }
+  .track-invoice td {
+    font-size: 12px;
+    padding: 15px 8px;
+  }
+  .track-invoice th {
+    padding-inline: 8px;
+  }
+  .track-invoice-totals {
+    font-size: 12px;
+    padding-inline: 20px;
+  }
+  .track-invoice-totals .track-invoice-due {
+    font-size: 14px;
+  }
+  .track-payment-summary,
+  .track-payment-body {
+    padding: 22px 20px;
+  }
+  .track-footer {
+    flex-direction: column;
+    gap: 16px;
+    padding-block: 20px 28px;
+  }
+  .track-footer div:last-child {
+    text-align: left;
+  }
+  .track-unavailable,
+  .track-loading {
+    padding: 24px;
+  }
+}

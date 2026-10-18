@@ -1,5 +1,7 @@
 /** Server bootstrap. */
 
+import { serveFrontend } from './core/frontend'
+import { startMaintenance } from './shared/maintenance'
 import { serve } from '@hono/node-server'
 import { createApp } from './core/http'
 import { config } from './core/config'
@@ -10,21 +12,25 @@ async function main() {
   // Fail fast on a bad connection string rather than surfacing it as a 500 on
   // the first real request.
   await prisma.$queryRaw`SELECT 1`
-  console.log('[db] connected')
+  const database = new URL(config.databaseUrl)
+  console.log(`[db] connected to ${database.hostname}:${database.port || '5432'}${database.pathname}`)
 
   await connectRedis()
 
   const app = createApp()
+  if (process.env.SERVE_FRONTEND === 'true') serveFrontend(app, process.env.FRONTEND_DIST ?? '../frontend/dist')
 
-  const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
+  const server = serve({ fetch: app.fetch, port: config.port, hostname: config.isProduction ? '0.0.0.0' : '127.0.0.1' }, (info) => {
     console.log(`[api] listening on http://localhost:${info.port} (${config.nodeEnv})`)
   })
 
+  const stopMaintenance = startMaintenance()
   let shuttingDown = false
   const shutdown = async (signal: string) => {
     if (shuttingDown) return
     shuttingDown = true
     console.log(`[api] ${signal} received, shutting down`)
+    stopMaintenance()
     server.close()
     await Promise.allSettled([closeDb(), closeRedis()])
     process.exit(0)

@@ -1,117 +1,1178 @@
-import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeftRight, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Landmark, ChevronRight, X } from 'lucide-react'
-import { api } from '@/api/client'
-import { useFetch } from '@/state/useFetch'
-import type { FinanceData, InvoiceDoc } from '@/api/types'
-import { Button } from '@/components/beui/button'
-import { Input } from '@/components/beui/input'
-import { useToast } from '@/components/beui/toast'
-import { ErrorBlock, LoadingBlock } from '@/components/ui'
-import { Modal } from '@/components/Modal'
-import { InvoiceModal } from '@/modals/InvoiceModal'
-import { Reconciliation } from '@/components/Reconciliation'
-import { FinanceLedger, accountMoney } from '@/components/FinanceLedger'
-import { fmtBdt } from '@/lib/format'
+import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeftRight, Plus } from "lucide-react";
+import { api } from "@/api/client";
+import type { FinanceData, InvoiceDoc } from "@/api/types";
+import { useFetch } from "@/state/useFetch";
+import {
+  PageHeader,
+  PageTabs,
+  SummaryStrip,
+  usePageSection,
+} from "@/components/Workspace";
+import {
+  DetailGrid,
+  FormActions,
+  FormGrid,
+  FormSection,
+  Panel,
+  SectionNotice,
+} from "@/components/DesignSystem";
+import { MoneyInput, useMoneyEntry } from "@/components/MoneyInput";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Button } from "@/components/beui/button";
+import { Input } from "@/components/beui/input";
+import { useToast } from "@/components/beui/toast";
+import { ErrorBlock, LoadingBlock } from "@/components/ui";
+import { Modal } from "@/components/Modal";
+import { InvoiceModal } from "@/modals/InvoiceModal";
+import { Reconciliation } from "@/components/Reconciliation";
+import { FinanceLedger, accountMoney } from "@/components/FinanceLedger";
+import { fmtBdt } from "@/lib/format";
 
-type Tab = 'summary' | 'ledger' | 'accounts' | 'statements'
-type Action = 'income' | 'expense' | 'transfer' | 'account' | null
-const selectClass='h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary'
-function Choice({label,value,onChange,children}:{label:string;value:string;onChange:(value:string)=>void;children:ReactNode}){
- return <label className="block text-xs font-medium">{label}<select className={`${selectClass} mt-1.5`} value={value} onChange={e=>onChange(e.target.value)}>{children}</select></label>
+type Action = "income" | "expense" | "transfer" | "account" | null;
+const selectClass =
+  "mt-2 block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground";
+
+function Choice({
+  label,
+  value,
+  onChange,
+  children,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block text-xs font-medium text-muted-foreground">
+      {label}
+      <select
+        aria-label={label}
+        className={selectClass}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+      >
+        {children}
+      </select>
+    </label>
+  );
 }
-function Section({title,note,children,action}:{title:string;note?:string;children:ReactNode;action?:ReactNode}){
- return <section className="min-w-0 rounded-2xl border border-border bg-card"><div className="flex items-center justify-between gap-3 px-5 pt-5"><div><h2 className="text-[15px] font-bold">{title}</h2>{note&&<p className="mt-1 text-xs text-muted-foreground">{note}</p>}</div>{action}</div><div className="p-5">{children}</div></section>
+
+function MoneyLine({
+  label,
+  amount,
+  strong = false,
+}: {
+  label: string;
+  amount: number;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={`flex justify-between gap-4 py-3 text-sm ${strong ? "border-t border-border font-semibold" : ""}`}
+    >
+      <dt className={strong ? "" : "text-muted-foreground"}>{label}</dt>
+      <dd className="whitespace-nowrap tabular-nums">{fmtBdt(amount)}</dd>
+    </div>
+  );
 }
-function MoneyLine({label,amount,strong=false}:{label:string;amount:number;strong?:boolean}){
- return <div className={`flex justify-between gap-4 py-2.5 text-xs ${strong?'border-t border-border font-bold':'text-muted-foreground'}`}><span>{label}</span><span className={`whitespace-nowrap tabular-nums ${strong?'':'text-foreground font-medium'}`}>{fmtBdt(amount)}</span></div>
-}
-export function Finance(){
- const {showToast}=useToast()
- const [tab,setTab]=useState<Tab>('summary'),[mode,setMode]=useState('month'),[month,setMonth]=useState(new Date().toISOString().slice(0,7))
- const [action,setAction]=useState<Action>(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0),[ledgerAccount,setLedgerAccount]=useState('')
- const [statement,setStatement]=useState<InvoiceDoc|null>(null)
- const [amount,setAmount]=useState(''),[account,setAccount]=useState(''),[note,setNote]=useState(''),[kind,setKind]=useState('income'),[category,setCategory]=useState('others'),[shipment,setShipment]=useState('')
- const [editingAccount,setEditingAccount]=useState<string|null>(null),[deletingAccount,setDeletingAccount]=useState<string|null>(null)
- const [mobile,setMobile]=useState({provider:'',number:'',label:''})
- const mobileField=(field:keyof typeof mobile)=>(value:string)=>setMobile(previous=>({...previous,[field]:value}))
- const [accountKind,setAccountKind]=useState('fund')
- const [bank,setBank]=useState({bankName:'',accountNumber:'',accountName:'',branch:'',district:''})
- const bankField=(field:keyof typeof bank)=>(value:string)=>setBank(previous=>({...previous,[field]:value}))
- const [name,setName]=useState(''),[currency,setCurrency]=useState('BDT')
- const [to,setTo]=useState(''),[received,setReceived]=useState(''),[transferReference,setTransferReference]=useState(()=>crypto.randomUUID())
- const period=mode==='month'?month:mode
- const {data,error,loading,reload}=useFetch<FinanceData>(`/finance?period=${period}`)
- const {data:shipments}=useFetch<{shipments:{code:string}[]}>(action==='expense'?'/shipments':null)
- function open(next:Action){setAction(next);setEditingAccount(null);setMobile({provider:'',number:'',label:''});setAmount('');setAccount('');setNote('');setName('');setAccountKind('fund');setBank({bankName:'',accountNumber:'',accountName:'',branch:'',district:''});setCurrency('BDT');setKind('income');setCategory('others');setShipment('');setTo('');setReceived('');setTransferReference(crypto.randomUUID())}
- function editAccount(a:FinanceData['accounts'][number]){open('account');setEditingAccount(a.name);setName(a.name);setCurrency(a.currency);setAmount(String(a.balance));setAccountKind(a.kind);if(a.bank)setBank(a.bank);if(a.mobile)setMobile(a.mobile)}
- function ledger(accountName=''){setLedgerAccount(accountName);setTab('ledger')}
- async function save(){
-  if(!action)return
-  setBusy(true)
-  try{
-   if(action==='account'){
-    const details={kind:accountKind,...(accountKind==='bank'?{bank}:{}),...(['mobile','wallet'].includes(accountKind)?{mobile}:{})}
-    if(editingAccount)await api.patch(`/finance/accounts/${encodeURIComponent(editingAccount)}`,details)
-    else await api.post('/finance/accounts',{name:name.trim(),currency,balance:Number(amount||0),...details})
-   }
-   else if(action==='income')await api.post('/finance/incomes',{amount:Number(amount),method:account,note:note.trim(),kind})
-   else if(action==='expense')await api.post('/finance/expenses',{amount:Number(amount),accountName:account,reason:note.trim(),category,shipmentCode:shipment||undefined})
-   else await api.post('/finance/transfers',{from:account,to,amount:Number(amount),receivedAmount:received?Number(received):undefined,note:note.trim(),reference:transferReference})
-   setAction(null);setRevision(r=>r+1);await reload();showToast({title:action==='transfer'?'Funds transferred':action==='account'?(editingAccount?'Account updated':'Account created'):'Entry recorded',status:'success'})
-  }catch(e){showToast({title:e instanceof Error?e.message:'Could not save entry',status:'error'})}finally{setBusy(false)}
- }
- async function openStatement(code:string){try{const r=await api.get<{statement:InvoiceDoc}>(`/suppliers/${code}/statement?month=${month}`);setStatement(r.statement)}catch(e){showToast({title:e instanceof Error?e.message:'Could not load statement',status:'error'})}}
- if(error)return <ErrorBlock message={error}/>
- if(!data)return <LoadingBlock/>
- const out=data.expenses+data.refunded
- const crossCurrency=data.accounts.find(a=>a.name===account)?.currency!==data.accounts.find(a=>a.name===to)?.currency
- const formValid=action==='account'?name.trim()&&Number.isFinite(Number(amount||0))&&(accountKind!=='bank'||(bank.bankName.trim()&&bank.accountNumber.trim()&&bank.accountName.trim()))&&(!['mobile','wallet'].includes(accountKind)||(mobile.provider.trim()&&mobile.number.trim())):Number(amount)>0&&account&&note.trim()&&(action!=='transfer'||(to&&to!==account&&(!crossCurrency||Number(received)>0)))
- return <div className="space-y-6 pb-6">
-  <header className="flex flex-wrap items-start justify-between gap-4"><div><div className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-primary">Business workspace</div><h1 className="text-[28px] font-extrabold tracking-tight">Finance</h1><p className="mt-1 text-[13px] text-muted-foreground">Your business at a glance. Every money movement in one place.</p></div><div className="flex gap-2"><Button variant="secondary" onClick={()=>open('transfer')}><ArrowLeftRight size={14}/> Move funds</Button><Button onClick={()=>open('income')}><Plus size={15}/> Record entry</Button></div></header>
-  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border"><nav className="flex max-w-full gap-4 overflow-x-auto overflow-y-hidden sm:gap-7" aria-label="Finance sections">{(['summary','ledger','accounts','statements'] as Tab[]).map(t=><button key={t} aria-current={tab===t?'page':undefined} onClick={()=>setTab(t)} className={`relative whitespace-nowrap py-3.5 text-[13px] capitalize ${tab===t?'font-bold text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary':'font-medium text-muted-foreground hover:text-foreground'}`}>{t==='accounts'?'Accounts & funds':t}</button>)}</nav><div className="flex items-center gap-2 pb-2"><label className="sr-only" htmlFor="finance-period">Finance period</label><select id="finance-period" className="h-8 rounded-lg border border-border bg-card px-2 text-xs" value={mode} onChange={e=>setMode(e.target.value)}><option value="month">Monthly</option><option value="week">This week</option><option value="all">All time</option></select>{mode==='month'&&<label><span className="sr-only">Statement month</span><input aria-label="Statement month" type="month" className="h-8 rounded-lg border border-border bg-card px-2 text-xs" value={month} onChange={e=>{if(/^20\d{2}-(0[1-9]|1[0-2])$/.test(e.target.value))setMonth(e.target.value)}}/></label>}</div></div>
-  {loading?<LoadingBlock label="Updating financial records…"/>:<>
-  {tab==='summary'&&<>
-   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
-    {label:'Available funds',value:data.cash.worth,note:'All accounts · BDT equivalent',icon:Wallet,accent:true},
-    {label:'Customer receivables',value:data.receivables.total,note:`${data.receivables.count} unpaid shipments · all time`,icon:ArrowDownLeft},
-    {label:'Unpaid operating costs',value:data.costPayables,note:'Recorded costs still to settle · all time',icon:ArrowUpRight},
-    {label:data.results.profit>=0?'Booked profit':'Booked loss',value:data.results.profit,note:data.periodLabel,icon:Landmark},
-   ].map(m=><div key={m.label} className={`rounded-2xl border p-5 ${m.accent?'border-primary bg-primary text-white':'border-border bg-card'}`}><div className={`flex justify-between text-xs ${m.accent?'text-white/80':'text-muted-foreground'}`}><span>{m.label}</span><m.icon size={16}/></div><div className="mt-5 text-[27px] font-bold tracking-tight tabular-nums">{fmtBdt(m.value)}</div><p className={`mt-2 text-[11px] ${m.accent?'text-white/70':'text-muted-foreground'}`}>{m.note}</p></div>)}</div>
-   <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-    <Section title="Cash movement" note={data.periodLabel} action={<button className="text-xs font-semibold text-primary" onClick={()=>ledger()}>Open ledger →</button>}>
-     <div className="grid grid-cols-2 gap-5"><div><span className="text-[11px] text-muted-foreground">Money received</span><p className="mt-1 text-2xl font-semibold tabular-nums text-teal-700">{fmtBdt(data.received)}</p></div><div><span className="text-[11px] text-muted-foreground">Money paid out</span><p className="mt-1 text-2xl font-semibold tabular-nums">{fmtBdt(out)}</p></div></div>
-     <div className="my-5 flex h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true"><div className="bg-primary" style={{width:`${Math.max(0,data.received)/(Math.max(0,data.received)+Math.max(0,out)||1)*100}%`}}/><div className="flex-1 bg-[#DCC9B4]"/></div>
-     <div className="flex justify-between border-t border-border pt-4 text-sm"><span className="font-medium">Net cash movement</span><b className={`tabular-nums ${data.net<0?'text-red-700':'text-teal-700'}`}>{fmtBdt(data.net)}</b></div><p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Includes customer receipts, capital and refunds. Transfers between your own accounts do not change total cash flow.</p>
-    </Section>
-    <Section title="Balances to follow up" note="Outstanding across the business today"><MoneyLine label="Supplier invoices to collect" amount={data.receivables.total}/><MoneyLine label="Flyer contributions to collect" amount={data.flyerReceivables}/><MoneyLine label="Operating costs to pay" amount={data.costPayables}/><MoneyLine label="Flight tickets to pay" amount={data.ticketPayables}/>{data.ticketRefundReceivables>0&&<MoneyLine label="Ticket refunds to collect" amount={data.ticketRefundReceivables}/>}<MoneyLine label="Customer credit held" amount={data.customerCreditLiability}/><div className="mt-2 flex gap-4 text-xs font-semibold text-primary"><Link to="/suppliers">Supplier accounts →</Link><Link to="/flights">Flyer settlements →</Link></div></Section>
-   </div>
-   <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-    <Section title="Business performance" note={`Booked business · ${data.periodLabel}`}><div className="grid gap-x-7 sm:grid-cols-2"><div><div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Revenue</div><MoneyLine label="Shipment billing" amount={data.results.billing}/><MoneyLine label="Flyer contributions" amount={data.results.fares}/><MoneyLine label="Other business income" amount={data.results.otherIncome}/><MoneyLine label="Total revenue" amount={data.results.earned} strong/></div><div><div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Costs</div><MoneyLine label="Air tickets" amount={data.results.tickets}/><MoneyLine label="CN + BD transport" amount={data.results.cnTransport+data.results.bdTransport}/><MoneyLine label="Customs + salary, rent & other expenses" amount={data.results.customs+data.results.otherExpenses}/><MoneyLine label="Total costs" amount={data.results.costs} strong/></div></div><div className="mt-3 flex justify-between rounded-xl bg-background p-4 text-sm"><span className="font-semibold">{data.results.profit>=0?'Net profit':'Net loss'} <span className="ml-2 text-[11px] font-normal text-muted-foreground">{data.results.marginPct!==null?`${data.results.marginPct}% margin`:''}</span></span><b>{fmtBdt(data.results.profit)}</b></div><p className="mt-3 text-[11px] text-muted-foreground">Billing and costs are recognized separately from cash collection. Salary, rent and other recorded business expenses are included. Owner capital is excluded from profit.</p></Section>
-    <Section title="Where your money sits" note="Current account balances" action={<button className="text-xs font-semibold text-primary" onClick={()=>setTab('accounts')}>Manage →</button>}><div className="space-y-1">{data.accounts.slice(0,5).map(a=><button key={a.name} onClick={()=>ledger(a.name)} className="flex w-full items-center justify-between border-b border-border/60 py-3 text-left last:border-0"><span><span className="block text-xs font-semibold">{a.name}</span><span className="text-[10px] capitalize text-muted-foreground">{a.kind} · {a.currency}</span></span><span className="flex items-center gap-2 text-sm font-semibold tabular-nums">{accountMoney(a.balance,a.currency)}<ChevronRight size={13} className="text-muted-foreground"/></span></button>)}{!data.accounts.length&&<p className="py-6 text-xs text-muted-foreground">Add an account to start tracking your funds.</p>}</div><div className="mt-3 border-t border-border pt-3 text-[11px] text-muted-foreground">Capital received this period: <b className="text-foreground">{fmtBdt(data.capitalReceived)}</b></div></Section>
-   </div>
-   <FinanceLedger key={`recent-${period}-${revision}`} period={period} accounts={data.accounts} compact onViewAll={()=>ledger()}/>
-  </>}
-  {tab==='ledger'&&<FinanceLedger key={`${period}-${revision}-${ledgerAccount}`} period={period} accounts={data.accounts} initialAccount={ledgerAccount}/>}
-  {tab==='accounts'&&<><div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Accounts & funds</h2><p className="mt-1 text-xs text-muted-foreground">Current balances, in each account’s currency.</p></div><Button variant="secondary" onClick={()=>open('account')}><Plus size={14}/> Add account</Button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{data.accounts.map(a=><section className="rounded-2xl border border-border bg-card p-5" key={a.name}><div className="flex items-center justify-between"><h3 className="font-semibold">{a.name}</h3><span className="rounded-md bg-background px-2 py-1 text-[10px] font-semibold">{a.currency}</span></div><p className="mt-1 text-xs capitalize text-muted-foreground">{a.kind}</p><div className="mt-3 flex gap-3"><button className="text-xs font-semibold text-primary" onClick={()=>editAccount(a)}>Edit / link payment method</button><button className="text-xs font-semibold text-danger" onClick={()=>setDeletingAccount(a.name)}>Delete</button></div><p className="my-6 text-2xl font-bold tabular-nums">{accountMoney(a.balance,a.currency)}</p><button className="flex w-full items-center justify-between border-t border-border pt-3 text-xs font-semibold text-primary" onClick={()=>ledger(a.name)}>View account ledger <ChevronRight size={14}/></button></section>)}</div>{!data.accounts.length&&<p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No accounts yet. Add your cash drawer, bank or wallet.</p>}<Reconciliation key={revision}/></>}
-  {tab==='statements'&&<Section title="Supplier statements" note={mode==='month'?`Monthly billing · ${data.periodLabel}`:'Choose Monthly above to view a billing cycle.'}>{mode!=='month'?<Button variant="secondary" onClick={()=>setMode('month')}>Choose monthly period</Button>:<div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-xs"><thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground"><tr><th className="pb-3">Supplier</th><th className="pb-3 text-right">Billed</th><th className="pb-3 text-right">Paid</th><th className="pb-3 text-right">Outstanding</th><th className="pb-3 text-right">Statement</th></tr></thead><tbody>{data.statements.map(s=><tr className="border-b border-border/60" key={s.code}><td className="py-4"><Link to={`/suppliers/${s.code}`} className="font-semibold">{s.name}</Link><p className="mt-1 text-[10px] text-muted-foreground">{s.code} · {s.shipmentCount} shipments</p></td><td className="text-right tabular-nums">{fmtBdt(s.billed)}</td><td className="text-right tabular-nums">{fmtBdt(s.paid)}</td><td className="text-right font-semibold tabular-nums">{fmtBdt(s.balance)}</td><td className="text-right"><button className="font-semibold text-primary" onClick={()=>void openStatement(s.code)}>View →</button></td></tr>)}</tbody></table>{!data.statements.length&&<p className="py-10 text-center text-muted-foreground">No monthly supplier statements for this period.</p>}</div>}</Section>}
-  </>}
-  <ConfirmDialog open={deletingAccount!==null} onClose={()=>setDeletingAccount(null)} title={`Delete ${deletingAccount ?? 'account'}?`} body="Deletes this unused, zero-balance account and its linked payment method. Accounts with balances or transaction history cannot be deleted." onConfirm={async()=>{if(!deletingAccount)return;try{await api.delete(`/finance/accounts/${encodeURIComponent(deletingAccount)}`);setRevision(r=>r+1);await reload();showToast({title:'Account deleted',status:'success'})}catch(e){showToast({title:e instanceof Error?e.message:'Could not delete account',status:'error'})}}} />
-  <Modal open={action!==null} onClose={()=>{if(!busy)setAction(null)}}><div ><div className="mb-5 flex items-center justify-between"><div><h2 id="finance-action-title" className="text-xl font-bold">{action==='transfer'?'Move funds':action==='account'?(editingAccount?'Edit account':'Add account'):'Record entry'}</h2><p className="mt-1 text-xs text-muted-foreground">{action==='transfer'?'Move existing money between your accounts.':action==='account'?'Create an account with its current opening balance.':'Record an actual movement of money.'}</p></div></div>
-  {(action==='income'||action==='expense')&&<div className="mb-5 flex rounded-lg bg-background p-1">{(['income','expense'] as const).map(t=><button key={t} disabled={busy} className={`flex-1 rounded-md py-2 text-xs font-semibold ${action===t?'bg-card shadow-sm':'text-muted-foreground'}`} onClick={()=>setAction(t)}>{t==='income'?'Money in':'Money out'}</button>)}</div>}
-  <form onSubmit={e=>{e.preventDefault();if(formValid)void save()}} className="space-y-4"><fieldset disabled={busy} className="space-y-4">
-  {action==='account'?<><Choice label="Account type" value={accountKind} onChange={setAccountKind}><option value="fund">Fund / reserve</option><option value="cash">Cash</option><option value="bank">Bank account</option><option value="mobile">Mobile money</option><option value="wallet">Wallet</option></Choice><Input label="Account / fund name" disabled={!!editingAccount} value={name} onChange={setName} placeholder="e.g. Dhaka bank account"/><Choice label="Currency" value={currency} onChange={v=>{if(!editingAccount)setCurrency(v)}}><option>BDT</option><option>CNY</option></Choice><Input label={editingAccount?"Current balance (read only)":"Opening balance"} disabled={!!editingAccount} value={amount} onChange={setAmount} placeholder="0"/>{accountKind==='bank'&&<div className="space-y-3 rounded-xl border border-border bg-background p-4"><p className="text-xs text-muted-foreground">This bank account will also appear in Settings → Payment methods. Both use the same fund balance.</p><Input label="Bank name" value={bank.bankName} onChange={bankField('bankName')}/><Input label="Bank account number" value={bank.accountNumber} onChange={bankField('accountNumber')}/><Input label="Account holder name" value={bank.accountName} onChange={bankField('accountName')}/><Input label="Branch (optional)" value={bank.branch} onChange={bankField('branch')}/><Input label="District (optional)" value={bank.district} onChange={bankField('district')}/></div>}{['mobile','wallet'].includes(accountKind)&&<div className="space-y-3 rounded-xl border border-border bg-background p-4"><p className="text-xs text-muted-foreground">This account also appears in Payment methods and uses the same fund balance.</p><Input label="Provider" value={mobile.provider} onChange={mobileField('provider')} placeholder="bKash / Nagad / Alipay"/><Input label="Mobile / wallet number" value={mobile.number} onChange={mobileField('number')}/><Input label="Label (optional)" value={mobile.label} onChange={mobileField('label')}/></div>}</>:<>
-   {action==='income'&&<Choice label="Entry type" value={kind} onChange={setKind}><option value="income">Business income</option><option value="capital">Owner capital</option></Choice>}
-   <Choice label={action==='transfer'?'From account':action==='income'?'Receiving account':'Pay from account'} value={account} onChange={v=>{setAccount(v);setTransferReference(crypto.randomUUID())}}><option value="">Select account</option>{data.accounts.map(a=><option key={a.name} value={a.name}>{a.name} · {a.currency}</option>)}</Choice>
-   {action==='transfer'&&<Choice label="To account" value={to} onChange={v=>{setTo(v);setTransferReference(crypto.randomUUID())}}><option value="">Select destination</option>{data.accounts.filter(a=>a.name!==account).map(a=><option key={a.name} value={a.name}>{a.name} · {a.currency}</option>)}</Choice>}
-   {action==='expense'&&<div className="grid gap-4 sm:grid-cols-2"><Choice label="Category" value={category} onChange={setCategory}>{['ticket','packaging','courier','salary','transport','customs','others'].map(c=><option value={c} key={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}</Choice><Choice label="Shipment (optional)" value={shipment} onChange={setShipment}><option value="">No shipment</option>{shipments?.shipments.map(s=><option key={s.code}>{s.code}</option>)}</Choice></div>}
-   <Input label={action==='transfer'?`Amount to move (${data.accounts.find(a=>a.name===account)?.currency??'source currency'})`:'Amount (BDT)'} value={amount} onChange={v=>{setAmount(v);setTransferReference(crypto.randomUUID())}} placeholder="0.00"/>
-   {action==='transfer'&&account&&to&&crossCurrency&&<Input label={`Amount received (${data.accounts.find(a=>a.name===to)?.currency})`} value={received} onChange={v=>{setReceived(v);setTransferReference(crypto.randomUUID())}} placeholder="Actual amount received"/>}
-   <Input label={action==='expense'?'Reason':'Note'} value={note} onChange={v=>{setNote(v);setTransferReference(crypto.randomUUID())}} placeholder="What is this entry for?"/>
-   {action==='income'&&<p className="rounded-lg bg-background p-3 text-xs leading-relaxed text-muted-foreground">{kind==='capital'?'Owner capital increases funds and is excluded from profit.':'Record supplier and flyer payments on their own pages to settle the correct bills.'}</p>}
-  </>}
-  </fieldset><div className="flex justify-end gap-2 border-t border-border pt-4"><Button variant="secondary" type="button" disabled={busy} onClick={()=>setAction(null)}>Cancel</Button><Button type="submit" disabled={busy||!formValid}>{busy?'Saving…':action==='transfer'?'Transfer funds':action==='account'?(editingAccount?'Save account':'Create account'):'Save entry'}</Button></div></form></div></Modal>
-  <InvoiceModal open={statement!==null} onClose={()=>setStatement(null)} doc={statement}/>
- </div>
+
+export function Finance() {
+  const entry = useMoneyEntry();
+  const { showToast } = useToast();
+  const [tab, setTab] = usePageSection(
+    "summary",
+    ["summary", "ledger", "accounts", "statements", "reports"],
+    "tab",
+  );
+  const [mode, setMode] = usePageSection(
+    "month",
+    ["month", "week", "all"],
+    "period",
+  );
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [action, setAction] = useState<Action>(null);
+  const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [ledgerAccount, setLedgerAccount] = useState("");
+  const [statement, setStatement] = useState<InvoiceDoc | null>(null);
+  const [amount, setAmount] = useState("");
+  const [account, setAccount] = useState("");
+  const [note, setNote] = useState("");
+  const [kind, setKind] = useState("income");
+  const [category, setCategory] = useState("others");
+  const [editingAccount, setEditingAccount] = useState<string | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState<string | null>(null);
+  const [mobile, setMobile] = useState({ provider: "", number: "", label: "" });
+  const mobileField = (field: keyof typeof mobile) => (value: string) =>
+    setMobile((previous) => ({ ...previous, [field]: value }));
+  const [accountKind, setAccountKind] = useState("fund");
+  const [bank, setBank] = useState({
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    branch: "",
+    district: "",
+  });
+  const bankField = (field: keyof typeof bank) => (value: string) =>
+    setBank((previous) => ({ ...previous, [field]: value }));
+  const [name, setName] = useState("");
+  const [currency, setCurrency] = useState("BDT");
+  const [to, setTo] = useState("");
+  const [received, setReceived] = useState("");
+  const [transferReference, setTransferReference] = useState(() =>
+    crypto.randomUUID(),
+  );
+  const period = mode === "month" ? month : mode;
+  const { data, error, loading, reload } = useFetch<FinanceData>(
+    `/finance?period=${period}`,
+  );
+
+  function open(next: Action) {
+    setAction(next);
+    entry.restore("BDT", 1);
+    setEditingAccount(null);
+    setMobile({ provider: "", number: "", label: "" });
+    setAmount("");
+    setAccount("");
+    setNote("");
+    setName("");
+    setAccountKind("fund");
+    setBank({
+      bankName: "",
+      accountNumber: "",
+      accountName: "",
+      branch: "",
+      district: "",
+    });
+    setCurrency("BDT");
+    setKind("income");
+    setCategory("others");
+    setTo("");
+    setReceived("");
+    setTransferReference(crypto.randomUUID());
+  }
+
+  function editAccount(item: FinanceData["accounts"][number]) {
+    open("account");
+    setEditingAccount(item.name);
+    setName(item.name);
+    setCurrency(item.currency);
+    setAmount(String(item.balance));
+    setAccountKind(item.kind);
+    if (item.bank) setBank(item.bank);
+    if (item.mobile) setMobile(item.mobile);
+  }
+
+  function ledger(accountName = "") {
+    setLedgerAccount(accountName);
+    setTab("ledger");
+  }
+
+  async function save() {
+    if (!action || busy) return;
+    setBusy(true);
+    try {
+      if (action === "account") {
+        const details = {
+          kind: accountKind,
+          ...(accountKind === "bank" ? { bank } : {}),
+          ...(["mobile", "wallet"].includes(accountKind) ? { mobile } : {}),
+        };
+        if (editingAccount)
+          await api.patch(
+            `/finance/accounts/${encodeURIComponent(editingAccount)}`,
+            details,
+          );
+        else
+          await api.post("/finance/accounts", {
+            name: name.trim(),
+            currency,
+            balance: Number(amount || 0),
+            ...details,
+          });
+      } else if (action === "income")
+        await api.post("/finance/incomes", {
+          ...entry.meta,
+          amount: Number(amount),
+          method: account,
+          note: note.trim(),
+          kind,
+        });
+      else if (action === "expense")
+        await api.post("/finance/expenses", {
+          ...entry.meta,
+          amount: Number(amount),
+          accountName: account,
+          reason: note.trim(),
+          category,
+        });
+      else
+        await api.post("/finance/transfers", {
+          from: account,
+          to,
+          amount: Number(amount),
+          receivedAmount: received ? Number(received) : undefined,
+          note: note.trim(),
+          reference: transferReference,
+        });
+      setAction(null);
+      setRevision((current) => current + 1);
+      await reload();
+      showToast({
+        title:
+          action === "transfer"
+            ? "Funds transferred"
+            : action === "account"
+              ? editingAccount
+                ? "Account updated"
+                : "Account created"
+              : "Entry recorded",
+        status: "success",
+      });
+    } catch (error) {
+      showToast({
+        title: error instanceof Error ? error.message : "Could not save entry",
+        status: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openStatement(code: string) {
+    try {
+      const response = await api.get<{ statement: InvoiceDoc }>(
+        `/suppliers/${code}/statement?month=${month}`,
+      );
+      setStatement(response.statement);
+    } catch (error) {
+      showToast({
+        title:
+          error instanceof Error ? error.message : "Could not load statement",
+        status: "error",
+      });
+    }
+  }
+
+  if (error) return <ErrorBlock message={error} />;
+  if (!data) return <LoadingBlock />;
+  const outgoing = data.expenses + data.refunded;
+  const sourceAccount = data.accounts.find((item) => item.name === account);
+  const targetAccount = data.accounts.find((item) => item.name === to);
+  const crossCurrency = sourceAccount?.currency !== targetAccount?.currency;
+  const formValid =
+    action === "account"
+      ? Boolean(name.trim()) &&
+        Number.isFinite(Number(amount || 0)) &&
+        (accountKind !== "bank" ||
+          Boolean(
+            bank.bankName.trim() &&
+              bank.accountNumber.trim() &&
+              bank.accountName.trim(),
+          )) &&
+        (!["mobile", "wallet"].includes(accountKind) ||
+          Boolean(mobile.provider.trim() && mobile.number.trim()))
+      : Number.isFinite(Number(amount)) &&
+        Number(amount) > 0 &&
+        Boolean(account && note.trim()) &&
+        (action === "transfer"
+          ? Boolean(
+              to &&
+                to !== account &&
+                (!crossCurrency ||
+                  (Number.isFinite(Number(received)) && Number(received) > 0)),
+            )
+          : entry.valid);
+  const dialogTitle =
+    action === "transfer"
+      ? "Transfer funds"
+      : action === "account"
+        ? editingAccount
+          ? "Edit account"
+          : "Add account"
+        : "Record transaction";
+
+  return (
+    <div className="space-y-6 pb-6">
+      <PageHeader
+        title="Finance"
+        description="Manage accounts, record payments and review business performance."
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              disabled={data.accounts.length < 2}
+              onClick={() => open("transfer")}
+            >
+              <ArrowLeftRight size={16} />
+              Transfer funds
+            </Button>
+            <Button
+              onClick={() => open(tab === "accounts" ? "account" : "income")}
+            >
+              <Plus size={16} />
+              {tab === "accounts" ? "Add account" : "Record transaction"}
+            </Button>
+          </>
+        }
+      />
+      <PageTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: "summary", label: "Overview" },
+          { value: "ledger", label: "Transactions" },
+          { value: "accounts", label: "Accounts" },
+          { value: "statements", label: "Statements" },
+          { value: "reports", label: "Booking profitability" },
+        ]}
+      />
+      {tab !== "accounts" && (
+        <section
+          aria-label="Reporting period"
+          className="flex flex-wrap items-end justify-between gap-4 rounded-md border border-border bg-card p-4"
+        >
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-40">
+              <Choice label="Reporting period" value={mode} onChange={setMode}>
+                <option value="month">Monthly</option>
+                <option value="week">This week</option>
+                <option value="all">All time</option>
+              </Choice>
+            </div>
+            {mode === "month" && (
+              <Input
+                label="Month"
+                aria-label="Statement month"
+                type="month"
+                value={month}
+                onChange={(value) => {
+                  if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(value)) setMonth(value);
+                }}
+              />
+            )}
+          </div>
+          <p className="pb-2 text-xs text-muted-foreground">
+            Combined reports use BDT. Account balances retain their original
+            currency.
+          </p>
+        </section>
+      )}
+      {loading ? (
+        <LoadingBlock label="Updating financial records…" />
+      ) : (
+        <>
+          {tab === "summary" && (
+            <>
+              <SummaryStrip
+                items={[
+                  {
+                    label: "Available funds",
+                    value: fmtBdt(data.cash.worth),
+                    description: "All accounts · current BDT equivalent",
+                  },
+                  {
+                    label: "Customer receivables",
+                    value: fmtBdt(data.receivables.total),
+                    description: `${data.receivables.count} unpaid shipments · all time`,
+                  },
+                  {
+                    label: "Unpaid operating costs",
+                    value: fmtBdt(data.costPayables),
+                    description: "Recorded costs still to settle · all time",
+                  },
+                  {
+                    label:
+                      data.results.profit >= 0
+                        ? "Booked profit"
+                        : "Booked loss",
+                    value: fmtBdt(data.results.profit),
+                    description: data.periodLabel,
+                  },
+                ]}
+              />
+              <div className="grid items-start gap-6 xl:grid-cols-2">
+                <Panel
+                  title="Cash movement"
+                  description={data.periodLabel}
+                  actions={
+                    <Button variant="secondary" onClick={() => ledger()}>
+                      View transactions
+                    </Button>
+                  }
+                >
+                  <dl>
+                    <MoneyLine label="Money received" amount={data.received} />
+                    <MoneyLine label="Money paid out" amount={outgoing} />
+                    <MoneyLine
+                      label="Net cash movement"
+                      amount={data.net}
+                      strong
+                    />
+                  </dl>
+                  <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                    Includes customer receipts, owner capital and refunds.
+                    Transfers between your accounts do not change total cash
+                    flow.
+                  </p>
+                </Panel>
+                <Panel
+                  title="Outstanding balances"
+                  description="Amounts to collect or settle across the business today."
+                >
+                  <dl>
+                    <MoneyLine
+                      label="Customer invoices to collect"
+                      amount={data.receivables.total}
+                    />
+                    <MoneyLine
+                      label="Flyer contributions to collect"
+                      amount={data.flyerReceivables}
+                    />
+                    <MoneyLine
+                      label="Operating costs to pay"
+                      amount={data.costPayables}
+                    />
+                    <MoneyLine
+                      label="Flight tickets to pay"
+                      amount={data.ticketPayables}
+                    />
+                    {data.ticketRefundReceivables > 0 && (
+                      <MoneyLine
+                        label="Ticket refunds to collect"
+                        amount={data.ticketRefundReceivables}
+                      />
+                    )}
+                    <MoneyLine
+                      label="Customer credit held"
+                      amount={data.customerCreditLiability}
+                    />
+                  </dl>
+                  <div className="mt-4 flex flex-wrap gap-4 border-t border-border pt-4 text-sm">
+                    <Link
+                      to="/suppliers"
+                      className="font-medium text-primary underline"
+                    >
+                      Customer accounts
+                    </Link>
+                    <Link
+                      to="/flights"
+                      className="font-medium text-primary underline"
+                    >
+                      Flight settlements
+                    </Link>
+                  </div>
+                </Panel>
+              </div>
+              <Panel
+                title="Account balances"
+                description="Current balances in the account's original currency."
+                actions={
+                  <Button
+                    variant="secondary"
+                    onClick={() => setTab("accounts")}
+                  >
+                    Manage accounts
+                  </Button>
+                }
+              >
+                {data.accounts.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-left text-sm">
+                      <thead>
+                        <tr className="border-y border-border bg-background text-xs text-muted-foreground">
+                          <th className="p-3 font-medium">Account</th>
+                          <th className="p-3 font-medium">Type</th>
+                          <th className="p-3 font-medium">Currency</th>
+                          <th className="p-3 text-right font-medium">
+                            Balance
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.accounts.slice(0, 5).map((item) => (
+                          <tr
+                            key={item.name}
+                            className="border-b border-border"
+                          >
+                            <td className="p-3">
+                              <button
+                                type="button"
+                                className="font-medium text-primary underline"
+                                onClick={() => ledger(item.name)}
+                              >
+                                {item.name}
+                              </button>
+                            </td>
+                            <td className="p-3 capitalize text-muted-foreground">
+                              {item.kind}
+                            </td>
+                            <td className="p-3">{item.currency}</td>
+                            <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                              {accountMoney(item.balance, item.currency)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    Add an account to start tracking your funds.
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap justify-between gap-3 text-xs text-muted-foreground">
+                  <span>
+                    {data.accounts.length > 5
+                      ? `Showing 5 of ${data.accounts.length} accounts`
+                      : `${data.accounts.length} accounts`}
+                  </span>
+                  <span>
+                    Owner capital received this period:{" "}
+                    <strong className="font-medium text-foreground">
+                      {fmtBdt(data.capitalReceived)}
+                    </strong>
+                  </span>
+                </div>
+              </Panel>
+              <FinanceLedger
+                key={`recent-${period}-${revision}`}
+                period={period}
+                accounts={data.accounts}
+                compact
+                onViewAll={() => ledger()}
+              />
+            </>
+          )}
+          {tab === "ledger" && (
+            <FinanceLedger
+              key={`${period}-${revision}-${ledgerAccount}`}
+              period={period}
+              accounts={data.accounts}
+              initialAccount={ledgerAccount}
+            />
+          )}
+          {tab === "accounts" && (
+            <>
+              <Panel
+                title="Accounts and funds"
+                description={`${data.accounts.length} accounts · Balances are shown in each account's currency.`}
+              >
+                {data.accounts.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[820px] text-left text-sm">
+                      <thead>
+                        <tr className="border-y border-border bg-background text-xs text-muted-foreground">
+                          <th className="p-3 font-medium">Account</th>
+                          <th className="p-3 font-medium">Type</th>
+                          <th className="p-3 font-medium">Currency</th>
+                          <th className="p-3 text-right font-medium">
+                            Current balance
+                          </th>
+                          <th className="p-3 text-right font-medium">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.accounts.map((item) => (
+                          <tr
+                            key={item.name}
+                            className="border-b border-border"
+                          >
+                            <td className="p-3 font-medium">{item.name}</td>
+                            <td className="p-3 capitalize text-muted-foreground">
+                              {item.kind}
+                            </td>
+                            <td className="p-3">{item.currency}</td>
+                            <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                              {accountMoney(item.balance, item.currency)}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => ledger(item.name)}
+                                >
+                                  Transactions
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => editAccount(item)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeletingAccount(item.name)}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="space-y-4 py-6">
+                    <p className="text-sm text-muted-foreground">
+                      No accounts yet. Add a cash drawer, bank account or
+                      wallet.
+                    </p>
+                    <Button onClick={() => open("account")}>
+                      Add your first account
+                    </Button>
+                  </div>
+                )}
+              </Panel>
+              <Reconciliation key={revision} />
+            </>
+          )}
+          {tab === "statements" && (
+            <Panel
+              title="Customer statements"
+              description={
+                mode === "month"
+                  ? `Monthly billing · ${data.periodLabel} · All amounts in BDT.`
+                  : "Select a monthly period to review a billing cycle."
+              }
+            >
+              {mode !== "month" ? (
+                <Button variant="secondary" onClick={() => setMode("month")}>
+                  Choose monthly period
+                </Button>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead>
+                      <tr className="border-y border-border bg-background text-xs text-muted-foreground">
+                        <th className="p-3 font-medium">Customer</th>
+                        <th className="p-3 text-right font-medium">Billed</th>
+                        <th className="p-3 text-right font-medium">Paid</th>
+                        <th className="p-3 text-right font-medium">
+                          Outstanding
+                        </th>
+                        <th className="p-3 text-right font-medium">
+                          Statement
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.statements.map((item) => (
+                        <tr key={item.code} className="border-b border-border">
+                          <td className="p-3">
+                            <Link
+                              to={`/suppliers/${item.code}`}
+                              className="font-medium text-primary underline"
+                            >
+                              {item.name}
+                            </Link>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {item.code} · {item.shipmentCount} shipments
+                            </p>
+                          </td>
+                          <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                            {fmtBdt(item.billed)}
+                          </td>
+                          <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                            {fmtBdt(item.paid)}
+                          </td>
+                          <td className="whitespace-nowrap p-3 text-right font-medium tabular-nums">
+                            {fmtBdt(item.balance)}
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => void openStatement(item.code)}
+                            >
+                              View statement
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!data.statements.length && (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="p-8 text-center text-muted-foreground"
+                          >
+                            No monthly customer statements for this period.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          )}
+          {tab === "reports" && (
+            <>
+              <SummaryStrip
+                items={[
+                  {
+                    label: "Revenue · BDT",
+                    value: fmtBdt(data.results.earned),
+                    description: data.periodLabel,
+                  },
+                  {
+                    label: "Costs · BDT",
+                    value: fmtBdt(data.results.costs),
+                    description: data.periodLabel,
+                  },
+                  {
+                    label:
+                      data.results.profit >= 0
+                        ? "Booking profit · BDT"
+                        : "Booking loss · BDT",
+                    value: fmtBdt(data.results.profit),
+                    description: "Revenue less costs · owner capital excluded",
+                  },
+                ]}
+              />
+              <Panel
+                title="Booking profitability"
+                description="Current shipment estimates / issued charges and their costs follow the shipment booking month, including later revisions. Business income and overheads follow transaction dates. Cash flow uses payment dates; this is not a closed-period accounting statement."
+              >
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <FormSection title="Revenue">
+                      <dl>
+                        <MoneyLine
+                          label="Shipment billing"
+                          amount={data.results.billing}
+                        />
+                        <MoneyLine
+                          label="Flyer contributions"
+                          amount={data.results.fares}
+                        />
+                        <MoneyLine
+                          label="Other business income"
+                          amount={data.results.otherIncome}
+                        />
+                        <MoneyLine
+                          label="Total revenue"
+                          amount={data.results.earned}
+                          strong
+                        />
+                      </dl>
+                    </FormSection>
+                  </div>
+                  <div>
+                    <FormSection title="Costs">
+                      <dl>
+                        <MoneyLine
+                          label="Air tickets"
+                          amount={data.results.tickets}
+                        />
+                        <MoneyLine
+                          label="Shipment costs"
+                          amount={data.results.shipmentCosts}
+                        />
+                        <MoneyLine
+                          label="Business expenses"
+                          amount={data.results.businessExpenses}
+                        />
+                        <MoneyLine
+                          label="Total costs"
+                          amount={data.results.costs}
+                          strong
+                        />
+                      </dl>
+                    </FormSection>
+                  </div>
+                </div>
+                <div className="mt-6 border-t border-border pt-5">
+                  <DetailGrid
+                    items={[
+                      {
+                        label:
+                          data.results.profit >= 0 ? "Net profit" : "Net loss",
+                        value: (
+                          <span className="text-xl font-semibold tabular-nums">
+                            {fmtBdt(data.results.profit)}
+                          </span>
+                        ),
+                      },
+                      {
+                        label: "Profit margin",
+                        value:
+                          data.results.marginPct !== null
+                            ? `${data.results.marginPct}%`
+                            : "Not available",
+                      },
+                    ]}
+                  />
+                </div>
+                <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
+                  Billing and costs are recognized separately from cash
+                  collection. Salary, rent and other recorded business expenses
+                  are included. Owner capital is excluded from profit.
+                </p>
+              </Panel>
+            </>
+          )}
+        </>
+      )}
+      <ConfirmDialog
+        open={deletingAccount !== null}
+        onClose={() => setDeletingAccount(null)}
+        title={`Delete ${deletingAccount ?? "account"}?`}
+        body="Deletes this unused, zero-balance account and its linked payment method. Accounts with balances or transaction history cannot be deleted."
+        onConfirm={async () => {
+          if (!deletingAccount) return;
+          try {
+            await api.delete(
+              `/finance/accounts/${encodeURIComponent(deletingAccount)}`,
+            );
+            setRevision((current) => current + 1);
+            await reload();
+            showToast({ title: "Account deleted", status: "success" });
+          } catch (error) {
+            showToast({
+              title:
+                error instanceof Error
+                  ? error.message
+                  : "Could not delete account",
+              status: "error",
+            });
+          }
+        }}
+      />
+      <Modal
+        open={action !== null}
+        onClose={() => {
+          if (!busy) setAction(null);
+        }}
+        className="max-w-2xl"
+      >
+        <header className="mb-6">
+          <h2 data-dialog-title className="text-xl font-semibold">
+            {dialogTitle}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {action === "transfer"
+              ? "Move existing funds between your accounts."
+              : action === "account"
+                ? editingAccount
+                  ? "Update account details. Name, currency and balance are preserved."
+                  : "Set up a fund and its opening balance."
+                : action === "expense"
+                  ? "Record a business expense paid from an account."
+                  : "Record an actual movement of money."}
+          </p>
+        </header>
+        {(action === "income" || action === "expense") && (
+          <div className="mb-6">
+            <PageTabs
+              value={action}
+              onChange={(value) => {
+                if (!busy) setAction(value as "income" | "expense");
+              }}
+              items={[
+                { value: "income", label: "Money in" },
+                { value: "expense", label: "Money out" },
+              ]}
+            />
+          </div>
+        )}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (formValid) void save();
+          }}
+          className="space-y-6"
+        >
+          <fieldset disabled={busy} className="space-y-6">
+            {action === "account" ? (
+              <>
+                <FormSection title="Account details">
+                  <FormGrid>
+                    <Input
+                      label="Account name"
+                      disabled={Boolean(editingAccount)}
+                      value={name}
+                      onChange={setName}
+                      placeholder="e.g. Dhaka bank account"
+                    />
+                    <Choice
+                      label="Account type"
+                      value={accountKind}
+                      onChange={setAccountKind}
+                    >
+                      <option value="fund">Fund / reserve</option>
+                      <option value="cash">Cash</option>
+                      <option value="bank">Bank account</option>
+                      <option value="mobile">Mobile money</option>
+                      <option value="wallet">Wallet</option>
+                    </Choice>
+                    <Choice
+                      label="Currency"
+                      value={currency}
+                      onChange={setCurrency}
+                      disabled={Boolean(editingAccount)}
+                    >
+                      <option value="BDT">BDT · Taka</option>
+                      <option value="CNY">CNY · Yuan</option>
+                    </Choice>
+                    <Input
+                      label={`${editingAccount ? "Current balance (read only)" : "Opening balance"} · ${currency}`}
+                      disabled={Boolean(editingAccount)}
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={setAmount}
+                      placeholder="0.00"
+                    />
+                  </FormGrid>
+                </FormSection>
+                {accountKind === "bank" && (
+                  <FormSection
+                    title="Bank account information"
+                    description="This account also appears in Settings → Payment methods and uses the same fund balance."
+                  >
+                    <FormGrid>
+                      <Input
+                        label="Bank name"
+                        value={bank.bankName}
+                        onChange={bankField("bankName")}
+                      />
+                      <Input
+                        label="Bank account number"
+                        value={bank.accountNumber}
+                        onChange={bankField("accountNumber")}
+                      />
+                      <Input
+                        label="Account holder name"
+                        value={bank.accountName}
+                        onChange={bankField("accountName")}
+                      />
+                      <Input
+                        label="Branch (optional)"
+                        value={bank.branch}
+                        onChange={bankField("branch")}
+                      />
+                      <Input
+                        label="District (optional)"
+                        value={bank.district}
+                        onChange={bankField("district")}
+                      />
+                    </FormGrid>
+                  </FormSection>
+                )}
+                {["mobile", "wallet"].includes(accountKind) && (
+                  <FormSection
+                    title="Payment account information"
+                    description="This account also appears in Settings → Payment methods and uses the same fund balance."
+                  >
+                    <FormGrid>
+                      <Input
+                        label="Provider"
+                        value={mobile.provider}
+                        onChange={mobileField("provider")}
+                        placeholder="bKash, Nagad or Alipay"
+                      />
+                      <Input
+                        label="Mobile / wallet number"
+                        value={mobile.number}
+                        onChange={mobileField("number")}
+                      />
+                      <Input
+                        label="Account label (optional)"
+                        value={mobile.label}
+                        onChange={mobileField("label")}
+                      />
+                    </FormGrid>
+                  </FormSection>
+                )}
+              </>
+            ) : (
+              <>
+                {action === "income" && (
+                  <Choice label="Entry type" value={kind} onChange={setKind}>
+                    <option value="income">Business income</option>
+                    <option value="capital">Owner capital</option>
+                  </Choice>
+                )}
+                <FormGrid columns={action === "transfer" ? 2 : 1}>
+                  <Choice
+                    label={
+                      action === "transfer"
+                        ? "From account"
+                        : action === "income"
+                          ? "Receiving account"
+                          : "Pay from account"
+                    }
+                    value={account}
+                    onChange={(value) => {
+                      setAccount(value);
+                      setReceived("");
+                      setTransferReference(crypto.randomUUID());
+                    }}
+                  >
+                    <option value="">Select an account</option>
+                    {data.accounts.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name} · {item.currency}
+                      </option>
+                    ))}
+                  </Choice>
+                  {action === "transfer" && (
+                    <Choice
+                      label="To account"
+                      value={to}
+                      onChange={(value) => {
+                        setTo(value);
+                        setReceived("");
+                        setTransferReference(crypto.randomUUID());
+                      }}
+                    >
+                      <option value="">Select a destination</option>
+                      {data.accounts
+                        .filter((item) => item.name !== account)
+                        .map((item) => (
+                          <option key={item.name} value={item.name}>
+                            {item.name} · {item.currency}
+                          </option>
+                        ))}
+                    </Choice>
+                  )}
+                </FormGrid>
+                {action === "expense" && (
+                  <div className="space-y-4">
+                    <Choice
+                      label="Expense category"
+                      value={category}
+                      onChange={setCategory}
+                    >
+                      {[
+                        "salary",
+                        "transport",
+                        "packaging",
+                        "courier",
+                        "customs",
+                        "others",
+                      ].map((item) => (
+                        <option value={item} key={item}>
+                          {item.charAt(0).toUpperCase() + item.slice(1)}
+                        </option>
+                      ))}
+                    </Choice>
+                    <SectionNotice>
+                      This records a business expense. For customer-billed
+                      costs, use{" "}
+                      <Link className="text-primary underline" to="/shipments">
+                        Shipment → Costs → Add cost
+                      </Link>
+                      . Record ticket payments on the{" "}
+                      <Link className="text-primary underline" to="/flights">
+                        flight record
+                      </Link>
+                      .
+                    </SectionNotice>
+                  </div>
+                )}
+                {action === "transfer" ? (
+                  <FormSection
+                    title="Transfer amounts"
+                    description={
+                      account && to && crossCurrency
+                        ? "Enter the actual amounts leaving and arriving in each account."
+                        : "The same amount will be received when both accounts use the same currency."
+                    }
+                  >
+                    <FormGrid>
+                      <Input
+                        label={`Amount to send · ${sourceAccount?.currency ?? "source currency"}`}
+                        inputMode="decimal"
+                        value={amount}
+                        onChange={(value) => {
+                          setAmount(value);
+                          setTransferReference(crypto.randomUUID());
+                        }}
+                        placeholder="0.00"
+                      />
+                      {account && to && crossCurrency && (
+                        <Input
+                          label={`Amount received · ${targetAccount?.currency}`}
+                          inputMode="decimal"
+                          value={received}
+                          onChange={(value) => {
+                            setReceived(value);
+                            setTransferReference(crypto.randomUUID());
+                          }}
+                          placeholder="0.00"
+                        />
+                      )}
+                    </FormGrid>
+                  </FormSection>
+                ) : (
+                  <MoneyInput
+                    entry={entry}
+                    label={
+                      action === "income" ? "Amount received" : "Amount paid"
+                    }
+                    value={amount}
+                    onChange={setAmount}
+                  />
+                )}
+                <Input
+                  label={action === "expense" ? "Reason" : "Note"}
+                  value={note}
+                  onChange={(value) => {
+                    setNote(value);
+                    setTransferReference(crypto.randomUUID());
+                  }}
+                  placeholder="Describe this transaction"
+                />
+                {action === "income" && (
+                  <SectionNotice>
+                    {kind === "capital"
+                      ? "Owner capital increases available funds and is excluded from profit."
+                      : "Record customer and flyer payments on their own record pages to settle the correct bills."}
+                  </SectionNotice>
+                )}
+              </>
+            )}
+          </fieldset>
+          <FormActions>
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => setAction(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy || !formValid}>
+              {busy
+                ? "Saving…"
+                : action === "transfer"
+                  ? "Transfer funds"
+                  : action === "account"
+                    ? editingAccount
+                      ? "Save account"
+                      : "Create account"
+                    : "Save entry"}
+            </Button>
+          </FormActions>
+        </form>
+      </Modal>
+      <InvoiceModal
+        open={statement !== null}
+        onClose={() => setStatement(null)}
+        doc={statement}
+      />
+    </div>
+  );
 }

@@ -1,11 +1,11 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { HttpError, badRequest } from '../core/errors'
-import { matchesMediaType } from './mediaValidation'
+import { matchesMediaType, matchesDocumentType } from './mediaValidation'
 let client: S3Client | undefined
 export const r2Configured = () => ['R2_ACCOUNT_ID','R2_BUCKET','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY'].every(k=>Boolean(process.env[k]))
 function storage() {
-  if (!r2Configured()) throw new HttpError(503,'Photo/video storage is not configured yet')
+  if (!r2Configured()) throw new HttpError(503,'File storage is not configured yet')
   const account = process.env.R2_ACCOUNT_ID!
   if (!/^[a-f0-9]{32}$/i.test(account)) throw new HttpError(503,'Invalid R2 account configuration')
   client ??= new S3Client({region:'auto',endpoint:`https://${account}.r2.cloudflarestorage.com`,credentials:{accessKeyId:process.env.R2_ACCESS_KEY_ID!,secretAccessKey:process.env.R2_SECRET_ACCESS_KEY!},requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'})
@@ -15,13 +15,14 @@ export async function signUpload(key: string, contentType: string, size: number)
   const {client,bucket}=storage()
   return getSignedUrl(client,new PutObjectCommand({Bucket:bucket,Key:key,ContentType:contentType,ContentLength:size}),{expiresIn:300,signableHeaders:new Set(['content-type','content-length'])})
 }
-export async function finalizeUpload(m: {stagingKey:string;objectKey:string;contentType:string;size:number}) {
+export async function finalizeUpload(m: {stagingKey:string;objectKey:string;contentType:string;size:number}, options: {allowPdf?:boolean} = {}) {
   const {client,bucket}=storage()
   try {
     const head=await client.send(new HeadObjectCommand({Bucket:bucket,Key:m.stagingKey}))
     if(head.ContentLength!==m.size || head.ContentType!==m.contentType || !head.ETag) throw badRequest('Uploaded file size/type does not match the reservation')
     const sample=await client.send(new GetObjectCommand({Bucket:bucket,Key:m.stagingKey,Range:'bytes=0-31',IfMatch:head.ETag}))
-    if(!sample.Body || !matchesMediaType(m.contentType,await sample.Body.transformToByteArray())) throw badRequest('File contents are not a supported photo/video')
+    const validType = options.allowPdf ? matchesDocumentType : matchesMediaType
+    if(!sample.Body || !validType(m.contentType,await sample.Body.transformToByteArray())) throw badRequest('File contents do not match the supported file type')
     // Promote to an immutable key. Reusing the PUT URL can only overwrite staging.
     await client.send(new CopyObjectCommand({Bucket:bucket,Key:m.objectKey,CopySource:`${bucket}/${m.stagingKey}`,CopySourceIfMatch:head.ETag,MetadataDirective:'REPLACE',ContentType:m.contentType,CacheControl:'private, no-store',ContentDisposition:'inline'}))
   } catch(e) {

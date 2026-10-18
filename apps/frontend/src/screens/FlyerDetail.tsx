@@ -1,216 +1,314 @@
-import { EmptyState } from '@/components/Workspace'
-import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api } from '@/api/client'
-import { useFetch } from '@/state/useFetch'
-import type { FlyerDetail as Detail } from '@/api/types'
-import { Button } from '@/components/beui/button'
-import { useToast } from '@/components/beui/toast'
-import { Card, Chip, ErrorBlock, FlightCode, LoadingBlock } from '@/components/ui'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { AddFlightModal } from '@/modals/AddFlightModal'
-import { AddFlyerModal } from '@/modals/AddFlyerModal'
-import { fmtDate } from '@/lib/format'
+import { FlyerDocuments } from "@/components/FlyerDocuments";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { api } from "@/api/client";
+import { useFetch } from "@/state/useFetch";
+import type { FlyerDetail as Detail, FlyerFlight } from "@/api/types";
+import { Button } from "@/components/beui/button";
+import { useToast } from "@/components/beui/toast";
+import { ErrorBlock, LoadingBlock } from "@/components/ui";
+import { DetailGrid, Panel, SectionNotice } from "@/components/DesignSystem";
+import {
+  PageHeader,
+  PageTabs,
+  RecordList,
+  SummaryStrip,
+  usePageSection,
+} from "@/components/Workspace";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AddFlightModal } from "@/modals/AddFlightModal";
+import { AddFlyerModal } from "@/modals/AddFlyerModal";
+import { fmtDate, fmtKg } from "@/lib/format";
 
-function Tile({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+function FlightSummary({
+  title,
+  flight,
+}: {
+  title: string;
+  flight: FlyerFlight | null;
+}) {
   return (
-    <div className="rounded-[10px] bg-background px-3.5 py-3">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="mt-0.75 text-[13px] font-bold">{value}</div>
-      {sub ? <div className="text-[10.5px] font-semibold text-success">{sub}</div> : null}
-    </div>
-  )
-}
-
-function DocPill({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <span
-      className="rounded-full px-3 py-1.25 text-[11px] font-semibold"
-      style={{ background: ok ? '#E6F7EC' : '#FDE8E8', color: ok ? '#1B7A3D' : '#C92A2A' }}
+    <Panel
+      title={title}
+      actions={
+        flight ? (
+          <Link
+            className="text-sm font-medium text-primary"
+            to={`/flights/${encodeURIComponent(flight.code)}`}
+          >
+            Open flight →
+          </Link>
+        ) : undefined
+      }
     >
-      {label} {ok ? '✓' : 'missing'}
-    </span>
-  )
+      {flight ? (
+        <DetailGrid
+          items={[
+            { label: "Flight", value: flight.code },
+            { label: "Departure date", value: fmtDate(flight.date) },
+            { label: "Departure time", value: flight.depTime || "—" },
+            { label: "Arrival time", value: flight.arrTime || "—" },
+            { label: "Booked cargo", value: fmtKg(flight.bookedKg) },
+            { label: "Status", value: flight.statusLabel },
+          ]}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {title === "Next flight"
+            ? "No upcoming flight scheduled."
+            : "No previous flight recorded."}
+        </p>
+      )}
+    </Panel>
+  );
 }
 
 export function FlyerDetail() {
-  const { name = '' } = useParams()
-  const navigate = useNavigate()
-  const { showToast } = useToast()
-  const { data, error, loading, reload } = useFetch<{ flyer: Detail }>(`/flyers/${encodeURIComponent(name)}`)
-  const [addingFlight, setAddingFlight] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-
-  if (error) return <ErrorBlock message={error} />
-  if (loading || !data) return <LoadingBlock />
-  const y = data.flyer
+  const { name = "" } = useParams();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { data, error, loading, reload } = useFetch<{ flyer: Detail }>(
+    `/flyers/${encodeURIComponent(name)}`,
+  );
+  const [section, setSection] = usePageSection("profile", [
+    "profile",
+    "documents",
+    "flights",
+  ]);
+  const [addingFlight, setAddingFlight] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  if (error) return <ErrorBlock message={error} />;
+  if (loading || !data) return <LoadingBlock />;
+  const flyer = data.flyer;
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-        <Link to="/flyers" className="text-[12.5px] font-semibold text-blue no-underline">
-          ← Flyers
-        </Link>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setEditOpen(true)}>
-            Edit
-          </Button>
-          <Button variant="danger-outline" onClick={() => setDeleteOpen(true)}>
-            Delete
-          </Button>
-          <Button onClick={() => setAddingFlight(true)}>+ Add flight for this flyer</Button>
+      <ConfirmDialog
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        title={flyer.archivedAt ? "Restore flyer?" : "Archive flyer?"}
+        confirmLabel={flyer.archivedAt ? "Restore" : "Archive"}
+        body="Existing flight assignments and settlements remain intact. Archived flyers are excluded from new assignments."
+        onConfirm={async () => {
+          try {
+            await api.post(`/flyers/${encodeURIComponent(name)}/archive`, {
+              archived: !flyer.archivedAt,
+            });
+            await reload();
+          } catch (e) {
+            showToast({
+              title: e instanceof Error ? e.message : "Could not update flyer",
+              status: "error",
+            });
+          }
+        }}
+      />
+      <Link to="/flyers" className="mb-4 inline-block text-sm text-primary">
+        ← Flyers
+      </Link>
+      <PageHeader
+        title={flyer.name}
+        description="Flyer profile and flight history"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setEditOpen(true)}>
+              Edit flyer
+            </Button>
+            <Button variant="secondary" onClick={() => setArchiveOpen(true)}>
+              {flyer.archivedAt ? "Restore flyer" : "Archive flyer"}
+            </Button>
+            {!flyer.archivedAt && (
+              <Button onClick={() => setAddingFlight(true)}>Add flight</Button>
+            )}
+          </>
+        }
+      />
+      {flyer.archivedAt && (
+        <SectionNotice>
+          This flyer is archived. Their history and settlements are retained.
+        </SectionNotice>
+      )}
+      <SummaryStrip
+        items={[
+          { label: "Assigned flights", value: flyer.flights.length },
+          { label: "Cargo carried", value: fmtKg(flyer.totalKg) },
+          {
+            label: "Documents",
+            value: `${flyer.documentCount} uploaded · ${flyer.verifiedDocumentCount} verified`,
+          },
+          {
+            label: "Next departure",
+            value: flyer.nextFlight
+              ? fmtDate(flyer.nextFlight.date)
+              : "Not scheduled",
+          },
+        ]}
+      />
+      <PageTabs
+        value={section}
+        onChange={setSection}
+        items={[
+          { value: "profile", label: "Profile" },
+          { value: "documents", label: "Documents" },
+          { value: "flights", label: "Flights & settlements" },
+        ]}
+      />
+
+      {section === "profile" && (
+        <div className="space-y-5">
+          <Panel title="Contact information">
+            <DetailGrid
+              items={[
+                { label: "Full name", value: flyer.name },
+                { label: "WeChat ID", value: flyer.wechat },
+                {
+                  label: "China phone",
+                  value: (
+                    <>
+                      {flyer.cnPhone}
+                      {flyer.cnWhatsapp && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          WhatsApp available
+                        </p>
+                      )}
+                    </>
+                  ),
+                },
+                {
+                  label: "Bangladesh phone",
+                  value: (
+                    <>
+                      {flyer.bdPhone}
+                      {flyer.bdWhatsapp && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          WhatsApp available
+                        </p>
+                      )}
+                    </>
+                  ),
+                },
+                { label: "China address", value: flyer.cnAddress },
+                { label: "Bangladesh address", value: flyer.homeAddress },
+                { label: "Emergency contact", value: flyer.emergencyContact },
+              ]}
+            />
+          </Panel>
+          <Panel title="Education">
+            <DetailGrid
+              columns={3}
+              items={[
+                { label: "University", value: flyer.university },
+                { label: "Program", value: flyer.program },
+                { label: "Batch", value: flyer.batch },
+              ]}
+            />
+          </Panel>
+          <Panel
+            title="Profile management"
+            description="Profiles with assignments, financial history or documents must be archived."
+            actions={
+              <Button
+                variant="danger-outline"
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete flyer
+              </Button>
+            }
+          >
+            <p className="text-sm text-muted-foreground">
+              Review linked flights and settlements before removing this
+              profile.
+            </p>
+          </Panel>
         </div>
-      </div>
+      )}
 
-      <div className="flex flex-wrap items-start gap-3.5">
-        <div className="flex min-w-0 w-full lg:min-w-[380px] lg:flex-[1.7] flex-col gap-3.5">
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center gap-3.5 bg-ink px-5.5 py-4 text-white">
-              <div className="grid size-10 place-items-center rounded-[11px] bg-primary text-[17px] font-extrabold">{y.name.charAt(0)}</div>
-              <div>
-                <h1 className="m-0 break-words text-[24px] font-extrabold">{y.name}</h1>
-                <div className="text-xs text-[#B9BCC1]">
-                  {y.university} · {y.batch} · {y.program}
-                </div>
-              </div>
-            </div>
-            <div className="p-5.5">
-              <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
-                <Tile label="China number" value={y.cnPhone} sub={y.cnWhatsapp ? 'WhatsApp ✓' : undefined} />
-                <Tile label="BD number" value={y.bdPhone} sub={y.bdWhatsapp ? 'WhatsApp ✓' : undefined} />
-                <Tile label="WeChat" value={y.wechat} />
-                <Tile label="Address in China" value={y.cnAddress} />
-                <Tile label="Home address (BD)" value={y.homeAddress} />
-                <Tile label="Emergency contact" value={y.emergencyContact} />
-              </div>
-              <div className="mt-4 border-t border-dashed border-border pt-3.5">
-                <div className="mb-2 text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Documents</div>
-                <div className="flex flex-wrap gap-1.5">
-                  <DocPill label="Student ID" ok={y.docStudentId} />
-                  <DocPill label="Visa / Residence Permit" ok={y.docVisa} />
-                  <DocPill label="Admission / JW" ok={y.docAdmission} />
-                </div>
-              </div>
-            </div>
-          </Card>
+      {section === "documents" && (
+        <FlyerDocuments key={flyer.name} name={flyer.name} />
+      )}
 
-          <Card className="p-5 rounded-[14px]">
-            <div className="mb-3 text-[15px] font-bold">Flights · {y.flights.length}</div>
-            <div className="flex flex-col gap-2">
-              {!y.flights.length && <EmptyState title="No flights yet" description="Add a flight to start this flyer’s travel and settlement history." />}
-              {y.flights.map((q) => (
-                <Link
-                  key={q.code}
-                  className="flex cursor-pointer flex-wrap items-center gap-3.5 rounded-[10px] bg-background px-3.5 py-2.75 hover:bg-muted" to={`/flights/${q.code}`}
-                >
-                  <div className="w-[170px] text-[13px] font-bold">
-                    <FlightCode code={q.code} />
-                  </div>
-                  <div className="w-[84px] text-[12.5px] text-muted-foreground">{fmtDate(q.date)}</div>
-                  <div className="min-w-[120px] flex-1 text-[12.5px] text-muted-foreground">
-                    {q.bookedKg} kg of {q.spaceKg} kg + {q.mobiles} mob + {q.laptops} laptop
-                  </div>
-                  <Chip
-                    colors={q.status === 'upcoming' ? { bg: '#E7F0FE', fg: '#0E4DA4' } : { bg: '#F3F2EE', fg: '#5B5E63' }}
-                  >
-                    {q.statusLabel}
-                  </Chip>
-                </Link>
-              ))}
-            </div>
-          </Card>
+      {section === "flights" && (
+        <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <FlightSummary title="Next flight" flight={flyer.nextFlight} />
+            <FlightSummary title="Last flight" flight={flyer.lastFlight} />
+          </div>
+          <SectionNotice>
+            Open a flight to review this flyer’s contribution, payments and
+            settlement.
+          </SectionNotice>
+          <RecordList
+            rows={flyer.flights}
+            recordKey={(flight) => flight.code}
+            href={(flight) => `/flights/${encodeURIComponent(flight.code)}`}
+            searchText={(flight) =>
+              `${flight.code} ${flight.date} ${flight.statusLabel}`
+            }
+            placeholder="Search flight code or departure date"
+            emptyTitle="No flights assigned"
+            emptyDescription="Add a flight for this flyer to start their travel and settlement history."
+            columns={[
+              { label: "Flight", render: (flight) => flight.code },
+              { label: "Departure", render: (flight) => fmtDate(flight.date) },
+              { label: "Status", render: (flight) => flight.statusLabel },
+              {
+                label: "Booked weight",
+                align: "right",
+                render: (flight) => fmtKg(flight.bookedKg),
+              },
+              {
+                label: "Weight allowance",
+                align: "right",
+                render: (flight) => fmtKg(flight.spaceKg),
+              },
+              {
+                label: "Device allowance",
+                render: (flight) =>
+                  `${flight.mobiles} phones · ${flight.laptops} laptops`,
+              },
+            ]}
+          />
         </div>
+      )}
 
-        <div className="flex min-w-0 w-full lg:min-w-[300px] lg:flex-1 flex-col gap-3.5">
-          <Card className="overflow-hidden rounded-[14px]">
-            <div className="p-4.5 pb-3">
-              <div className="mb-3 text-[13px] font-bold">Flyer stats</div>
-              <div className="flex flex-col gap-2.25 text-[13.5px]">
-                <div className="flex justify-between">
-                  <span className="text-[#44474C]">Flights flown</span>
-                  <b>{y.flights.length}</b>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#44474C]">Cargo carried</span>
-                  <b>{y.totalKg} kg</b>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#44474C]">Allowance per flight</span>
-                  <b>
-                    {(() => {
-                      const ref = y.nextFlight ?? y.lastFlight
-                      return ref ? `${ref.spaceKg} kg + ${ref.mobiles} mob + ${ref.laptops} laptop` : '—'
-                    })()}
-                  </b>
-                </div>
-              </div>
-            </div>
-            <div className="bg-primary px-4.5 py-3.5 text-white">
-              <div className="text-[11.5px] font-extrabold tracking-[.08em]">NEXT FLIGHT</div>
-              <div className="mt-1.5 flex items-baseline justify-between">
-                <span className="break-all text-[19px] font-extrabold">{y.nextFlight?.code ?? '—'}</span>
-                <span className="text-[13px] font-bold">{y.nextFlight ? fmtDate(y.nextFlight.date) : 'none scheduled'}</span>
-              </div>
-              {y.nextFlight ? (
-                <>
-                  <div className="mt-1 text-[12.5px]">
-                    {y.nextFlight.depTime} CTU → DAC {y.nextFlight.arrTime}
-                  </div>
-                  <div className="mt-1 flex justify-between text-[12.5px]">
-                    <span className="font-extrabold">{y.nextFlight.statusLabel}</span>
-                    <span>{y.nextFlight.bookedKg} kg booked</span>
-                  </div>
-                </>
-              ) : null}
-            </div>
-            <div className="bg-ink px-4.5 py-3.5 text-white">
-              <div className="text-[11.5px] font-extrabold tracking-[.08em] text-[#E3E5E8]">LAST FLIGHT</div>
-              <div className="mt-1.5 flex items-baseline justify-between">
-                <span className="break-all text-[19px] font-extrabold">{y.lastFlight?.code ?? '—'}</span>
-                <span className="text-[13px] font-bold text-[#E3E5E8]">{y.lastFlight ? fmtDate(y.lastFlight.date) : 'none yet'}</span>
-              </div>
-              {y.lastFlight ? (
-                <>
-                  <div className="mt-1 text-[12.5px] text-[#E3E5E8]">
-                    {y.lastFlight.depTime} CTU → DAC {y.lastFlight.arrTime}
-                  </div>
-                  <div className="mt-1 flex justify-between text-[12.5px]">
-                    <span className="font-extrabold text-[#7CE79A]">{y.lastFlight.statusLabel}</span>
-                    <span className="text-[#E3E5E8]">{y.lastFlight.bookedKg} kg carried</span>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      <AddFlightModal open={addingFlight} onClose={() => setAddingFlight(false)} onDone={() => void reload()} lockedFlyer={y.name} />
+      <AddFlightModal
+        open={addingFlight}
+        onClose={() => setAddingFlight(false)}
+        onDone={() => void reload()}
+        lockedFlyer={flyer.name}
+      />
       <AddFlyerModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        editing={y}
+        editing={flyer}
         onDone={(newName) => {
-          if (newName !== y.name) navigate(`/flyers/${encodeURIComponent(newName)}`, { replace: true })
-          else void reload()
+          if (newName !== flyer.name)
+            navigate(`/flyers/${encodeURIComponent(newName)}`, {
+              replace: true,
+            });
+          else void reload();
         }}
       />
       <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title={`Delete flyer ${y.name}?`}
-        body="The flyer and their flight assignments are removed permanently. Flights themselves stay."
+        title={`Delete flyer ${flyer.name}?`}
+        body="Only an unused profile can be deleted. Archive a flyer with documents, assignments or financial history."
         onConfirm={async () => {
           try {
-            await api.delete(`/flyers/${encodeURIComponent(y.name)}`)
-            showToast({ title: `${y.name} deleted`, status: 'success' })
-            navigate('/flyers')
+            await api.delete(`/flyers/${encodeURIComponent(flyer.name)}`);
+            showToast({ title: `${flyer.name} deleted`, status: "success" });
+            navigate("/flyers");
           } catch (e) {
-            showToast({ title: e instanceof Error ? e.message : 'Failed', status: 'error' })
+            showToast({
+              title: e instanceof Error ? e.message : "Failed",
+              status: "error",
+            });
           }
         }}
       />
     </div>
-  )
+  );
 }

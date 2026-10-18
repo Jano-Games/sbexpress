@@ -10,7 +10,11 @@ import { num, isoDate } from '../shared/serialize'
 const composeName = (firstName: string, lastName: string): string =>
   `${firstName.trim()} ${lastName.trim()}`.trim()
 
+const documentSummary = { where: { status: 'ready' }, select: { kind: true, verifiedAt: true } } as const
+
 function flyerDto(f: {
+  documents: {kind: string; verifiedAt: Date|null}[]
+  archivedAt: Date|null
   name: string
   firstName: string
   lastName: string
@@ -30,6 +34,7 @@ function flyerDto(f: {
   docAdmission: boolean
 }) {
   return {
+    archivedAt:f.archivedAt?.toISOString()??null,
     name: f.name,
     firstName: f.firstName,
     lastName: f.lastName,
@@ -44,9 +49,11 @@ function flyerDto(f: {
     cnAddress: f.cnAddress,
     homeAddress: f.homeAddress,
     emergencyContact: f.emergencyContact,
-    docStudentId: f.docStudentId,
-    docVisa: f.docVisa,
-    docAdmission: f.docAdmission,
+    docStudentId: f.documents.some(d => d.kind === 'student_id' && d.verifiedAt !== null),
+    docVisa: f.documents.some(d => d.kind === 'visa' && d.verifiedAt !== null),
+    docAdmission: f.documents.some(d => d.kind === 'admission' && d.verifiedAt !== null),
+    documentCount: f.documents.length,
+    verifiedDocumentCount: f.documents.filter(d => d.verifiedAt !== null).length,
   }
 }
 
@@ -71,7 +78,7 @@ const normalizeBatch = (batch: string): string =>
 
 export const flyerRoutes = new Hono<AppEnv>()
   .get('/', requireRole('admin'), async (c) => {
-    const flyers = await prisma.flyer.findMany({ orderBy: { createdAt: 'asc' } })
+    const flyers = await prisma.flyer.findMany({ where:c.req.query('includeArchived')==='1'?{}:{archivedAt:null}, orderBy: { createdAt: 'asc' }, include: { documents: documentSummary } })
     return c.json({ flyers: flyers.map(flyerDto) })
   })
 
@@ -104,7 +111,7 @@ export const flyerRoutes = new Hono<AppEnv>()
         cnAddress: body.cnAddress,
         homeAddress: body.homeAddress,
         emergencyContact: body.emergencyContact,
-        docStudentId: true,
+        docStudentId: false,
       },
     })
 
@@ -122,11 +129,9 @@ export const flyerRoutes = new Hono<AppEnv>()
     const body = z
       .object({
         ...flyerFields,
-        docStudentId: z.boolean().optional(),
-        docVisa: z.boolean().optional(),
-        docAdmission: z.boolean().optional(),
+
       })
-      .partial()
+      .partial().strict()
       .parse(await c.req.json())
 
     const firstName = (body.firstName ?? flyer.firstName).trim()
@@ -149,10 +154,18 @@ export const flyerRoutes = new Hono<AppEnv>()
     return c.json({ name: updated.name })
   })
 
+  .post('/:name/archive',requireRole('admin'),async c=>{
+    const {archived}=z.object({archived:z.boolean()}).parse(await c.req.json())
+    const f=await prisma.flyer.findUnique({where:{name:c.req.param('name')!}})
+    if(!f)throw notFound('Flyer not found')
+    await prisma.flyer.update({where:{id:f.id},data:{archivedAt:archived?new Date():null}})
+    return c.json({ok:true})
+  })
   .delete('/:name', requireRole('admin'), async (c) => {
     const flyer = await prisma.flyer.findUnique({ where: { name: c.req.param('name')! } })
     if (!flyer) throw notFound('Flyer not found')
-    // Flight assignments cascade away with the flyer.
+    if(await prisma.flightFlyer.count({where:{flyerId:flyer.id}})||await prisma.shipment.count({where:{flyerId:flyer.id}})||await prisma.payment.count({where:{flyerId:flyer.id}}))throw badRequest('This flyer has shipment or settlement history. Archive the profile instead.')
+    if(await prisma.flyerDocument.count({where:{flyerId:flyer.id}}))throw badRequest('This flyer has stored documents. Archive the profile to retain them.')
     await prisma.flyer.delete({ where: { id: flyer.id } })
     return c.json({ ok: true })
   })
@@ -160,7 +173,7 @@ export const flyerRoutes = new Hono<AppEnv>()
   .get('/:name', requireRole('admin'), async (c) => {
     const flyer = await prisma.flyer.findUnique({
       where: { name: c.req.param('name') },
-      include: { flights: { include: { flight: { include: { shipments: true } } } } },
+      include: { documents: documentSummary, flights: { include: { flight: { include: { shipments: true } } } } },
     })
     if (!flyer) throw notFound('Flyer not found')
 

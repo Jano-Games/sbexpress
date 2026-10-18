@@ -1,8 +1,10 @@
+import { latestReceipt, receiptSummary } from './receiptHistory'
 /**
  * Role-aware serializers. Redaction happens here, not in the client: the hub
  * role gets supplier short codes only, and cost/profit lines are admin-only.
  */
 
+import { shipmentCostItems, type ShipmentCostItem } from './shipmentCosts'
 import type { Prisma } from '@prisma/client'
 import type { Role } from '../modules/auth'
 import { STATUS_LABEL, statusIndex } from './status'
@@ -12,13 +14,15 @@ import { billAmount, effectiveKg, fareShare, weightDelta } from './compute'
 export const num = (value: Prisma.Decimal | number | null | undefined): number =>
   value === null || value === undefined ? 0 : Number(value)
 
+type StoredMoney = {sourceCurrency?:string;sourceAmount?:Prisma.Decimal|null;sourceFxRate?:Prisma.Decimal}
+export const sourceDto=(row:StoredMoney,base:number)=>({sourceCurrency:row.sourceCurrency??'BDT',sourceAmount:row.sourceAmount===null||row.sourceAmount===undefined?base:Number(row.sourceAmount),sourceFxRate:Number(row.sourceFxRate??1)})
 export const numOrNull = (value: Prisma.Decimal | null | undefined): number | null =>
   value === null || value === undefined ? null : Number(value)
 
 export const isoDate = (d: Date): string => d.toISOString().slice(0, 10)
 
 export type ShipmentWithRelations = Prisma.ShipmentGetPayload<{
-  include: { supplier: true; flight: true; receipt: true; expenses: true }
+  include: { supplier: true; flight: true; receipts: true; expenses: true; costs: true }
 }>
 
 /**
@@ -38,47 +42,20 @@ export function effectiveBill(s: {
 /** Recorded operating costs plus additional expense lines, excluding settlements. */
 export function shipmentOperatingCosts(s: {
   cnFare: Prisma.Decimal | number; bdFare: Prisma.Decimal | number | null; customsTax: Prisma.Decimal | number
-  expenses: { costField: string | null; category: string; amount: Prisma.Decimal | number }[]
+  costs?: {category:string;amount:Prisma.Decimal|number;voidedAt:Date|null}[]
+  expenses: { costId?:string|null; costField: string | null; category: string; amount: Prisma.Decimal | number }[]
 }) {
   const costs = { cnTransport: num(s.cnFare), courier: num(s.bdFare), customs: num(s.customsTax), other: 0 }
   for (const expense of s.expenses) {
-    if (expense.costField) continue
+    if (expense.costField || expense.costId) continue
     if (expense.category === 'courier') costs.courier += num(expense.amount)
     else costs.other += num(expense.amount)
   }
+  for(const cost of s.costs??[]) {if(cost.voidedAt)continue;if(cost.category==='courier')costs.courier+=num(cost.amount);else costs.other+=num(cost.amount)}
   return { ...costs, total: costs.cnTransport + costs.courier + costs.customs + costs.other }
 }
 
-export interface ShipmentRowDto {
-  code: string
-  supplierCode: string
-  /** Null for the hub role — short codes only. */
-  supplierName: string | null
-  flightCode: string | null
-  flightDate: string | null
-  bookedKg: number
-  weighedKg: number | null
-  effectiveKg: number
-  weightDelta: number | null
-  description: string
-  categories: string[]
-  charge: number
-  billAmount: number
-  /** Invoice discount baked into billAmount; 0 when no discount was given. */
-  discountAmount: number
-  paidAmount: number
-  /** What's still outstanding after partial payments. */
-  dueAmount: number
-  status: string
-  statusIndex: number
-  statusLabel: string
-  payStatus: string
-  payMethod: string | null
-  receiptStatus: string | null
-  date: string
-}
-
-export function shipmentRow(s: ShipmentWithRelations, role: Role, threshold: number): ShipmentRowDto {
+export function shipmentRow(s: ShipmentWithRelations, role: Role, threshold: number) {
   return {
     code: s.code,
     supplierCode: s.supplier.code,
@@ -101,63 +78,26 @@ export function shipmentRow(s: ShipmentWithRelations, role: Role, threshold: num
     ),
     status: s.status,
     statusIndex: statusIndex(s.status),
-    statusLabel: STATUS_LABEL[s.status],
-    payStatus: num(s.paidAmount) >= effectiveBill(s) ? 'paid' : num(s.paidAmount) > 0 ? 'partial' : s.supplier.terms === 'monthly' ? 'monthly' : s.payStatus === 'cod' ? 'cod' : 'unpaid',
+    statusLabel: s.exception ? s.exception.replaceAll('_',' ') : s.deliveryMode==='pickup' && s.status==='ready_for_last_mile' && s.lastMileRef ? 'Ready for collection' : STATUS_LABEL[s.status],
+    exception:s.exception,exceptionReason:s.exceptionReason,paymentTerms:s.paymentTerms,freeOfCharge:s.freeOfCharge,
+    payStatus: paymentStatus(s),
     payMethod: s.payMethod,
-    receiptStatus: s.receipt?.status ?? null,
+    receiptStatus: latestReceipt(s.receipts)?.status ?? null,
     date: isoDate(s.createdAt),
   }
 }
 
-export interface ShipmentDetailDto extends ShipmentRowDto {
-  chargeRate: number
-  chargeCurrency: string
-  pcsItems: {
-    category: string
-    count: number
-    rate: number
-    currency: 'BDT' | 'CNY'
-    units: { model: string; serial: string }[]
-  }[]
-  flyerName: string | null
-  packedAt: string | null
-  packageCount: number
-  serials: string[]
-  photosCount: number
-  hasVideo: boolean
-  lastMile: { courier: string; ref: string } | null
-  trackToken: string | null
-  log: { actor: string; message: string; at: string }[]
-  flightSpaceKg: number | null
-  /** Admin-only money block; null for everyone else. */
-  costs: {
-    fareShare: number
-    unpaidCosts: {cnFare:number;bdFare:number;customsTax:number}
-    cnFare: number
-    bdFare: number | null
-    customsTax: number
-    afterSalesFee: number
-    extraLines: { category: string; reason: string; amount: number }[]
-    profit: number
-    profitPct: number | null
-  } | null
-  receipt: { method: string; amount: number; status: string; txnRef: string; date: string } | null
-  /** Saved invoice summary — admin only. */
-  invoice: { number: string; total: number; discount: number; issuedAt: string; updatedAt: string } | null
-  /** Money received against this shipment, oldest first. Hidden from hub. */
-  payments: { method: string; amount: number; at: string }[]
-}
-
 export function shipmentDetail(
   s: ShipmentWithRelations & {
+    receipts: (ShipmentWithRelations['receipts'][number] & { screenshot?: {reference:string;name:string;contentType:string;size:number} | null; payments?: {amount:unknown;reversedAt:Date|null}[] })[]
     flyer?: { name: string } | null
     logs: { actor: string; message: string; at: Date }[]
-    invoice?: { number: string; total: Prisma.Decimal; discount: Prisma.Decimal; issuedAt: Date; updatedAt: Date } | null
-    payments?: { method: string; amount: Prisma.Decimal; createdAt: Date }[]
+    invoice?: ({ state:string;needsReview:boolean;pricingMode:string; number: string; total: Prisma.Decimal; discount: Prisma.Decimal; issuedAt: Date; updatedAt: Date } & StoredMoney) | null
+    payments?: ({ id:string;reference:string;reversedAt:Date|null;reversalOfId:string|null; method: string; amount: Prisma.Decimal; createdAt: Date } & StoredMoney)[]
   },
   role: Role,
   threshold: number,
-): ShipmentDetailDto {
+) {
   const flightEcon = s.flight ? { actualCost: num(s.flight.agencyShare), spaceKg: s.flight.spaceKg } : null
   const money = {
     bookedKg: num(s.bookedKg),
@@ -172,6 +112,8 @@ export function shipmentDetail(
 
   return {
     ...shipmentRow(s, role, threshold),
+    pricingRates: s.pricingRates as Record<string,number>,
+    costSources: role === 'admin' ? s.costSources as Record<string,{sourceCurrency:string;sourceFxRate:number;sourceAmount:number}> : {},
     chargeRate: num(s.chargeRate),
     chargeCurrency: s.chargeCurrency,
     pcsItems: (
@@ -185,13 +127,15 @@ export function shipmentDetail(
     serials: s.serials,
     photosCount: s.photosCount,
     hasVideo: s.hasVideo,
-    lastMile: s.lastMileCourier ? { courier: s.lastMileCourier, ref: s.lastMileRef ?? '' } : null,
+    lastMile: s.lastMileCourier ? { courier: s.lastMileCourier, ref: s.lastMileRef ?? '',mode:s.deliveryMode,bookedAt:s.deliveryBookedAt?.toISOString()??null,dispatchedAt:s.dispatchedAt?.toISOString()??null,handedOverAt:s.handedOverAt?.toISOString()??null } : null,
     trackToken: null,
-    log: (role === 'hub' ? s.logs.filter(l => l.actor === 'Hub' || l.message.startsWith('Status →')) : s.logs).map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
+    log: (role === 'hub' ? s.logs.filter(l => /^(Status|Weighed|Packed|Last mile|Delivery|Exception|Shipment resumed|Checkpoint)/.test(l.message)) : s.logs).map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
     flightSpaceKg: s.flight?.spaceKg ?? null,
     costs:
       role === 'admin'
         ? {
+            items: shipmentCostItems(s),
+            total: Math.round(shipmentOperatingCosts(s).total * 100) / 100,
             unpaidCosts: {
               cnFare:Math.max(0,num(s.cnFare)-s.expenses.filter(e=>e.costField === 'cnFare').reduce((a,e)=>a+num(e.amount),0)),
               bdFare:Math.max(0,num(s.bdFare)-s.expenses.filter(e=>e.costField === 'bdFare').reduce((a,e)=>a+num(e.amount),0)),
@@ -207,19 +151,13 @@ export function shipmentDetail(
             profitPct: effectiveBill(s) > 0 ? Math.round((net / effectiveBill(s)) * 100) : null,
           }
         : null,
-    receipt:
-      s.receipt && role !== 'hub'
-        ? {
-            method: s.receipt.method,
-            amount: num(s.receipt.amount),
-            status: s.receipt.status,
-            txnRef: s.receipt.txnRef,
-            date: isoDate(s.receipt.uploadedAt),
-          }
-        : null,
+    receipt: role==='admin' && latestReceipt(s.receipts) ? receiptSummary(latestReceipt(s.receipts)!) : null,
+    receiptHistory: role==='admin' ? [...s.receipts].sort((a,b)=>b.uploadedAt.getTime()-a.uploadedAt.getTime()).map(receiptSummary) : [],
     invoice:
       role === 'admin' && s.invoice
         ? {
+            ...sourceDto(s.invoice,num(s.invoice.total)),
+            state:s.invoice.state,needsReview:s.invoice.needsReview,pricingMode:s.invoice.pricingMode,
             number: s.invoice.number,
             total: num(s.invoice.total),
             discount: num(s.invoice.discount),
@@ -229,7 +167,13 @@ export function shipmentDetail(
         : null,
     payments:
       role !== 'hub'
-        ? (s.payments ?? []).map((p) => ({ method: p.method, amount: num(p.amount), at: p.createdAt.toISOString() }))
+        ? (s.payments ?? []).map((p) => ({ id:p.id,reference:p.reference,canReverse:!p.reversedAt&&!p.reversalOfId&&num(p.amount)>0,reversedAt:p.reversedAt?.toISOString()??null,reversalOfId:p.reversalOfId,...sourceDto(p,num(p.amount)), method: p.method, amount: num(p.amount), at: p.createdAt.toISOString() }))
         : [],
   }
+}
+
+export function paymentStatus(s:{paidAmount:unknown;charge:Prisma.Decimal;customsTax:Prisma.Decimal;afterSalesFee:Prisma.Decimal;freeOfCharge?:boolean;invoice?:{total:Prisma.Decimal;state?:string}|null}) {
+  const total=effectiveBill(s),paid=Number(s.paidAmount)
+  if((total>0 || s.freeOfCharge) && s.invoice?.state!=='draft' && paid>=total)return 'paid' as const
+  return paid>0?'partial' as const:'unpaid' as const
 }

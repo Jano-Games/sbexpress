@@ -1,171 +1,502 @@
-import { InvoicePdfActions } from '@/components/InvoicePdfActions'
-import { useEffect, useState } from 'react'
-import { api } from '@/api/client'
-import type { ShipmentInvoice } from '@/api/types'
-import { TrackLinkModal } from './TrackLinkModal'
-import { Modal } from '@/components/Modal'
-import { Button } from '@/components/beui/button'
-import { Input } from '@/components/beui/input'
-import { useToast } from '@/components/beui/toast'
-import { SbMark } from '@/components/ui'
-import { fmtBdt, fmtDate } from '@/lib/format'
+import { useEffect, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { api } from "@/api/client";
+import type { ShipmentInvoice } from "@/api/types";
+import {
+  CurrencyFields,
+  useMoneyEntry,
+  nativeMoney,
+} from "@/components/MoneyInput";
+import { InvoicePdfActions } from "@/components/InvoicePdfActions";
+import {
+  DetailGrid,
+  FormActions,
+  FormGrid,
+  FormSection,
+  SectionNotice,
+} from "@/components/DesignSystem";
+import { TrackLinkModal } from "./TrackLinkModal";
+import { Modal } from "@/components/Modal";
+import { Button } from "@/components/beui/button";
+import { Input } from "@/components/beui/input";
+import { useToast } from "@/components/beui/toast";
+import { fmtBdt, fmtDate } from "@/lib/format";
 
-type LineDraft = { label: string; amount: string }
+type LineDraft = { label: string; amount: string; costId?: string };
 
-/**
- * Editable per-shipment invoice: opens as a draft built from the shipment,
- * lines and discount are adjustable, Finalize persists it. Reopening a saved
- * invoice edits it in place.
- */
+/** Invoice drafts and saved invoices share one editor; monetary snapshots stay attached to the saved invoice. */
 export function ShipmentInvoiceModal({
   open,
   onClose,
   code,
   onSaved,
 }: {
-  open: boolean
-  onClose: () => void
-  code: string
-  onSaved: () => void
+  open: boolean;
+  onClose: () => void;
+  code: string;
+  onSaved: () => void;
 }) {
-  const { showToast } = useToast()
-  const [sharing, setSharing] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [header, setHeader] = useState<Pick<ShipmentInvoice, 'number' | 'to' | 'issuedAt'> | null>(null)
-  const [lines, setLines] = useState<LineDraft[]>([])
-  const [discount, setDiscount] = useState('')
-  const [note, setNote] = useState('')
+  const entry = useMoneyEntry(undefined, false, open);
+  const { showToast } = useToast();
+  const [sharing, setSharing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [invoice, setInvoice] = useState<ShipmentInvoice | null>(null);
+  const [pricingMode, setPricingMode] = useState("automatic");
+  const [revisionReason, setRevisionReason] = useState("");
+  const [confirmFree, setConfirmFree] = useState(false);
+  const issued = invoice?.state === "issued";
+  const [loadError, setLoadError] = useState("");
+  const [header, setHeader] = useState<Pick<
+    ShipmentInvoice,
+    "number" | "to" | "issuedAt"
+  > | null>(null);
+  const [lines, setLines] = useState<LineDraft[]>([]);
+  const [discount, setDiscount] = useState("");
+  const [note, setNote] = useState("");
 
   useEffect(() => {
-    if (!open) return
-    setLoading(true)
+    if (!open) return;
+    let current = true;
+    setLoading(true);
+    setLoadError("");
+    setHeader(null);
     api
-      .get<{ saved: boolean; invoice: ShipmentInvoice }>(`/shipments/${code}/invoice`)
-      .then((r) => {
-        setSaved(r.saved)
-        setHeader({ number: r.invoice.number, to: r.invoice.to, issuedAt: r.invoice.issuedAt })
-        setLines(r.invoice.lines.map((l) => ({ label: l.label, amount: String(l.amount) })))
-        setDiscount(r.invoice.discount ? String(r.invoice.discount) : '')
-        setNote(r.invoice.note)
+      .get<{ saved: boolean; invoice: ShipmentInvoice }>(
+        `/shipments/${code}/invoice`,
+      )
+      .then((response) => {
+        if (!current) return;
+        entry.restore(
+          response.invoice.sourceCurrency ?? "BDT",
+          response.invoice.sourceFxRate ?? 1,
+        );
+        setSaved(response.saved);
+        setInvoice(response.invoice);
+        setPricingMode(response.invoice.pricingMode);
+        setRevisionReason("");
+        setConfirmFree(false);
+        setHeader({
+          number: response.invoice.number,
+          to: response.invoice.to,
+          issuedAt: response.invoice.issuedAt,
+        });
+        setLines(
+          response.invoice.lines.map((line) => ({
+            label: line.label,
+            costId: line.costId,
+            amount: String(
+              Math.round(
+                (line.amount / (response.invoice.sourceFxRate || 1)) * 100,
+              ) / 100,
+            ),
+          })),
+        );
+        setDiscount(
+          response.invoice.discount
+            ? String(
+                Math.round(
+                  (response.invoice.discount /
+                    (response.invoice.sourceFxRate || 1)) *
+                    100,
+                ) / 100,
+              )
+            : "",
+        );
+        setNote(response.invoice.note);
       })
-      .catch((e: unknown) => showToast({ title: e instanceof Error ? e.message : 'Failed to load', status: 'error' }))
-      .finally(() => setLoading(false))
-  }, [open, code, showToast])
+      .catch((error: unknown) => {
+        if (current)
+          setLoadError(
+            error instanceof Error ? error.message : "Could not load invoice",
+          );
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [open, code]);
 
-  const linesSum = lines.reduce((a, l) => a + (parseFloat(l.amount) || 0), 0)
-  const total = linesSum - (parseFloat(discount) || 0)
+  const linesSum = lines.reduce(
+    (sum, line) => sum + (parseFloat(line.amount) || 0),
+    0,
+  );
+  const total = linesSum - (parseFloat(discount) || 0);
 
-  const save = () =>
-    void (async () => {
-      const payload = {
-        lines: lines
-          .map((l) => ({ label: l.label.trim(), amount: parseFloat(l.amount) || 0 }))
-          .filter((l) => l.label),
-        discount: parseFloat(discount) || 0,
-        note: note.trim(),
-      }
-      if (!payload.lines.length) {
-        showToast({ title: 'At least one line with a label is required', status: 'error' })
-        return
-      }
-      setBusy(true)
-      try {
-        const r = await api.post<{ number: string }>(`/shipments/${code}/invoice`, payload)
-        showToast({ title: `${r.number} ${saved ? 'updated' : 'finalized'}`, status: 'success' })
-        onSaved()
-        onClose()
-      } catch (e) {
-        showToast({ title: e instanceof Error ? e.message : 'Failed', status: 'error' })
-      } finally {
-        setBusy(false)
-      }
-    })()
+  async function save(state: "draft" | "issued" = "issued") {
+    if (busy) return;
+    const payload = {
+      ...entry.meta,
+      state,
+      pricingMode,
+      revisionReason,
+      confirmFree,
+      lines: lines
+        .map((line) => ({
+          label: line.label.trim(),
+          costId: line.costId,
+          amount: parseFloat(line.amount) || 0,
+        }))
+        .filter((line) => line.label),
+      discount: parseFloat(discount) || 0,
+      note: note.trim(),
+    };
+    if (!payload.lines.length) {
+      showToast({
+        title: "Add at least one line with a description",
+        status: "error",
+      });
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await api.post<{ number: string }>(
+        `/shipments/${code}/invoice`,
+        payload,
+      );
+      showToast({
+        title: `${response.number} ${state === "draft" ? "draft saved" : "issued"}`,
+        status: "success",
+      });
+      onSaved();
+      onClose();
+    } catch (error) {
+      showToast({
+        title:
+          error instanceof Error ? error.message : "Could not save invoice",
+        status: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
-    <TrackLinkModal open={sharing} onClose={() => setSharing(false)} code={code} initialScope="invoice" />
-    <Modal open={open && !sharing} onClose={onClose} className="max-w-[560px]">
-      {loading || !header ? (
-        <div className="p-8 text-center text-[13px] text-muted-foreground">Loading…</div>
-      ) : (
-        <>
-          <div className="flex items-start justify-between">
-            <div>
-              <div data-dialog-title className="text-[17px] font-extrabold">{saved ? 'Edit invoice' : 'Finalize invoice'}</div>
-              <div className="text-[11.5px] text-muted-foreground">
-                {header.number} · {fmtDate(header.issuedAt)}
-              </div>
-            </div>
-            <SbMark size={30} />
-          </div>
-          <div className="mt-3 text-xs text-muted-foreground">Billed to</div>
-          <div className="text-[13.5px] font-bold">{header.to}</div>
-
-          <div className="mt-3.5 flex flex-col gap-1.5 border-t border-border pt-3">
-            {lines.map((line, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <Input
-                  className="min-w-0 flex-1"
-                  placeholder="Line description"
-                  value={line.label}
-                  onChange={(v) => setLines((l) => l.map((x, j) => (j === i ? { ...x, label: v } : x)))}
-                />
-                <Input
-                  className="w-28"
-                  placeholder="Amount ৳"
-                  value={line.amount}
-                  onChange={(v) => setLines((l) => l.map((x, j) => (j === i ? { ...x, amount: v } : x)))}
-                />
-                <button
-                  type="button"
-                  title="Remove line"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-full border border-[#F1C4C4] bg-card text-[11px] font-extrabold text-danger"
-                  onClick={() => setLines((l) => l.filter((_, j) => j !== i))}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs font-semibold text-blue"
-              onClick={() => setLines((l) => [...l, { label: '', amount: '' }])}
+      <TrackLinkModal
+        open={sharing}
+        onClose={() => setSharing(false)}
+        code={code}
+        initialScope="invoice"
+      />
+      <Modal open={open && !sharing} onClose={onClose} className="max-w-3xl">
+        <header className="mb-6">
+          <h2 data-dialog-title className="text-xl font-semibold">
+            {issued ? "Review / revise invoice" : "Prepare invoice"}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">Shipment {code}</p>
+        </header>
+        {loading ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Loading invoice…
+          </p>
+        ) : loadError ? (
+          <>
+            <SectionNotice tone="danger">{loadError}</SectionNotice>
+            <FormActions>
+              <Button variant="secondary" onClick={onClose}>
+                Close
+              </Button>
+            </FormActions>
+          </>
+        ) : (
+          header && (
+            <form
+              className="space-y-6"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save();
+              }}
             >
-              + Add line (use a negative amount for an adjustment)
-            </button>
-          </div>
-
-          <div className="mt-3 flex items-end gap-2.5 border-t border-dashed border-border pt-3">
-            <Input className="w-32" label="Discount (৳)" placeholder="0" value={discount} onChange={setDiscount} />
-            <Input className="min-w-0 flex-1" label="Note (optional)" placeholder="e.g. Eid discount" value={note} onChange={setNote} />
-          </div>
-
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <div className="text-[12.5px] text-muted-foreground">
-              {fmtBdt(linesSum)}
-              {parseFloat(discount) > 0 ? <span className="text-danger"> − {fmtBdt(parseFloat(discount) || 0)}</span> : null}
-            </div>
-            <div className="text-[15px]">
-              <span className="mr-2 font-extrabold">Total due</span>
-              <span className="font-extrabold text-primary">{fmtBdt(total)}</span>
-            </div>
-          </div>
-
-          {saved && <div className="mt-4"><p className="mb-2 text-xs text-muted-foreground">PDF reflects the saved invoice. Save edits before downloading.</p><InvoicePdfActions path={`/shipments/${encodeURIComponent(code)}/invoice.pdf`} filename={`invoice-${code}.pdf`} /></div>}
-          {saved && <Button className="mt-3" variant="secondary" onClick={() => setSharing(true)}>Share saved invoice / request partial payment</Button>}
-          <div className="mt-4 flex gap-2">
-            <Button className="flex-1" size="lg" disabled={busy} onClick={save}>
-              {saved ? 'Save changes' : 'Finalize invoice'}
-            </Button>
-            <Button variant="secondary" size="lg" onClick={onClose}>
-              Cancel
-            </Button>
-          </div>
-        </>
-      )}
-    </Modal>
+              <DetailGrid
+                columns={3}
+                items={[
+                  { label: "Invoice number", value: header.number },
+                  { label: "Billed to", value: header.to },
+                  {
+                    label: issued ? "Issue date" : "State",
+                    value: issued
+                      ? fmtDate(header.issuedAt)
+                      : "Draft · not payable",
+                  },
+                ]}
+              />
+              <SectionNotice
+                tone={invoice?.needsReview ? "warning" : undefined}
+              >
+                {invoice?.needsReview
+                  ? "Shipment pricing changed. Review the suggested breakdown and explicitly issue a revision. The previous invoice remains in history."
+                  : issued
+                    ? "Changes to an issued invoice are recorded as a revision. Explain any pricing change below."
+                    : "This is a draft estimate. Review weight, rates and costs before issuing it. Customer payment opens only after issue."}
+              </SectionNotice>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setLines(
+                      (invoice?.suggestedLines ?? []).map((l) => ({
+                        ...l,
+                        amount: String(
+                          Math.round((l.amount / entry.exchangeRate) * 100) /
+                            100,
+                        ),
+                      })),
+                    );
+                  }}
+                >
+                  Load suggested breakdown
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setLines(
+                      (invoice?.calculatedLines ?? []).map((l) => ({
+                        ...l,
+                        amount: String(
+                          Math.round((l.amount / entry.exchangeRate) * 100) /
+                            100,
+                        ),
+                      })),
+                    );
+                    setPricingMode("automatic");
+                  }}
+                >
+                  Recalculate from shipment
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {pricingMode === "automatic"
+                  ? "Draft pricing follows shipment weight, rates and costs."
+                  : "Manually agreed pricing. Later shipment changes will require review."}
+              </p>
+              <FormSection
+                title="Invoice currency"
+                description="The currency and agreed exchange rate are saved with this invoice."
+              >
+                <CurrencyFields
+                  entry={{
+                    ...entry,
+                    setCurrency: (currency) => {
+                      const nextRate =
+                        currency === "BDT" ? 1 : Number(entry.rateText);
+                      if (!nextRate) return;
+                      const factor = entry.exchangeRate / nextRate;
+                      setLines((rows) =>
+                        rows.map((row) => ({
+                          ...row,
+                          amount: String(
+                            Math.round(Number(row.amount) * factor * 100) / 100,
+                          ),
+                        })),
+                      );
+                      setDiscount(
+                        String(
+                          Math.round(Number(discount) * factor * 100) / 100,
+                        ),
+                      );
+                      entry.setCurrency(currency);
+                    },
+                  }}
+                  disabled={busy}
+                />
+              </FormSection>
+              <FormSection
+                title="Invoice items"
+                description={`Enter all line amounts in ${entry.currency}. Use a negative amount for an adjustment.`}
+              >
+                <div className="space-y-4">
+                  {lines.map((line, index) => (
+                    <div
+                      key={index}
+                      className="grid items-end gap-3 border-b border-border pb-4 sm:grid-cols-[minmax(0,1fr)_150px_auto]"
+                    >
+                      <Input
+                        label={`Item ${index + 1} · description`}
+                        placeholder="Service or adjustment"
+                        value={line.label}
+                        onChange={(value) => {
+                          setPricingMode("manual");
+                          setLines((rows) =>
+                            rows.map((row, rowIndex) =>
+                              rowIndex === index
+                                ? { ...row, label: value }
+                                : row,
+                            ),
+                          );
+                        }}
+                        disabled={busy}
+                      />
+                      <Input
+                        label={`Amount · ${entry.currency}`}
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={line.amount}
+                        onChange={(value) => {
+                          setPricingMode("manual");
+                          setLines((rows) =>
+                            rows.map((row, rowIndex) =>
+                              rowIndex === index
+                                ? { ...row, amount: value }
+                                : row,
+                            ),
+                          );
+                        }}
+                        disabled={busy}
+                      />
+                      <Button
+                        variant="secondary"
+                        aria-label={`Remove invoice item ${index + 1}`}
+                        disabled={busy}
+                        onClick={() => {
+                          setPricingMode("manual");
+                          setLines((rows) =>
+                            rows.filter((_, rowIndex) => rowIndex !== index),
+                          );
+                        }}
+                      >
+                        <Trash2 size={16} />
+                        <span className="sm:sr-only">Remove item</span>
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setPricingMode("manual");
+                      setLines((rows) => [...rows, { label: "", amount: "" }]);
+                    }}
+                  >
+                    <Plus size={16} />
+                    Add invoice item
+                  </Button>
+                </div>
+              </FormSection>
+              <FormSection title="Discount and notes">
+                <FormGrid>
+                  <Input
+                    label={`Discount · ${entry.currency}`}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={discount}
+                    onChange={setDiscount}
+                    disabled={busy}
+                  />
+                  <Input
+                    label="Customer note (optional)"
+                    placeholder="Additional invoice information"
+                    value={note}
+                    onChange={setNote}
+                    disabled={busy}
+                  />
+                </FormGrid>
+              </FormSection>
+              <dl className="space-y-3 border-y border-border py-4 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Subtotal</dt>
+                  <dd className="tabular-nums">
+                    {nativeMoney(linesSum, entry.currency)}
+                  </dd>
+                </div>
+                {parseFloat(discount) > 0 && (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Discount</dt>
+                    <dd className="tabular-nums">
+                      − {nativeMoney(parseFloat(discount), entry.currency)}
+                    </dd>
+                  </div>
+                )}
+                <div className="flex justify-between gap-4 text-lg font-semibold">
+                  <dt>Invoice total</dt>
+                  <dd className="tabular-nums">
+                    {nativeMoney(total, entry.currency)}
+                  </dd>
+                </div>
+                {entry.currency === "CNY" && (
+                  <div className="flex justify-between gap-4 text-xs text-muted-foreground">
+                    <dt>BDT equivalent</dt>
+                    <dd className="tabular-nums">
+                      {fmtBdt(entry.toBdt(total))}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              {saved && issued && (
+                <FormSection
+                  title="Saved invoice document"
+                  description="Save your edits before downloading or sharing the updated invoice."
+                >
+                  <InvoicePdfActions
+                    path={`/shipments/${encodeURIComponent(code)}/invoice.pdf`}
+                    filename={`invoice-${code}.pdf`}
+                  />
+                  <Button
+                    className="mt-3"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => setSharing(true)}
+                  >
+                    Share link
+                  </Button>
+                </FormSection>
+              )}
+              {issued && (
+                <Input
+                  label="Revision reason"
+                  value={revisionReason}
+                  onChange={setRevisionReason}
+                  required
+                  maxLength={500}
+                />
+              )}
+              {total === 0 && (
+                <label className="flex gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={confirmFree}
+                    onChange={(e) => setConfirmFree(e.target.checked)}
+                  />
+                  Confirm this shipment is intentionally free of charge
+                </label>
+              )}
+              <FormActions>
+                <Button variant="secondary" onClick={onClose} disabled={busy}>
+                  Cancel
+                </Button>
+                {!issued && (
+                  <Button
+                    variant="secondary"
+                    disabled={busy || !entry.valid || total < 0}
+                    onClick={() => void save("draft")}
+                  >
+                    Save draft
+                  </Button>
+                )}
+                <Button
+                  type="submit"
+                  disabled={
+                    busy ||
+                    !entry.valid ||
+                    total < 0 ||
+                    (total === 0 && !confirmFree) ||
+                    (issued && revisionReason.trim().length < 3)
+                  }
+                >
+                  {busy
+                    ? "Saving…"
+                    : issued
+                      ? "Issue revision"
+                      : "Issue invoice"}
+                </Button>
+              </FormActions>
+            </form>
+          )
+        )}
+      </Modal>
     </>
-  )
+  );
 }

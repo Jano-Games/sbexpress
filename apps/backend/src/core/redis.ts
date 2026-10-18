@@ -8,12 +8,14 @@
 
 import Redis from 'ioredis'
 import { config } from './config'
+import { HttpError } from './errors'
 
 export const redis = new Redis(config.redisUrl, {
   lazyConnect: true,
   maxRetriesPerRequest: 2,
   connectTimeout: 3000,
-  retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+  // Recover when a local container or remote Redis returns after an outage.
+  retryStrategy: (times) => Math.min(times * 200, 5000),
 })
 
 let connected = false
@@ -35,7 +37,9 @@ export async function connectRedis(): Promise<void> {
 }
 
 export function redisReady(): boolean {
-  return connected && redis.status === 'ready'
+  // A command error does not necessarily disconnect the client. Its actual
+  // connection state is authoritative, rather than the logging flag above.
+  return redis.status === 'ready'
 }
 
 export async function closeRedis(): Promise<void> {
@@ -82,13 +86,13 @@ export async function cacheInvalidate(prefix: string): Promise<void> {
 
 /** Fail closed if the shared rate limiter is unavailable. */
 export async function rateLimit(bucket: string, limit: number): Promise<boolean> {
-  if (!redisReady()) return false
+  if (!redisReady()) throw new HttpError(503, 'Login and payment services are reconnecting. Please try again shortly.')
   try {
     const key = `rate:${bucket}:${Math.floor(Date.now() / 60_000)}`
     const count = await redis.incr(key)
     if (count === 1) await redis.expire(key, 90)
     return count <= limit
   } catch {
-    return false
+    throw new HttpError(503, 'Login and payment services are temporarily unavailable. Please try again shortly.')
   }
 }

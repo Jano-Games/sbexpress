@@ -15,7 +15,7 @@ export const todoRoutes = new Hono<AppEnv>()
       orderBy: { createdAt: 'asc' },
     })
     return c.json({
-      todos: todos.map((t) => ({ id: t.id, text: t.text, auto: t.auto, done: t.done })),
+      todos: todos.map((t) => ({ id: t.id, text: t.text, auto: t.auto, done: t.done,href:t.receiptId||t.statementReceiptId?'/review':null })),
     })
   })
 
@@ -28,6 +28,7 @@ export const todoRoutes = new Hono<AppEnv>()
   .post('/:id/toggle', requireRole('admin', 'hub'), async (c) => {
     const todo = await prisma.todo.findUnique({ where: { id: c.req.param('id') } })
     if (!todo || todo.role !== roleOf(c.get('user').role)) throw notFound('Task not found')
+    if(todo.receiptId||todo.statementReceiptId)return c.json({error:'Complete this task in Payment review'},400)
     await prisma.todo.update({ where: { id: todo.id }, data: { done: !todo.done } })
     return c.json({ done: !todo.done })
   })

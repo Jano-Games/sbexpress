@@ -1,38 +1,63 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from '@/api/client'
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, cachedRead, getToken, onReadsInvalidated } from "@/api/client";
 
-/**
- * Minimal data hook: fetch on mount and whenever `path` changes, expose a
- * `reload` for after mutations. Stale responses from an outdated path are
- * dropped so quick navigation can't paint the wrong screen.
- */
+interface ReadState<T> {
+  path: string | null;
+  token: string | null;
+  data: T | null;
+  error: string | null;
+  refreshing: boolean;
+}
+
+/** Show a recent snapshot while revalidating. Writes refresh all mounted readers. */
 export function useFetch<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(Boolean(path))
-  const generation = useRef(0)
+  const token = getToken();
+  const [state, setState] = useState<ReadState<T>>(() => ({
+    path, token, data: path ? cachedRead<T>(path) : null,
+    error: null, refreshing: Boolean(path),
+  }));
+  const generation = useRef(0);
 
   const load = useCallback(async () => {
-    if (!path) return
-    const mine = ++generation.current
-    setLoading(true)
-    try {
-      const result = await api.get<T>(path)
-      if (generation.current === mine) {
-        setData(result)
-        setError(null)
-      }
-    } catch (e) {
-      if (generation.current === mine) setError(e instanceof Error ? e.message : 'Request failed')
-    } finally {
-      if (generation.current === mine) setLoading(false)
+    const mine = ++generation.current;
+    if (!path || getToken() !== token) {
+      setState({ path, token, data: null, error: null, refreshing: false });
+      return;
     }
-  }, [path])
+    setState((previous) => ({
+      path, token,
+      data: previous.path === path && previous.token === token
+        ? previous.data : cachedRead<T>(path),
+      error: null, refreshing: true,
+    }));
+    try {
+      const result = await api.get<T>(path);
+      if (generation.current === mine && getToken() === token)
+        setState({ path, token, data: result, error: null, refreshing: false });
+    } catch (error) {
+      if (generation.current === mine && getToken() === token)
+        setState((previous) => ({
+          ...previous, error: error instanceof Error ? error.message : "Request failed",
+          refreshing: false,
+        }));
+    }
+  }, [path, token]);
 
   useEffect(() => {
-    setData(null)
-    void load()
-  }, [load])
+    const unsubscribe = onReadsInvalidated(() => { void load(); });
+    void load();
+    return () => { generation.current++; unsubscribe(); };
+  }, [load]);
 
-  return { data, error, loading, reload: load }
+  // Never show the previous record or account during a path/session transition.
+  const current = state.path === path && state.token === token;
+  const data = current ? state.data : path ? cachedRead<T>(path) : null;
+  const error = current ? state.error : null;
+  const refreshing = current ? state.refreshing : Boolean(path);
+  return {
+    data, error,
+    loading: Boolean(path) && data === null && !error,
+    refreshing,
+    reload: load,
+  };
 }

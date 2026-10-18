@@ -1,13 +1,23 @@
+import { shipmentCostItems } from './shipmentCosts'
+import type { Flight, Prisma } from '@prisma/client'
 import { prisma } from '../core/db'
 import { badRequest } from '../core/errors'
 import { effectiveBill, num, isoDate } from './serialize'
-import { getSettings } from './settings'
-import { buildStatement } from '../modules/suppliers'
+import { getSettings, type AppSettings } from './settings'
 const monthOf = (d: Date): string => d.toISOString().slice(0, 7)
 const monthLabel = (month: string): string => new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-GB', {month:'long',year:'numeric',timeZone:'UTC'})
 
+type SummaryShipment = Prisma.ShipmentGetPayload<{ include: { invoice: true; expenses: true; costs: true } }>
+
+/** A caller may share reads within this response; nothing is cached across requests. */
+export interface FinancialSummarySnapshot {
+  settings?: AppSettings | Promise<AppSettings>
+  shipments?: SummaryShipment[] | Promise<SummaryShipment[]>
+  flights?: Flight[] | Promise<Flight[]>
+}
+
 /** Shared cash, accrual profit and outstanding balances for all summaries. */
-export async function financialSummary(period: string) {
+export async function financialSummary(period: string, snapshot: FinancialSummarySnapshot = {}) {
     const isMonth = /^\d{4}-\d{2}$/.test(period)
     if (!isMonth && period !== 'week' && period !== 'all') throw badRequest('period must be week, all or YYYY-MM')
 
@@ -23,23 +33,24 @@ export async function financialSummary(period: string) {
           : monthLabel(period)
     const month = isMonth ? period : monthOf(new Date())
 
-    const [settings, accounts, expenses, payments, monthlySuppliers, allShipments, allFlights] = await Promise.all([
-      getSettings(),
+    const [settings, accounts, expenses, payments, monthlySuppliers, allShipments, allFlights, allRefunds, customerCredits, transfers] = await Promise.all([
+      snapshot.settings ?? getSettings(),
       prisma.account.findMany({ orderBy: { createdAt: 'asc' }, include:{paymentMethod:true} }),
       prisma.expense.findMany({
         include: { shipment: { select: { code: true } }, flight: { select: { code: true } } },
         orderBy: { date: 'asc' },
       }),
       prisma.payment.findMany({ include: { shipment: { select: { code: true } } }, orderBy: { createdAt: 'asc' } }),
-      prisma.supplier.findMany({ where: { terms: 'monthly' }, select: { code: true } }),
-      prisma.shipment.findMany({ include: { invoice: true, expenses:true } }),
-      prisma.flight.findMany(),
+      isMonth ? prisma.supplier.findMany({ where: { OR:[{terms:'monthly'},{shipments:{some:{paymentTerms:'monthly'}}}] }, select: { id: true, code: true, name: true } }) : Promise.resolve([]),
+      snapshot.shipments ?? prisma.shipment.findMany({ include: { invoice: true, expenses:true, costs:true } }),
+      snapshot.flights ?? prisma.flight.findMany(),
+      prisma.customerRefund.findMany({include:{supplier:{select:{code:true}}},orderBy:{createdAt:'desc'}}),
+      prisma.supplier.aggregate({_sum:{creditBalance:true}}),
+      prisma.fundTransfer.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
     ])
-    const allRefunds=await prisma.customerRefund.findMany({include:{supplier:{select:{code:true}}},orderBy:{createdAt:'desc'}})
     const refunds=allRefunds.filter(r=>inPeriod(r.createdAt))
     const refundTotal=refunds.reduce((a,r)=>a+num(r.amount),0)
-    const customerCredits=await prisma.supplier.aggregate({_sum:{creditBalance:true}})
-    const openShipments = allShipments.filter((s) => effectiveBill(s) > num(s.paidAmount))
+    const openShipments = allShipments.filter((s) => s.invoice?.state==='issued' && !s.invoice.needsReview && effectiveBill(s) > num(s.paidAmount))
 
     const cashBdt = accounts.filter((a) => a.currency === 'BDT').reduce((a, x) => a + num(x.balance), 0)
     const cashCny = accounts.filter((a) => a.currency === 'CNY').reduce((a, x) => a + num(x.balance), 0)
@@ -69,14 +80,19 @@ export async function financialSummary(period: string) {
     const cnTransport = round2(shipsIn.reduce((a, s) => a + num(s.cnFare), 0))
     const bdTransport = round2(shipsIn.reduce((a, s) => a + num(s.bdFare ?? null), 0))
     const customs = round2(shipsIn.reduce((a, s) => a + num(s.customsTax), 0))
-    const otherExpenses = round2(
-      expensesInMonth.filter((e) => !e.costField && !(e.category === 'ticket' && e.flightId)).reduce((a, e) => a + num(e.amount), 0),
-    )
+    const cohortIds=new Set(shipsIn.map(s=>s.id))
+    const legacyExtra=expenses.filter(e=>e.shipmentId && cohortIds.has(e.shipmentId) && !e.costField && !e.costId && !(e.category==='ticket'&&e.flightId)).reduce((sum,e)=>sum+num(e.amount),0)
+    const shipmentExpenses=round2(shipsIn.reduce((sum,s)=>sum+(s.costs??[]).filter(c=>!c.voidedAt).reduce((n,c)=>n+num(c.amount),0),0)+legacyExtra)
+    const shipmentCosts=round2(cnTransport+bdTransport+customs+shipmentExpenses)
+    const businessExpenses=round2(expensesInMonth.filter(e=>!e.shipmentId && !(e.category==='ticket'&&e.flightId)).reduce((sum,e)=>sum+num(e.amount),0))
+    const otherExpenses=round2(shipmentExpenses+businessExpenses)
     const otherIncome = round2(paymentsInMonth.filter(p => p.kind === 'income').reduce((a,p) => a + num(p.amount), 0))
     const earned = round2(billing + fares + otherIncome)
     const totalCosts = round2(tickets + cnTransport + bdTransport + customs + otherExpenses)
     const results = {
       otherIncome,
+      shipmentCosts,
+      businessExpenses,
       shipmentCount: shipsIn.length,
       flightCount: flightsIn.length,
       billing,
@@ -94,18 +110,33 @@ export async function financialSummary(period: string) {
 
     // Every month that has activity, newest first, plus the current one.
     const months = [
-      ...new Set([monthOf(new Date()), ...expenses.map((e) => monthOf(e.date)), ...payments.map((p) => monthOf(p.date))]),
+      ...new Set([monthOf(new Date()), ...allShipments.map(s=>monthOf(s.createdAt)), ...allFlights.map(f=>monthOf(f.date)), ...expenses.map((e) => monthOf(e.date)), ...payments.map((p) => monthOf(p.date))]),
     ].sort((a, b) => b.localeCompare(a))
 
-    // Statements are a month-end billing artifact — only for month periods.
-    const statements = isMonth ? await Promise.all(monthlySuppliers.map((s) => buildStatement(s.code, month))) : []
+    // Use the same invoice-first bill and per-shipment rounding as buildStatement,
+    // without fetching the same supplier shipments again for every monthly account.
+    const statements = monthlySuppliers.map(supplier => {
+      const rows = allShipments.filter(shipment => shipment.supplierId === supplier.id && monthOf(shipment.createdAt) === month && shipment.invoice?.state==='issued' && !shipment.invoice.needsReview)
+      const billed = rows.reduce((total, shipment) => total + effectiveBill(shipment), 0)
+      const balance = rows.reduce((total, shipment) => total + Math.max(0, Math.round((effectiveBill(shipment) - num(shipment.paidAmount)) * 100) / 100), 0)
+      return {
+        code: supplier.code,
+        name: `${supplier.name} (${supplier.code})`.replace(/ \(.*\)$/, ''),
+        billed,
+        paid: billed - balance,
+        balance,
+        shipmentCount: rows.length,
+      }
+    })
 
     return {
-      transfers: (await prisma.fundTransfer.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })).map(t => ({ reference: t.reference, from: t.fromName, to: t.toName, fromCurrency: t.fromCurrency, toCurrency: t.toCurrency, amount: num(t.amount), receivedAmount: num(t.receivedAmount), note: t.note, at: t.createdAt.toISOString() })),
+      transfers: transfers.map(t => ({ reference: t.reference, from: t.fromName, to: t.toName, fromCurrency: t.fromCurrency, toCurrency: t.toCurrency, amount: num(t.amount), receivedAmount: num(t.receivedAmount), note: t.note, at: t.createdAt.toISOString() })),
+      recognitionBasis:"booking-cohort",
       period,
       periodLabel,
       months: months.map((m) => ({ value: m, label: monthLabel(m) })),
       rate: settings.rate,
+      exchangeRates: settings.exchangeRates,
       cash: { bdt: cashBdt, cny: cashCny, worth: Math.round(cashBdt + cashCny * settings.rate) },
       invested: {
         bdt: settings.investBdt,
@@ -120,12 +151,13 @@ export async function financialSummary(period: string) {
       refundRows:refunds.map(r=>({reference:r.reference,supplierCode:r.supplier.code,amount:num(r.amount),accountName:r.accountName,reason:r.reason,at:r.createdAt.toISOString()})),
       ticketPayables: allFlights.reduce((a,f)=>a+Math.max(0,num(f.actualCost)-expenses.filter(e=>e.flightId===f.id&&e.category==='ticket').reduce((t,e)=>t+num(e.amount),0)),0),
       ticketRefundReceivables: allFlights.reduce((a,f)=>a+Math.max(0,expenses.filter(e=>e.flightId===f.id&&e.category==='ticket').reduce((t,e)=>t+num(e.amount),0)-num(f.actualCost)),0),
-      costPayables: allShipments.reduce((total,s)=>total+(['cnFare','bdFare','customsTax'] as const).reduce((a,field)=>a+Math.max(0,num(s[field])-s.expenses.filter(e=>e.costField===field).reduce((v,e)=>v+num(e.amount),0)),0),0),
+      costPayables: allShipments.reduce((sum,s)=>sum+shipmentCostItems(s).reduce((n,c)=>n+c.dueAmount,0),0),
       flyerReceivables: allFlights.reduce((a,f) => a + Math.max(0,num(f.actualCost)-num(f.agencyShare)-num(f.flyerPaidAmount)),0),
       capitalReceived: paymentsInMonth.filter(p => p.kind === 'capital').reduce((a,p) => a + num(p.amount),0),
       receivables,
       results,
       paymentRows: paymentsInMonth.map((p) => ({
+        sourceCurrency:p.sourceCurrency,sourceAmount:num(p.sourceAmount),sourceFxRate:num(p.sourceFxRate),
         accountName:p.accountName, accountCurrency:p.accountCurrency, accountAmount:num(p.accountAmount), fxRate:num(p.fxRate), kind:p.kind,
         date: isoDate(p.date),
         method: p.method,
@@ -142,6 +174,7 @@ export async function financialSummary(period: string) {
         mobile: a.paymentMethod?.kind === 'mobile_banking' ? {provider:a.paymentMethod.provider,number:a.paymentMethod.number,label:a.paymentMethod.label} : null,
       })),
       expenseRows: expensesInMonth.map((e) => ({
+        sourceCurrency:e.sourceCurrency,sourceAmount:num(e.sourceAmount),sourceFxRate:num(e.sourceFxRate),
         accountName:e.accountName, accountCurrency:e.accountCurrency, accountAmount:num(e.accountAmount), fxRate:num(e.fxRate),
         date: isoDate(e.date),
         category: e.category,
@@ -150,14 +183,7 @@ export async function financialSummary(period: string) {
         shipmentCode: e.shipment?.code ?? null,
         flightCode: e.flight?.code ?? null,
       })),
-      statements: statements.map((s, i) => ({
-        code: monthlySuppliers[i]!.code,
-        name: s.to.replace(/ \(.*\)$/, ''),
-        billed: s.lines.reduce((a, l) => a + l.amount, 0),
-        paid: s.lines.reduce((a, l) => a + l.amount, 0) - s.total,
-        balance: s.total,
-        shipmentCount: s.lines.length,
-      })),
+      statements,
     }
 
 }

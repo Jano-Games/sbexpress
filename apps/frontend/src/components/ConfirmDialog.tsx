@@ -1,29 +1,39 @@
-import { useState, type ReactNode } from 'react'
-import { Modal } from '@/components/Modal'
-import { Button } from '@/components/beui/button'
+import { useState, type ReactNode } from "react";
+import { Modal } from "@/components/Modal";
+import { Button } from "@/components/beui/button";
 
 export function ConfirmDialog({
   open,
   onClose,
   title,
   body,
-  confirmLabel = 'Delete',
+  confirmLabel = "Delete",
   onConfirm,
 }: {
-  open: boolean
-  onClose: () => void
-  title: string
-  body?: ReactNode
-  confirmLabel?: string
-  onConfirm: () => Promise<void> | void
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  body?: ReactNode;
+  confirmLabel?: string;
+  onConfirm: () => Promise<void> | void;
 }) {
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(false);
 
   return (
-    <Modal open={open} onClose={() => {if (!busy) onClose()}} className="max-w-[400px]">
-      <h2 className="text-[18px] font-extrabold">{title}</h2>
-      {body ? <div className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">{body}</div> : null}
-      <div className="mt-4.5 flex justify-end gap-2">
+    <Modal
+      open={open}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      className="max-w-[400px]"
+    >
+      <h2 className="text-xl font-semibold">{title}</h2>
+      {body ? (
+        <div className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {body}
+        </div>
+      ) : null}
+      <div className="form-actions">
         <Button variant="secondary" onClick={onClose} disabled={busy}>
           Cancel
         </Button>
@@ -31,16 +41,16 @@ export function ConfirmDialog({
           variant="danger"
           disabled={busy}
           onClick={() => {
-            setBusy(true)
+            setBusy(true);
             void Promise.resolve(onConfirm()).finally(() => {
-              setBusy(false)
-              onClose()
-            })
+              setBusy(false);
+              onClose();
+            });
           }}
         >
-          {busy ? 'Working…' : confirmLabel}
+          {busy ? "Working…" : confirmLabel}
         </Button>
       </div>
     </Modal>
-  )
+  );
 }

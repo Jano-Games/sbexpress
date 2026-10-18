@@ -1,5 +1,9 @@
+import { publicReceiptSummary } from '../shared/receiptHistory'
+import { reserveReceiptScreenshot, acceptReceiptScreenshot } from '../shared/receiptScreenshots'
+import { moneyBody, sourceFields, sourceAt, withSavedMoney } from '../shared/money'
+import { getSettings } from '../shared/settings'
 import { invoicePdf } from '../shared/invoicePdf'
-import { draftBillLines } from '../shared/shipmentBilling'
+import { invoiceBillLines } from '../shared/invoiceLines'
 import { receivingFundName } from '../shared/bankAccounts'
 /** Public bearer-capability pages. Tokens are random, hashed at rest,
  * scoped to one shipment, expiring and revocable. Authorization is never cached. */
@@ -8,7 +12,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { prisma } from '../core/db'
 import { rateLimit } from '../core/redis'
-import { resolvePublicLink, publicMethodKey } from '../shared/publicLinks'
+import { resolvePublicLink, tokenHash, linkIncludesInvoice } from '../shared/publicLinks'
 import { notFound, HttpError } from '../core/errors'
 import { STATUS_LABEL, statusIndex } from '../shared/status'
 import { effectiveBill, num, numOrNull, isoDate } from '../shared/serialize'
@@ -20,9 +24,10 @@ export const payMethodName = (m: { kind: string; provider: string; bankName: str
 
 /** Enabled payment rails from settings, "{code}" in notes substituted. */
 export async function payMethodsFor(shipmentCode: string) {
-  const methods = await prisma.payMethod.findMany({ where: { enabled: true }, orderBy: { order: 'asc' } })
+  const methods = await prisma.payMethod.findMany({ where: { enabled: true }, include:{account:true}, orderBy: { order: 'asc' } })
   return methods.map((m) => ({
-    id: publicMethodKey(m.id),
+    currency:m.account?.currency ?? 'BDT',
+    id: m.publicReference,
     kind: m.kind,
     name: payMethodName(m),
     provider: m.provider,
@@ -52,8 +57,8 @@ async function findByToken(token: string) {
     include: {
       supplier: true,
       flight: { include: { legs: { orderBy: { order: 'asc' } } } },
-      receipt: true,
-      expenses: true,
+      receipts: {include:{payments:true}},
+      expenses: true, costs:true,
       invoice: true,
       logs: { orderBy: { at: 'desc' }, take: 1 },
     },
@@ -62,21 +67,21 @@ async function findByToken(token: string) {
   return { shipment, link }
 }
 
-const clientIp = (headers: Headers): string =>
-  'public' // Shared bucket cannot be bypassed with forged proxy headers
+const linkBucket = (token: string) => tokenHash(token)
 
 export const trackRoutes = new Hono()
   .get('/:token', async (c) => {
-    if (!(await rateLimit(`track:${clientIp(c.req.raw.headers)}`, 120))) {
+    if (!(await rateLimit(`track:${linkBucket(c.req.param('token'))}`, 120))) {
       throw new HttpError(429, 'Too many requests — slow down')
     }
     const token = c.req.param('token')
     const { shipment: s, link } = await findByToken(token)
+    const includesInvoice = linkIncludesInvoice(link.scope)
     const index = statusIndex(s.status)
     const totalBill = effectiveBill(s)
     const paidSoFar = num(s.paidAmount)
     const due = Math.max(0, Math.round((totalBill - paidSoFar) * 100) / 100)
-    const pending = s.receipt?.status === 'pending'
+    const pending = s.receipts.some(r=>r.status==='pending')
     const kg = numOrNull(s.weighedKg) ?? num(s.bookedKg)
 
     const legs = s.flight?.legs ?? []
@@ -87,65 +92,73 @@ export const trackRoutes = new Hono()
     const requestRemaining = link.requestedAmount === null ? due : Math.max(0, Math.min(due, num(link.requestedAmount) - Math.max(0, paidSoFar - num(link.paidAtIssue))))
     const payload = {
       shipment: {
+        includesInvoice,
         code: s.code,
         expiresAt: link.expiresAt.toISOString(),
-        requestedAmount: requestRemaining,
-        invoice: link.scope === 'invoice' && s.invoice ? {
-          number: s.invoice.number, lines: s.invoice.lines, discount: num(s.invoice.discount),
-          total: num(s.invoice.total), note: s.invoice.note, issuedAt: s.invoice.issuedAt.toISOString(),
-        } : null,
-        statusLabel: STATUS_LABEL[s.status],
-        statusIndex: index,
+        exception:s.exception,exceptionReason:s.exceptionReason,deliveryMode:s.deliveryMode,statusLabel:s.exception?s.exception.replaceAll('_',' '):s.deliveryMode==='pickup'&&s.status==='ready_for_last_mile'&&s.lastMileRef?'Ready for collection':STATUS_LABEL[s.status], statusIndex: index,
         contents: `${s.categories.join(', ')} · ${s.description}`,
         kgLabel: kg > 0 ? `${kg} kg` : 'devices',
-        flightCode: s.flight?.code ?? '—',
-        flightDate: s.flight ? isoDate(s.flight.date) : null,
+        flightCode: s.flight?.code ?? '—', flightDate: s.flight ? isoDate(s.flight.date) : null,
         depTime: s.flight && s.flight.depTime !== '—' ? s.flight.depTime : null,
         arrTime: s.flight && s.flight.arrTime !== '—' ? s.flight.arrTime : null,
         via: s.flight && s.flight.via !== 'Direct' ? s.flight.via : null,
-        routeLabel,
-        updatedAt: (s.logs[0]?.at ?? s.createdAt).toISOString(),
-        note: trackNote(index, s.lastMileCourier ? { courier: s.lastMileCourier, ref: s.lastMileRef ?? '' } : null),
-        due,
-        totalBill,
-        billLines: (s.invoice ? s.invoice.lines as {label:string;amount:number}[] : draftBillLines(s)).map(line=>({label:line.label,amount:line.amount})),
-        billSubtotal: Math.round((totalBill + num(s.invoice?.discount))*100)/100,
-        invoiceNumber: s.invoice?.number ?? null,
-
-        paidSoFar,
-        discount: num(s.invoice?.discount ?? null),
-        showPay: requestRemaining > 0 && !pending,
-        showPaid: due <= 0,
-        showPending: pending,
-        payMethods: await payMethodsFor(s.code),
+        routeLabel, updatedAt: (s.logs[0]?.at ?? s.createdAt).toISOString(),
+        note: s.exception?s.exceptionReason:s.deliveryMode==='pickup'&&s.status==='ready_for_last_mile'&&s.lastMileRef?'Your shipment is ready for collection at the hub.':trackNote(index, s.lastMileCourier ? { courier: s.lastMileCourier, ref: s.lastMileRef ?? '' } : null),
+        ...(includesInvoice ? {
+          exchangeRates:(await getSettings()).exchangeRates,
+          requestedAmount: requestRemaining,
+          invoice: s.invoice ? {
+            state:s.invoice.state,needsReview:s.invoice.needsReview,sourceCurrency:s.invoice.sourceCurrency,sourceFxRate:num(s.invoice.sourceFxRate),
+            number:s.invoice.number,lines:invoiceBillLines(s).map(({label,amount})=>({label,amount})),discount:num(s.invoice.discount),
+            total:num(s.invoice.total),note:s.invoice.note,issuedAt:s.invoice.issuedAt.toISOString(),
+          } : null,
+          due,totalBill,billLines:invoiceBillLines(s).map(line=>({label:line.label,amount:line.amount})),
+          billSubtotal:Math.round((totalBill+num(s.invoice?.discount))*100)/100,
+          invoiceNumber:s.invoice?.number ?? null,paidSoFar,discount:num(s.invoice?.discount),
+          pricingState:s.invoice?.needsReview?'review':s.invoice?.state??'draft',showPay:requestRemaining>0&&!pending&&s.invoice?.state==='issued'&&!s.invoice.needsReview,showPaid:due<=0&&s.invoice?.state==='issued'&&!s.invoice.needsReview&&(totalBill>0||s.freeOfCharge),showPending:pending,
+          receiptHistory:s.receipts.map(publicReceiptSummary),
+          payMethods:await payMethodsFor(s.code),
+        } : {}),
       },
     }
     return c.json(payload)
   })
 
   .get('/:token/invoice.pdf', async c=>{
-    if(!(await rateLimit('track-pdf:public',60))) throw new HttpError(429,'Too many downloads — try again shortly')
-    const {shipment}=await findByToken(c.req.param('token'))
+    if(!(await rateLimit(`track-pdf:${linkBucket(c.req.param('token'))}`,60))) throw new HttpError(429,'Too many downloads — try again shortly')
+    const {shipment,link}=await findByToken(c.req.param('token'))
+    if(!linkIncludesInvoice(link.scope)) throw notFound('Invoice is not included in this link')
+    if(shipment.invoice?.state!=='issued'||shipment.invoice.needsReview)throw new HttpError(400,'The invoice is awaiting pricing review')
     const pdf=await invoicePdf(shipment)
     c.header('Content-Type','application/pdf')
     c.header('Content-Disposition',`${c.req.query('download')==='1'?'attachment':'inline'}; filename="invoice-${shipment.code.replace(/[^A-Za-z0-9_-]/g,'')}.pdf"`)
     return c.body(new Uint8Array(pdf))
   })
 
+  .post('/:token/receipt-image/upload', async c => {
+    const link = await resolvePublicLink(c.req.param('token'))
+    if(!linkIncludesInvoice(link.scope)) throw notFound('Payments are not included in this link')
+    return c.json(await reserveReceiptScreenshot(link.tokenHash, 'shipment', await c.req.json()), 201)
+  })
   .post('/:token/receipt', async (c) => {
-    if (!(await rateLimit(`track-upload:${clientIp(c.req.raw.headers)}`, 10))) {
+    if (!(await rateLimit(`track-upload:${linkBucket(c.req.param('token'))}`, 10))) {
       throw new HttpError(429, 'Too many uploads — slow down')
     }
-    const { methodId, amount, txnRef } = z.object({
+    const { methodId, amount, txnRef, imageReference } = z.object({
       methodId: z.string().min(1), amount: z.number().positive().max(9999999999).multipleOf(0.01),
       txnRef: z.string().trim().min(3).max(100),
-    }).parse(await c.req.json())
+      imageReference: z.string().uuid().optional(),
+    }).parse(moneyBody(await c.req.json(), ['amount']))
     const { shipment, link } = await findByToken(c.req.param('token'))
-    const known = (await prisma.payMethod.findMany({ where: { enabled: true } })).find(m => publicMethodKey(m.id) === methodId)
+    if(!linkIncludesInvoice(link.scope)) throw notFound('Payments are not included in this link')
+    if(shipment.invoice?.state!=='issued'||shipment.invoice.needsReview)throw new HttpError(400,'The invoice is being prepared or reviewed. Please wait for the confirmed balance before submitting payment.')
+    const known = (await prisma.payMethod.findMany({ where: { enabled: true },include:{account:true} })).find(m => m.publicReference === methodId)
     if (!known) throw notFound('Unknown payment method')
+    if(sourceFields(0).sourceCurrency !== (known.account?.currency ?? 'BDT')) throw new HttpError(400,'Enter the amount in the selected account currency')
     const due = Math.max(0, effectiveBill(shipment) - num(shipment.paidAmount))
     const limit = link.requestedAmount === null ? due : Math.max(0, Math.min(due, num(link.requestedAmount) - Math.max(0, num(shipment.paidAmount) - num(link.paidAtIssue))))
     if (amount > limit) throw new HttpError(400, 'Amount exceeds this payment request')
-    const result = await uploadReceipt(shipment, await receivingFundName(known), 'Customer', amount, txnRef)
+    const screenshot = await acceptReceiptScreenshot(imageReference, link.tokenHash, 'shipment')
+    const result = await uploadReceipt(shipment, await receivingFundName(known), 'Customer', amount, txnRef, screenshot)
     return c.json({ ok: true, ...result }, 201)
   })

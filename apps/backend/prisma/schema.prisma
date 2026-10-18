@@ -101,12 +101,14 @@ enum UserRole {
 /// Staff accounts. Customers never log in — they get a per-shipment
 /// tracking link instead.
 model User {
+  sessionVersion Int @default(0)
   id           String   @id @default(cuid())
   email        String   @unique
   /// Argon2id hash — never a plain password.
   passwordHash String
   name         String
   role         UserRole
+  active       Boolean @default(true)
   createdAt    DateTime @default(now())
 }
 
@@ -132,6 +134,13 @@ model Supplier {
 /// snapshot the admin can adjust; a negative line or the discount field
 /// reduces the total.
 model Invoice {
+  state String @default("issued")
+  pricingMode String @default("manual")
+  pricingFingerprint String?
+  needsReview Boolean @default(false)
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
   revisions InvoiceRevision[]
   id         String   @id @default(cuid())
   /// e.g. INV-2609-SH-101, fixed at first finalize.
@@ -152,6 +161,8 @@ model Invoice {
 }
 
 model Flyer {
+  documents FlyerDocument[]
+  archivedAt DateTime?
   id        String   @id @default(cuid())
   /// Display name "LASTNAME First", composed server-side from the two name
   /// columns. Stays unique and is the identifier used in routes.
@@ -186,6 +197,9 @@ model Flyer {
 // =====================================================================
 
 model Flight {
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
   id         String       @id @default(cuid())
   /// Airline flight number, e.g. CA945. Unique per demo dataset.
   code       String       @unique
@@ -217,6 +231,7 @@ model Flight {
 /// none, for hand-entered flights); a connection has two or more. When legs
 /// exist, the parent flight's code, times and via label derive from them.
 model FlightLeg {
+  source String @default("legacy")
   id       String @id @default(cuid())
   flightId String
   flight   Flight @relation(fields: [flightId], references: [id], onDelete: Cascade)
@@ -252,6 +267,18 @@ model FlightFlyer {
 // =====================================================================
 
 model Shipment {
+  paymentTerms String @default("invoice")
+  freeOfCharge Boolean @default(false)
+  exception String?
+  exceptionReason String @default("")
+  exceptionAt DateTime?
+  deliveryMode String @default("courier")
+  deliveryBookedAt DateTime?
+  dispatchedAt DateTime?
+  handedOverAt DateTime?
+  costs ShipmentCost[]
+  pricingRates Json @default("{}")
+  costSources Json @default("{}")
   creditNotes CreditNote[]
   media ShipmentMedia[]
   flyerId String?
@@ -303,7 +330,7 @@ model Shipment {
   paidAmount Decimal @default(0) @db.Decimal(12, 2)
 
   logs     ShipmentLog[]
-  receipt  Receipt?
+  receipts Receipt[]
   expenses Expense[]
   invoice  Invoice?
   payments Payment[]
@@ -319,23 +346,36 @@ model ShipmentLog {
   shipmentId String
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   actor      String
+  actorId    String?
   message    String
   at         DateTime @default(now())
 
   @@index([shipmentId, at])
 }
 
-/// Customer-uploaded payment receipt awaiting manual review. One live receipt
-/// per shipment — a rejected one is overwritten by the next upload.
+/// Each payment submission is retained with its proof and review decision.
 model Receipt {
+  /// Independent random customer-facing reference; never expose the primary key.
+  reference String @unique @default(uuid())
+  reviewedAt DateTime?
+  reviewedById String?
+  reviewedByName String?
+  reviewReason String @default("")
+  payments Payment[]
+  screenshotReference String? @unique
+  screenshot ReceiptUpload? @relation("ShipmentReceiptScreenshot", fields: [screenshotReference], references: [reference], onDelete: Restrict)
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
   id         String        @id @default(cuid())
-  shipmentId String        @unique
+  shipmentId String
   shipment   Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   method     String
   amount     Decimal       @db.Decimal(12, 2)
   status     ReceiptStatus @default(pending)
   txnRef     String        @default("")
   uploadedAt DateTime      @default(now())
+  @@index([shipmentId, uploadedAt])
 }
 
 // =====================================================================
@@ -353,6 +393,13 @@ model Account {
 }
 
 model Expense {
+  costId String?
+  cost ShipmentCost? @relation(fields: [costId], references: [id], onDelete: Restrict)
+  reversalOfId String? @unique
+  reversedAt DateTime?
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
   /// Payment of a cost already recorded on Shipment; not an additional accrual cost.
   costField String?
   accountName String?
@@ -378,6 +425,17 @@ model Expense {
 /// Money received (customer payments and other income), the source of the
 /// monthly "received" ledger on the finance screen.
 model Payment {
+  receiptId String?
+  receipt Receipt? @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  statementReceiptId String?
+  statementReceipt StatementReceipt? @relation(fields: [statementReceiptId], references: [id], onDelete: Restrict)
+  supplierId String?
+  flyerId String?
+  reversalOfId String? @unique
+  reversedAt DateTime?
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
   accountName String?
   accountCurrency Currency?
   accountAmount Decimal? @db.Decimal(14, 2)
@@ -405,6 +463,8 @@ model Payment {
 // =====================================================================
 
 model Todo {
+  receiptId String? @unique
+  statementReceiptId String? @unique
   id        String   @id @default(cuid())
   role      TodoRole
   text      String
@@ -434,6 +494,8 @@ enum PayMethodKind {
 /// Payment rails shown on the public tracking page. "{code}" in the note is
 /// replaced with the shipment ID at render time.
 model PayMethod {
+  /// Public selection reference, generated independently of the database ID.
+  publicReference String @unique @default(uuid())
   accountId String? @unique
   account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   id   String        @id @default(cuid())
@@ -463,6 +525,7 @@ model PayMethod {
 
 /// Bearer capabilities: only a SHA-256 digest is persisted.
 model PublicLink {
+  tokenCiphertext String?
   id String @id @default(cuid())
   tokenHash String @unique
   shipmentId String
@@ -477,6 +540,8 @@ model PublicLink {
 }
 /// Transfers never enter income or expense totals.
 model FundTransfer {
+  reversalOfId String? @unique
+  reversedAt DateTime?
   id String @id @default(cuid())
   reference String @unique
   fromName String
@@ -517,6 +582,9 @@ model ShipmentMedia {
 }
 
 model CustomerCredit {
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
  id String @id @default(cuid())
  reference String @unique @default(uuid())
  supplierId String
@@ -528,6 +596,11 @@ model CustomerCredit {
  createdAt DateTime @default(now())
 }
 model CustomerRefund {
+  reversalOfId String? @unique
+  reversedAt DateTime?
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
  id String @id @default(cuid())
  reference String @unique @default(uuid())
  supplierId String
@@ -551,6 +624,9 @@ model InvoiceRevision {
  @@unique([invoiceId,version])
 }
 model CreditNote {
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
  id String @id @default(cuid())
  number String @unique @default(uuid())
  shipmentId String
@@ -563,6 +639,7 @@ model CreditNote {
 }
 
 model StatementLink {
+ tokenCiphertext String?
  id String @id @default(cuid())
  tokenHash String @unique
  supplierId String
@@ -576,6 +653,16 @@ model StatementLink {
  receipts StatementReceipt[]
 }
 model StatementReceipt {
+  reviewedAt DateTime?
+  reviewedById String?
+  reviewedByName String?
+  reviewReason String @default("")
+  payments Payment[]
+  screenshotReference String? @unique
+  screenshot ReceiptUpload? @relation("StatementReceiptScreenshot", fields: [screenshotReference], references: [reference], onDelete: Restrict)
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14, 2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12, 6)
  id String @id @default(cuid())
  reference String @unique @default(uuid())
  linkId String
@@ -585,4 +672,90 @@ model StatementReceipt {
  txnRef String
  status String @default("pending")
  createdAt DateTime @default(now())
+}
+
+/// Private payment evidence. Upload reservations are scoped to the issuing customer link.
+model ReceiptUpload {
+ id String @id @default(cuid())
+ reference String @unique @default(uuid())
+ linkHash String
+ kind String
+ name String
+ contentType String
+ size Int
+ stagingKey String @unique
+ objectKey String @unique
+ status String @default("pending")
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+ receipt Receipt? @relation("ShipmentReceiptScreenshot")
+ statementReceipt StatementReceipt? @relation("StatementReceiptScreenshot")
+ @@index([linkHash, status])
+ @@index([status, expiresAt])
+}
+
+
+/// Accrued shipment costs; Expense rows settle them and do not bill them again.
+model ShipmentCost {
+  id String @id @default(cuid())
+  shipmentId String
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  name String
+  category ExpenseCategory
+  amount Decimal @db.Decimal(12,2)
+  sourceCurrency Currency @default(BDT)
+  sourceAmount Decimal? @db.Decimal(14,2)
+  sourceFxRate Decimal @default(1) @db.Decimal(12,6)
+  createdAt DateTime @default(now())
+  voidedAt DateTime?
+  voidReason String @default("")
+  expenses Expense[]
+  @@index([shipmentId])
+}
+
+model LedgerReversal {
+  id String @id @default(cuid())
+  kind String
+  recordId String
+  reason String
+  actorId String
+  actorName String
+  offsetId String
+  createdAt DateTime @default(now())
+  @@unique([kind, recordId])
+}
+
+model AuditEvent {
+  id String @id @default(cuid())
+  actorId String
+  actorName String
+  action String
+  entity String
+  details Json
+  before Json?
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+
+/// Private traveler documents. Uploaded content and staff verification are separate.
+model FlyerDocument {
+  id String @id @default(cuid())
+  reference String @unique @default(uuid())
+  flyerId String
+  flyer Flyer @relation(fields: [flyerId], references: [id], onDelete: Restrict)
+  kind String
+  name String
+  contentType String
+  size Int
+  stagingKey String @unique
+  objectKey String @unique
+  status String @default("pending")
+  uploadedById String
+  uploadedByName String
+  verifiedAt DateTime?
+  verifiedById String?
+  verifiedByName String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([flyerId, status])
 }

@@ -15,13 +15,13 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
-      POSTGRES_DB: sichuan-bangla
+      POSTGRES_DB: mamun_local
     ports:
-      - '5435:5432'
+      - '127.0.0.1:5435:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d sichuan-bangla']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d mamun_local']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -34,12 +34,34 @@ services:
     # short-TTL keys — nothing worth persisting across a restart.
     command: redis-server --maxmemory 128mb --maxmemory-policy volatile-ttl --save ''
     ports:
-      - '6382:6379'
+      - '127.0.0.1:6382:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
+
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres123
+      PGDATABASE: mamun_local
+    entrypoint: ['sh', '/ops/backup.sh']
+    volumes:
+      - ./ops/backup.sh:/ops/backup.sh:ro
+      - ./.local-backups/automatic:/backups
+    healthcheck:
+      test: ['CMD-SHELL', 'test -f /backups/last-success && test $(($(date +%s) - $(cat /backups/last-success))) -lt 90000']
+      interval: 60s
+      timeout: 3s
+      retries: 2
+      start_period: 60s
 
 volumes:
   postgres-data:

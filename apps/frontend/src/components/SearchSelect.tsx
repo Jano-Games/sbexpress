@@ -1,83 +1,129 @@
-import { useMemo, useState } from 'react'
-import { Input } from '@/components/beui/input'
-
+import { useId, useMemo, useRef, useState } from "react";
+import { Input } from "@/components/beui/input";
 export interface SearchOption {
-  value: string
-  label: string
-  /** Secondary text shown right-aligned in the list. */
-  sub?: string
-  /** Lower-cased haystack the query is matched against. */
-  keywords: string
+  value: string;
+  label: string;
+  sub?: string;
+  keywords: string;
 }
-
-/**
- * Single-select combobox: shows the selected label at rest, becomes a search
- * box on focus. The query matches anywhere in `keywords` (e.g. a supplier's
- * name and short code).
- */
 export function SearchSelect({
   label,
   placeholder,
   options,
   value,
   onChange,
-  className,
+  className, clearable=false, disabled=false,
 }: {
-  label?: string
-  placeholder: string
-  options: SearchOption[]
-  value: string
-  onChange: (value: string) => void
-  className?: string
+  label?: string;
+  placeholder: string;
+  options: SearchOption[];
+  value: string;
+  onChange: (value: string) => void;
+  className?: string; clearable?:boolean; disabled?:boolean;
 }) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-
-  const selected = options.find((o) => o.value === value)
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return options.filter((o) => !q || o.keywords.includes(q)).slice(0, 8)
-  }, [options, query])
-
+  const [query, setQuery] = useState(""),
+    [open, setOpen] = useState(false),
+    [active, setActive] = useState(0);
+  const listId = useId(),
+    input = useRef<HTMLInputElement>(null);
+  const selected = options.find((o) => o.value === value);
+  const filtered = useMemo(
+    () =>
+      options
+        .filter(
+          (o) =>
+            !query.trim() ||
+            o.keywords.toLowerCase().includes(query.trim().toLowerCase()),
+        )
+        .slice(0, 8),
+    [options, query],
+  );
+  const pick = (option: SearchOption) => {
+    onChange(option.value);
+    setQuery("");
+    setOpen(false);
+    input.current?.blur();
+  };
   return (
     <div className={className}>
       <div className="relative">
+        {clearable && value && !disabled && <button type="button" className="float-right mb-1 text-xs text-primary" aria-label={`Clear ${label??"selection"}`} onClick={()=>{onChange("");setQuery("");setOpen(false)}}>Clear assignment</button>}
         <Input
+          disabled={disabled}
+          ref={input}
           label={label}
-          placeholder={selected ? selected.label : placeholder}
-          value={open ? query : (selected?.label ?? '')}
+          placeholder={selected?.label ?? placeholder}
+          value={open ? query : (selected?.label ?? "")}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            open && filtered[active] ? `${listId}-${active}` : undefined
+          }
           onChange={(v) => {
-            setQuery(v)
-            setOpen(true)
+            setQuery(v);
+            setActive(0);
+            setOpen(true);
           }}
           onFocus={() => {
-            setQuery('')
-            setOpen(true)
+            setQuery("");
+            setActive(0);
+            setOpen(true);
           }}
-          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setOpen(true);
+              setActive((i) => Math.min(i + 1, filtered.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActive((i) => Math.max(0, i - 1));
+            } else if (e.key === "Enter" && open && filtered[active]) {
+              e.preventDefault();
+              pick(filtered[active]);
+            } else if (e.key === "Escape" && open) {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            }
+          }}
         />
-        {open && filtered.length ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[220px] overflow-auto rounded-[10px] border border-border bg-card p-1 shadow-[0_10px_28px_rgba(0,0,0,.14)]">
-            {filtered.map((o) => (
+        {open && (
+          <div
+            id={listId}
+            role="listbox"
+            aria-label={label ?? "Options"}
+            className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[240px] overflow-auto rounded-md border border-border bg-card p-1 "
+          >
+            {filtered.map((option, i) => (
               <div
-                key={o.value}
-                className="flex cursor-pointer items-center justify-between gap-2.5 rounded-[7px] px-3 py-2.25 text-[12.5px] font-semibold hover:bg-primary-soft hover:text-primary"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  onChange(o.value)
-                  setQuery('')
-                  setOpen(false)
-                  ;(document.activeElement as HTMLElement | null)?.blur()
-                }}
+                id={`${listId}-${i}`}
+                key={option.value}
+                role="option"
+                aria-selected={option.value === value}
+                className={`flex cursor-pointer items-center justify-between gap-3 rounded px-3 py-3 text-sm ${i === active ? "bg-primary-soft text-primary" : ""}`}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(option)}
               >
-                <span className="min-w-0 truncate">{o.label}</span>
-                {o.sub ? <span className="shrink-0 text-[11px] font-normal text-faint">{o.sub}</span> : null}
+                <span className="min-w-0 truncate">{option.label}</span>
+                {option.sub && (
+                  <span className="shrink-0 text-sm text-muted-foreground">
+                    {option.sub}
+                  </span>
+                )}
               </div>
             ))}
+            {!filtered.length && (
+              <p className="p-3 text-sm text-muted-foreground">
+                No matching options.
+              </p>
+            )}
           </div>
-        ) : null}
+        )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,106 +1,210 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { api } from '@/api/client'
-import { useAuth } from '@/state/auth'
-import { cn } from '@/lib/utils'
-import { SbMark } from '@/components/ui'
+import { Suspense, useEffect, useRef, useState } from "react";
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+  Link,
+} from "react-router-dom";
+import {
+  LayoutDashboard,
+  Package,
+  Plane,
+  Users,
+  ContactRound,
+  Wallet,
+  ClipboardCheck,
+  ListTodo,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+} from "lucide-react";
+import { useFetch } from "@/state/useFetch";
+import { useAuth } from "@/state/auth";
+import { LoadingBlock, SbMark } from "@/components/ui";
 
-interface NavItem {
-  label: string
-  to: string
-  badge?: number
-}
-
+const modules = [
+  { label: "Dashboard", to: "/overview", icon: LayoutDashboard },
+  { label: "Shipments", to: "/shipments", icon: Package },
+  { label: "Flights", to: "/flights", icon: Plane },
+  { label: "Customers", to: "/suppliers", icon: ContactRound },
+  { label: "Flyers", to: "/flyers", icon: Users },
+  { label: "Finance", to: "/finance", icon: Wallet },
+  { label: "Payment review", to: "/review", icon: ClipboardCheck },
+  { label: "Tasks", to: "/todos", icon: ListTodo },
+  { label: "Settings", to: "/settings", icon: Settings },
+];
 export function AppShell() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [badges, setBadges] = useState<{ review: number; todos: number }>({ review: 0, todos: 0 })
-
-  // Sidebar badges (receipts to review, open tasks). The overview endpoints
-  // are cached server-side, so refreshing on every navigation is cheap.
+  const { user, logout } = useAuth(),
+    location = useLocation(),
+    navigate = useNavigate();
+  const [mobile, setMobile] = useState(false);
+  const { data: badges, reload: reloadBadges } = useFetch<{
+    reviewCount: number;
+    openTodoCount: number;
+  }>(user ? "/dashboard/counts" : null);
   useEffect(() => {
-    if (!user) return
-    const path = user.role === 'admin' ? '/dashboard/overview' : '/dashboard/hub'
-    api
-      .get<{ reviewCount?: number; openTodoCount: number }>(path)
-      .then((r) => setBadges({ review: r.reviewCount ?? 0, todos: r.openTodoCount }))
-      .catch(() => undefined)
-  }, [user, location.pathname])
-
-  if (!user) return null
-
-  const nav: NavItem[] =
-    user.role === 'admin'
-      ? [
-          { label: 'Overview', to: '/overview' },
-          { label: 'Shipments', to: '/shipments' },
-          { label: 'Flights', to: '/flights' },
-          { label: 'Flyers', to: '/flyers' },
-          { label: 'Suppliers', to: '/suppliers' },
-          { label: 'Finance', to: '/finance' },
-          { label: 'Review queue', to: '/review', badge: badges.review },
-          { label: 'To-do', to: '/todos', badge: badges.todos },
-          { label: 'Settings', to: '/settings' },
-        ]
+    if (user) void reloadBadges();
+  }, [location.pathname, reloadBadges, user]);
+  const navigationRef = useRef<HTMLElement>(null),
+    menuRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    setMobile(false);
+  }, [location.pathname, location.search]);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 801px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobile(false);
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+  useEffect(() => {
+    if (!mobile) return;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    navigationRef.current?.querySelector<HTMLElement>("button,a")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobile(false);
+        menuRef.current?.focus();
+      }
+      if (event.key === "Tab") {
+        const nodes = Array.from(
+          navigationRef.current?.querySelectorAll<HTMLElement>("a,button") ??
+            [],
+        );
+        const first = nodes[0],
+          last = nodes.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = oldOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mobile]);
+  if (!user) return null;
+  const navigation =
+    user.role === "admin"
+      ? modules
       : [
-          { label: 'Hub overview', to: '/hub' },
-          { label: 'Shipments', to: '/shipments' },
-          { label: 'To-do', to: '/todos', badge: badges.todos },
-        ]
-
+          { label: "Hub dashboard", to: "/hub", icon: LayoutDashboard },
+          modules[1]!,
+          modules[7]!,
+        ];
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-card focus:p-3">Skip to content</a>
-      <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden">
-        <div className="flex items-center gap-2"><SbMark size={26}/><span className="text-xs font-bold">Sichuan Bangla Express</span></div>
-        <details className="relative"><summary className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold">Menu</summary><nav aria-label="Mobile navigation" className="absolute right-0 top-full z-40 mt-2 w-52 rounded-xl border border-border bg-card p-2 shadow-lg">{nav.map(item=><NavLink key={item.to} to={item.to} onClick={e=>e.currentTarget.closest('details')?.removeAttribute('open')} className={({isActive})=>`block rounded-lg px-3 py-2.5 text-sm ${isActive?'bg-primary-soft font-semibold text-primary':'text-foreground'}`}>{item.label}</NavLink>)}<button className="w-full border-t border-border px-3 py-2.5 text-left text-sm" onClick={()=>void logout().then(()=>navigate('/login'))}>Log out</button></nav></details>
-      </header>
-      <aside className="hidden w-[212px] shrink-0 md:sticky md:top-0 md:h-screen md:overflow-y-auto md:flex flex-col gap-[3px] border-r border-border bg-card px-3.5 py-5.5">
-        <div className="mb-5 flex items-center gap-2.5 px-1.5">
-          <SbMark size={30} />
-          <div className="text-[13px] font-extrabold leading-tight">
-            Sichuan Bangla
-            <br />
-            Express
+    <div className="application">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <header className="application-header">
+        <div className="application-header-inner">
+          <button
+            ref={menuRef}
+            type="button"
+            className="mobile-menu"
+            aria-label="Open navigation"
+            aria-expanded={mobile}
+            onClick={() => setMobile(true)}
+          >
+            <Menu size={22} />
+          </button>
+          <Link
+            to={user.role === "admin" ? "/overview" : "/hub"}
+            className="application-brand"
+          >
+            <SbMark size={32} />
+            <span>
+              Sichuan Bangla <strong>Express</strong>
+            </span>
+          </Link>
+          <span className="application-context">Operations workspace</span>
+          <div className="application-account">
+            <div>
+              <strong>{user.name}</strong>
+              <span>
+                {user.role === "admin" ? "Administrator" : "Hub manager"}
+              </span>
+            </div>
+            <button
+              type="button"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={() => void logout().then(() => navigate("/login"))}
+            >
+              <LogOut size={18} />
+            </button>
           </div>
         </div>
-        {nav.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2 rounded-lg px-3 py-2.25 text-[13px] no-underline',
-                isActive || location.pathname.startsWith(`${item.to}/`)
-                  ? 'bg-primary-soft font-bold text-primary'
-                  : 'font-medium text-muted-foreground hover:bg-muted',
-              )
-            }
-          >
-            <span className="flex-1">{item.label}</span>
-            {item.badge ? (
-              <span className="rounded-full bg-primary px-1.75 py-0.5 text-[10.5px] font-bold text-white">{item.badge}</span>
-            ) : null}
-          </NavLink>
-        ))}
-        <div className="mt-auto rounded-[10px] bg-muted p-3 text-xs">
-          <div className="font-bold">{user.name}</div>
-          <div className="mt-px text-muted-foreground">{user.roleLabel}</div>
-          <button
-            type="button"
-            className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-blue"
-            onClick={() => {
-              void logout().then(() => navigate('/login'))
-            }}
-          >
-            Log out
-          </button>
+      </header>
+      {mobile && (
+        <button
+          className="navigation-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobile(false)}
+        />
+      )}
+      <nav
+        ref={navigationRef}
+        aria-label="Main navigation"
+        className={"application-navigation" + (mobile ? " is-open" : "")}
+      >
+        <div className="navigation-inner">
+          <div className="mobile-navigation-heading">
+            <strong>Workspace</strong>
+            <button
+              type="button"
+              aria-label="Close navigation"
+              onClick={() => {
+                setMobile(false);
+                menuRef.current?.focus();
+              }}
+            >
+              <X size={22} />
+            </button>
+          </div>
+          {navigation.map((item) => {
+            const count =
+              item.to === "/review"
+                ? (badges?.reviewCount ?? 0)
+                : item.to === "/todos"
+                  ? (badges?.openTodoCount ?? 0)
+                  : 0;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobile(false)}
+                className={({ isActive }) =>
+                  "module-link" + (isActive ? " active" : "")
+                }
+              >
+                <item.icon size={17} />
+                <span>{item.label}</span>
+                {count > 0 && <b>{count}</b>}
+              </NavLink>
+            );
+          })}
         </div>
-      </aside>
-      <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-6.5">
-        <div className="mx-auto w-full max-w-[1600px]"><Outlet /></div>
+      </nav>
+      <main id="main-content" tabIndex={-1} className="workspace-main">
+        <Suspense fallback={<LoadingBlock label="Loading page…" />}>
+          <Outlet />
+        </Suspense>
       </main>
+      <footer className="application-footer">
+        <span>Sichuan Bangla Express</span>
+        <span>BDT & CNY · Reports in BDT</span>
+      </footer>
     </div>
-  )
+  );
 }

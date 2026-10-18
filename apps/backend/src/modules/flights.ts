@@ -1,3 +1,5 @@
+import { assertFlightCapacity } from '../shared/flightCapacity'
+import { moneyBody, sourceFields, sourceAt, withSavedMoney } from '../shared/money'
 import { Hono } from 'hono'
 import { randomBytes } from 'node:crypto'
 import { Prisma, type FlightStatus } from '@prisma/client'
@@ -15,11 +17,35 @@ import { lookupFlight } from '../shared/flightLookup'
 const INCLUDE = {
   expenses: true,
   flyers: { include: { flyer: true } },
-  shipments: { include: { supplier: true, flight: true, receipt: true, expenses: true, invoice: true } },
+  shipments: { include: { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } },
   legs: { orderBy: { order: 'asc' as const } },
 } as const
 
-type FlightFull = Prisma.FlightGetPayload<{ include: typeof INCLUDE }>
+// The directory only needs values used by summary. Full shipment relations
+// remain on the detail route, where role-aware booking rows are returned.
+const SUMMARY_INCLUDE = {
+  expenses: { select: { category: true, amount: true } },
+  flyers: { select: { contribution: true, paidAmount: true, flyer: { select: { name: true } } } },
+  shipments: {
+    select: {
+      bookedKg: true,
+      charge: true,
+      customsTax: true,
+      afterSalesFee: true,
+      cnFare: true,
+      bdFare: true,
+      invoice: { select: { total: true } },
+      expenses: { select: { costId:true,costField: true, category: true, amount: true } },
+      costs:{select:{category:true,amount:true,voidedAt:true}},
+    },
+  },
+  legs: {
+    orderBy: { order: 'asc' as const },
+    select: { source:true, code: true, date: true, fromIata: true, fromCity: true, toIata: true, toCity: true, depTime: true, arrTime: true },
+  },
+} as const
+
+type FlightSummarySource = Prisma.FlightGetPayload<{ include: typeof SUMMARY_INCLUDE }>
 
 interface LegInput {
   code: string
@@ -32,6 +58,7 @@ interface LegInput {
 }
 
 const legSchema = z.object({
+  source:z.enum(["manual","schedule","legacy"]).default("legacy"),
   code: z.string().min(2),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   fromIata: z.string().default(''),
@@ -61,20 +88,7 @@ function deriveFromLegs(legs: LegInput[]) {
   }
 }
 
-/**
- * A past flight still marked "upcoming" is stale — the plane flew regardless.
- * Ran before flight reads so lists, dashboards and pickers stay truthful.
- */
-export async function autoCompletePastFlights(): Promise<void> {
-  const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)
-  const result = await prisma.flight.updateMany({
-    where: { status: 'upcoming', date: { lt: today } },
-    data: { status: 'completed' },
-  })
-  if (result.count > 0) await cacheInvalidate('dashboard')
-}
-
-function summary(f: FlightFull) {
+function summary(f: FlightSummarySource) {
   const revenue = f.shipments.reduce((total, shipment) => total + effectiveBill(shipment), 0)
   const shipmentCosts = f.shipments.reduce((costs, shipment) => {
     const next = shipmentOperatingCosts(shipment)
@@ -85,8 +99,9 @@ function summary(f: FlightFull) {
     return costs
   }, { cnTransport: 0, courier: 0, customs: 0, other: 0 })
   const totalShipmentCosts = Object.values(shipmentCosts).reduce((total, cost) => total + cost, 0)
-  const bookedKg = Math.round(f.shipments.reduce((a, s) => a + num(s.bookedKg), 0) * 10) / 10
+  const bookedKg = Math.round(f.shipments.reduce((a, s) => a + num(s.bookedKg), 0) * 100) / 100
   return {
+    sourceCurrency:f.sourceCurrency, sourceFxRate:num(f.sourceFxRate), sourceAmount:num(f.sourceAmount),
     code: f.code,
     date: isoDate(f.date),
     depTime: f.depTime,
@@ -109,14 +124,15 @@ function summary(f: FlightFull) {
     mobiles: f.mobiles,
     laptops: f.laptops,
     bookedKg,
-    leftKg: Math.round((f.spaceKg - bookedKg) * 10) / 10,
+    leftKg: Math.round((f.spaceKg - bookedKg) * 100) / 100,
+    scheduleNeedsConfirmation:f.status==='upcoming'&&f.date<new Date(new Date().toISOString().slice(0,10)),
     status: f.status,
     statusLabel: FLIGHT_LABEL[f.status],
     flyers: f.flyers.map((x) => x.flyer.name),
     shipmentCount: f.shipments.length,
     revenue,
     legs: f.legs.map((l) => ({
-      code: l.code,
+      source:l.source,code: l.code,
       date: l.date ? isoDate(l.date) : null,
       fromIata: l.fromIata,
       fromCity: l.fromCity,
@@ -130,8 +146,7 @@ function summary(f: FlightFull) {
 
 export const flightRoutes = new Hono<AppEnv>()
   .get('/', requireRole('admin'), async (c) => {
-    await autoCompletePastFlights()
-    const flights = await prisma.flight.findMany({ include: INCLUDE, orderBy: { date: 'asc' } })
+    const flights = await prisma.flight.findMany({ include: SUMMARY_INCLUDE, orderBy: { date: 'asc' } })
     return c.json({ flights: flights.map(summary) })
   })
 
@@ -163,11 +178,11 @@ export const flightRoutes = new Hono<AppEnv>()
         /** Connection itineraries: ordered segments override code/times/via. */
         legs: z.array(legSchema).optional(),
       })
-      .parse(await c.req.json())
+      .parse(moneyBody(await c.req.json(), ['actualCost', 'agencyShare']))
 
     if (body.agencyShare > body.actualCost) throw badRequest('Agency share cannot exceed actual ticket cost')
     const names = [...new Set(body.flyerNames)]
-    const flyers = await prisma.flyer.findMany({ where: { name: { in: names } } })
+    const flyers = await prisma.flyer.findMany({ where: { name: { in: names }, archivedAt:null } })
     if (flyers.length !== names.length) {
       const found = new Set(flyers.map((f) => f.name))
       throw badRequest(`Unknown flyer ${names.find((n) => !found.has(n))}`)
@@ -187,6 +202,7 @@ export const flightRoutes = new Hono<AppEnv>()
         via: derived?.via ?? 'Direct',
         agencyShare: new Prisma.Decimal(body.agencyShare),
         fare: new Prisma.Decimal(body.actualCost).minus(body.agencyShare),
+        ...sourceFields(body.actualCost),
         actualCost: new Prisma.Decimal(body.actualCost),
         spaceKg: body.spaceKg,
         mobiles: body.mobiles,
@@ -201,17 +217,18 @@ export const flightRoutes = new Hono<AppEnv>()
     // cash flow matches reality without a second manual entry.
     if (body.actualCost > 0 && body.accountName) {
       const posted=await debitCash(body.actualCost, body.accountName)
-      await prisma.expense.create({data:{date:new Date(),category:'ticket',amount:body.actualCost,reason:`${code} ticket — ${names.join(', ')}`,flightId:flight.id,...posted}})
+      await prisma.expense.create({data:{...sourceFields(body.actualCost),date:new Date(),category:'ticket',amount:body.actualCost,reason:`${code} ticket — ${names.join(', ')}`,flightId:flight.id,...posted}})
     }
     await cacheInvalidate('dashboard')
     return c.json({ code }, 201)
   })
 
   .get('/:code', requireRole('admin'), async (c) => {
-    await autoCompletePastFlights()
-    const flight = await prisma.flight.findUnique({ where: { code: c.req.param('code') }, include: INCLUDE })
+    const [flight, settings] = await Promise.all([
+      prisma.flight.findUnique({ where: { code: c.req.param('code') }, include: INCLUDE }),
+      getSettings(),
+    ])
     if (!flight) throw notFound('Flight not found')
-    const settings = await getSettings()
     const flyers = flight.flyers.map((x) => ({
       name: x.flyer.name,
       bdPhone: x.flyer.bdPhone,
@@ -246,8 +263,9 @@ export const flightRoutes = new Hono<AppEnv>()
         /** When present, replaces the leg list and re-derives code/times/via. */
         legs: z.array(legSchema).optional(),
       })
-      .parse(await c.req.json())
+      .parse(moneyBody(await c.req.json(), ['actualCost', 'agencyShare']))
 
+    if (body.spaceKg !== undefined && body.spaceKg !== flight.spaceKg) await assertFlightCapacity(flight.id, 0, undefined, body.spaceKg)
     const derived = body.legs?.length ? deriveFromLegs(body.legs) : null
     // Keep the booking reference stable when itinerary details change.
     const newCode = flight.code
@@ -271,6 +289,7 @@ export const flightRoutes = new Hono<AppEnv>()
         via: derived?.via ?? body.via,
         agencyShare: new Prisma.Decimal(agencyShare),
         fare: new Prisma.Decimal(actualCost).minus(agencyShare),
+        ...(body.actualCost !== undefined ? sourceFields(actualCost) : {}),
         actualCost: body.actualCost !== undefined ? new Prisma.Decimal(body.actualCost) : undefined,
         spaceKg: body.spaceKg,
         mobiles: body.mobiles,
@@ -292,7 +311,7 @@ export const flightRoutes = new Hono<AppEnv>()
       const delta=actualCost-tickets.reduce((total,e)=>total+num(e.amount),0)
       if(delta!==0){
         const posted=await debitCash(delta,body.accountName)
-        await prisma.expense.create({data:{date:new Date(),category:'ticket',amount:delta,reason:`${flight.code} ticket ${delta>0?'payment':'refund'}`,flightId:flight.id,...posted}})
+        await prisma.expense.create({data:{...sourceFields(delta),date:new Date(),category:'ticket',amount:delta,reason:`${flight.code} ticket ${delta>0?'payment':'refund'}`,flightId:flight.id,...posted}})
       }
     }
     await cacheInvalidate('dashboard')
@@ -313,16 +332,14 @@ export const flightRoutes = new Hono<AppEnv>()
     if (num(flight.actualCost) > 0 || num(flight.flyerPaidAmount) > 0) throw badRequest('Flight has financial history; deleting it would invent a cash refund')
     // Only flights without financial history may be removed.
     const tickets = await prisma.expense.findMany({ where: { flightId: flight.id, category: 'ticket' } })
-    const refund = tickets.reduce((a, e) => a + num(e.amount), 0)
-    if (tickets.length) await prisma.expense.deleteMany({ where: { flightId: flight.id, category: 'ticket' } })
+    if (tickets.length || await prisma.payment.count({ where: { flightId: flight.id } })) throw badRequest('Flight has payment or refund history and cannot be deleted')
     await prisma.flight.delete({ where: { id: flight.id } })
-    if (refund > 0) await debitCash(-refund)
     await cacheInvalidate('dashboard')
     return c.json({ ok: true })
   })
 
   .post('/:code/payments', requireRole('admin'), async (c) => {
-    const b = z.object({ amount: z.number().positive().multipleOf(0.01), method: z.string().trim().min(1).max(100),flyerName:z.string().optional() }).parse(await c.req.json())
+    const b = z.object({ amount: z.number().positive().multipleOf(0.01), method: z.string().trim().min(1).max(100),flyerName:z.string().optional() }).parse(moneyBody(await c.req.json(), ['amount']))
     const f = await prisma.flight.findUnique({ where: { code: c.req.param('code')! },include:{flyers:{include:{flyer:true}}} })
     if (!f) throw notFound('Flight not found')
     const due = new Prisma.Decimal(f.actualCost).minus(f.agencyShare).minus(f.flyerPaidAmount)
@@ -332,13 +349,13 @@ export const flightRoutes = new Hono<AppEnv>()
     if(!member)throw badRequest('Select the flyer paying and allocate their contribution first')
     if(b.amount>num(member.contribution)-num(member.paidAmount))throw badRequest('Amount exceeds this flyer’s allocated balance')
     await prisma.flightFlyer.update({where:{flightId_flyerId:{flightId:f.id,flyerId:member.flyerId}},data:{paidAmount:{increment:b.amount}}})
-    await creditPayment(b.method, b.amount, `${f.code} flyer ${member.flyer.name}`, undefined, 'flyer', f.id)
+    await creditPayment(b.method, b.amount, `${f.code} flyer ${member.flyer.name}`, undefined, 'flyer', f.id, {flyerId:member.flyerId})
     await prisma.flight.update({ where: { id: f.id }, data: { flyerPaidAmount: { increment: b.amount } } })
     return c.json({ ok: true }, 201)
   })
 
   .post('/:code/settlements',requireRole('admin'),async c=>{
-    const b=z.object({allocations:z.array(z.object({name:z.string(),contribution:z.number().nonnegative().multipleOf(0.01),legacyPaid:z.number().nonnegative().multipleOf(0.01).default(0)})).min(1)}).parse(await c.req.json())
+    const b=z.object({allocations:z.array(z.object({name:z.string(),contribution:z.number().nonnegative().multipleOf(0.01),legacyPaid:z.number().nonnegative().multipleOf(0.01).default(0)})).min(1)}).parse(moneyBody(await c.req.json(), ['allocations']))
     const f=await prisma.flight.findUnique({where:{code:c.req.param('code')!},include:{flyers:{include:{flyer:true}}}})
     if(!f)throw notFound('Flight not found')
     if(b.allocations.length!==f.flyers.length||new Set(b.allocations.map(x=>x.name)).size!==f.flyers.length)throw badRequest('Include every flyer exactly once')
@@ -355,7 +372,7 @@ export const flightRoutes = new Hono<AppEnv>()
     const flight = await prisma.flight.findUnique({ where: { code: c.req.param('code') } })
     if (!flight) throw notFound('Flight not found')
     const flyer = await prisma.flyer.findUnique({ where: { name } })
-    if (!flyer) throw badRequest(`Unknown flyer ${name}`)
+    if (!flyer || flyer.archivedAt) throw badRequest('Choose an active flyer')
     await prisma.flightFlyer.upsert({
       where: { flightId_flyerId: { flightId: flight.id, flyerId: flyer.id } },
       update: {},

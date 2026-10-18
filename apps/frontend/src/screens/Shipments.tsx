@@ -1,55 +1,311 @@
-import { Package, Truck, CircleCheck } from 'lucide-react'
-import { PageHeader, RecordList, SummaryStrip } from '@/components/Workspace'
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useFetch } from '@/state/useFetch'
-import { useAuth } from '@/state/auth'
-import type { ShipmentRow } from '@/api/types'
-import { Button } from '@/components/beui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/beui/select'
-import { BillFigure, Card, Chip, ErrorBlock, Field, LoadingBlock, PageTitle, StatusChip, PIPELINE_LABELS } from '@/components/ui'
-import { NewShipmentModal } from '@/modals/NewShipmentModal'
-import { PAY_CHIP, PAY_LABEL, deltaLabel, fmtBdt, fmtKg, supplierLabel } from '@/lib/format'
+import { useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Plus } from "lucide-react";
+import {
+  PageHeader,
+  PageTabs,
+  RecordList,
+  SummaryStrip,
+} from "@/components/Workspace";
+import { useFetch } from "@/state/useFetch";
+import { useAuth } from "@/state/auth";
+import type { ShipmentRow } from "@/api/types";
+import { Button } from "@/components/beui/button";
+import {
+  BillFigure,
+  Chip,
+  ErrorBlock,
+  LoadingBlock,
+  StatusChip,
+  PIPELINE_LABELS,
+} from "@/components/ui";
+import {
+  PAY_CHIP,
+  PAY_LABEL,
+  deltaLabel,
+  fmtKg,
+  fmtDate,
+  fmtBdt,
+} from "@/lib/format";
+
+const views = [
+  { value: "all", label: "All shipments" },
+  { value: "active", label: "Active" },
+  { value: "booked", label: "Booked" },
+  { value: "china", label: "China hub" },
+  { value: "transit", label: "In transit" },
+  { value: "delivery", label: "Dhaka & delivery" },
+  { value: "delivered", label: "Delivered" },
+];
 
 export function Shipments() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const { data, error, loading, reload } = useFetch<{ shipments: ShipmentRow[] }>('/shipments')
-  const [status, setStatus] = useState('all')
-  const [supplier, setSupplier] = useState('all')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [creating, setCreating] = useState(false)
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data, error, loading } = useFetch<{ shipments: ShipmentRow[] }>(
+    "/shipments",
+  );
+  const rawView = params.get("view") ?? "all";
+  const view = views.some((item) => item.value === rawView) ? rawView : "all";
+  const stage = params.get("stage") ?? "all";
+  const supplier = params.get("supplier") ?? "all";
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
+  const isAdmin = user?.role === "admin";
 
-  const rows = useMemo(() => {
-    let list = data?.shipments ?? []
-    if (status !== 'all') list = list.filter((r) => r.statusLabel === status)
-    if (supplier !== 'all') list = list.filter((r) => r.supplierCode === supplier)
-    if (from) list = list.filter((r) => r.date >= from)
-    if (to) list = list.filter((r) => r.date <= to)
-    return list
-  }, [data, status, supplier, from, to])
+  function filter(key: string, value: string) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (!value || value === "all") next.delete(key);
+      else next.set(key, value);
+      if (key === "view") next.delete("stage");
+      return next;
+    });
+  }
 
-  const supplierCodes = useMemo(() => [...new Set((data?.shipments ?? []).map((r) => r.supplierCode))].sort(), [data])
+  useEffect(() => {
+    if (params.get("new") === "1")
+      navigate("/shipments/new", { replace: true });
+  }, [params, navigate]);
 
-  if (error) return <ErrorBlock message={error} />
-  if (loading || !data) return <LoadingBlock />
+  const rows = useMemo(
+    () =>
+      (data?.shipments ?? []).filter((shipment) => {
+        const index = shipment.statusIndex;
+        if (view === "active" && index === 8) return false;
+        if (view === "booked" && index !== 0) return false;
+        if (view === "china" && (index < 1 || index > 2)) return false;
+        if (view === "transit" && (index < 3 || index > 4)) return false;
+        if (view === "delivery" && (index < 5 || index > 7)) return false;
+        if (view === "delivered" && index !== 8) return false;
+        return (
+          (stage === "all" || index === Number(stage)) &&
+          (supplier === "all" || shipment.supplierCode === supplier) &&
+          (!from || shipment.date >= from) &&
+          (!to || shipment.date <= to)
+        );
+      }),
+    [data, view, stage, supplier, from, to],
+  );
 
-  const delivered = rows.filter((r) => r.statusIndex === 8)
+  if (error) return <ErrorBlock message={error} />;
+  if (loading || !data) return <LoadingBlock />;
+  const suppliers = [
+    ...new Map(
+      data.shipments.map((shipment) => [
+        shipment.supplierCode,
+        shipment.supplierName,
+      ]),
+    ).entries(),
+  ];
+  const hasFilters =
+    stage !== "all" || supplier !== "all" || Boolean(from || to);
 
-  return <div><PageHeader title="Shipments" description="Follow every shipment from supplier intake to its final delivery." actions={user?.role==='admin'?<Button onClick={()=>setCreating(true)}>+ New shipment</Button>:undefined}/><SummaryStrip items={[
-    {label:'All shipments',value:data.shipments.length,description:'Across your entire operation',icon:<Package />,tone:'primary'},
-    {label:'In progress',value:data.shipments.filter(s=>s.statusIndex<8).length,description:'Awaiting final delivery',icon:<Truck />,tone:'amber'},
-    {label:'Delivered',value:data.shipments.filter(s=>s.statusIndex===8).length,description:data.shipments.length ? `${Math.round(data.shipments.filter(s=>s.statusIndex===8).length / data.shipments.length * 100)}% of all shipments` : 'Completed deliveries',icon:<CircleCheck />,tone:'success'},
-  ]}/>
-  <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
-  <label className="min-w-[150px] flex-1 text-xs text-muted-foreground">Shipment status<select className="mt-1.5 block h-10 w-full rounded-lg border border-border bg-background px-3 text-xs" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option>{PIPELINE_LABELS.map(s=><option key={s}>{s}</option>)}</select></label>
-  <label className="min-w-[140px] flex-1 text-xs text-muted-foreground">Supplier<select className="mt-1.5 block h-10 w-full rounded-lg border border-border bg-background px-3 text-xs" value={supplier} onChange={e=>setSupplier(e.target.value)}><option value="all">All suppliers</option>{supplierCodes.map(s=><option key={s}>{s}</option>)}</select></label>
-  <label className="text-xs text-muted-foreground">From date<input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1.5 block h-10 rounded-lg border border-border bg-background px-3"/></label><label className="text-xs text-muted-foreground">To date<input type="date" min={from||undefined} value={to} onChange={e=>setTo(e.target.value)} className="mt-1.5 block h-10 rounded-lg border border-border bg-background px-3"/></label>
-  {(status!=='all'||supplier!=='all'||from||to)&&<Button variant="ghost" onClick={()=>{setStatus('all');setSupplier('all');setFrom('');setTo('')}}>Reset filters</Button>}</div>
-  <RecordList rows={rows} recordKey={s=>s.code} href={s=>`/shipments/${encodeURIComponent(s.code)}`} searchText={s=>`${s.code} ${s.supplierCode} ${s.supplierName??''} ${s.description} ${s.categories.join(' ')}`} placeholder="Search shipment, supplier or product…" emptyTitle={data.shipments.length?'No shipments match these filters':'No shipments yet'} emptyDescription={data.shipments.length?'Reset the status, supplier or date filters to see more shipments.':'Create a shipment to record the product, supplier and initial booking details.'} columns={[
-   {label:'Shipment',render:s=>s.code},{label:'Supplier',render:s=>supplierLabel(s.supplierCode,s.supplierName)},{label:'Contents',render:s=><div>{s.description||'No description'}<p className="mt-1 text-xs text-muted-foreground">{s.categories.join(', ')}</p></div>},
-   {label:'Weight',render:s=><div>{s.effectiveKg>0?fmtKg(s.effectiveKg):'Devices'}{s.weightDelta!==null&&<p className="text-xs text-danger">{deltaLabel(s.weightDelta)}</p>}</div>},{label:'Status',render:s=><StatusChip index={s.statusIndex} label={s.statusLabel}/>},
-   ...(user?.role==='admin' ? [{label:'Payment',render:(s:ShipmentRow)=><Chip colors={PAY_CHIP[s.payStatus]??PAY_CHIP.unpaid!}>{PAY_LABEL[s.payStatus]}</Chip>},{label:'Bill',render:(s:ShipmentRow)=><BillFigure bill={s.billAmount} discount={s.discountAmount}/>}]: [])
-  ]}/><NewShipmentModal open={creating} onClose={()=>setCreating(false)} onDone={()=>void reload()}/></div>
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Shipments"
+        description="Book cargo and manage each shipment through delivery."
+        actions={
+          isAdmin ? (
+            <Button onClick={() => navigate("/shipments/new")}>
+              <Plus size={16} />
+              New shipment
+            </Button>
+          ) : undefined
+        }
+      />
+      <SummaryStrip
+        items={[
+          { label: "All shipments", value: data.shipments.length },
+          {
+            label: "Active",
+            value: data.shipments.filter((shipment) => shipment.statusIndex < 8)
+              .length,
+          },
+          {
+            label: "Awaiting dispatch",
+            value: data.shipments.filter(
+              (shipment) => shipment.statusIndex <= 2,
+            ).length,
+          },
+          {
+            label: "Delivered",
+            value: data.shipments.filter(
+              (shipment) => shipment.statusIndex === 8,
+            ).length,
+          },
+        ]}
+      />
+      <RecordList
+        rows={rows}
+        recordKey={(shipment) => shipment.code}
+        href={(shipment) => `/shipments/${encodeURIComponent(shipment.code)}`}
+        searchText={(shipment) =>
+          `${shipment.code} ${shipment.supplierCode} ${shipment.supplierName ?? ""} ${shipment.description} ${shipment.categories.join(" ")} ${shipment.flightCode ?? ""}`
+        }
+        placeholder="Search shipment, customer, cargo or flight"
+        emptyTitle="No shipments found"
+        emptyDescription="Adjust the filters or create a new shipment."
+        views={
+          <PageTabs
+            value={view}
+            onChange={(value) => filter("view", value)}
+            items={views}
+          />
+        }
+        filters={
+          <>
+            <label className="text-xs font-medium text-muted-foreground">
+              Status
+              <select
+                className="filter-control mt-1 block"
+                value={stage}
+                onChange={(event) => filter("stage", event.target.value)}
+              >
+                <option value="all">All statuses</option>
+                {PIPELINE_LABELS.map((label, index) => (
+                  <option value={String(index)} key={label}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {isAdmin && (
+              <label className="text-xs font-medium text-muted-foreground">
+                Customer
+                <select
+                  className="filter-control mt-1 block"
+                  value={supplier}
+                  onChange={(event) => filter("supplier", event.target.value)}
+                >
+                  <option value="all">All customers</option>
+                  {suppliers.map(([code, name]) => (
+                    <option value={code} key={code}>
+                      {name || code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="text-xs font-medium text-muted-foreground">
+              Booked from
+              <input
+                className="filter-control mt-1 block"
+                type="date"
+                value={from}
+                onChange={(event) => filter("from", event.target.value)}
+              />
+            </label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Booked to
+              <input
+                className="filter-control mt-1 block"
+                type="date"
+                min={from || undefined}
+                value={to}
+                onChange={(event) => filter("to", event.target.value)}
+              />
+            </label>
+            {hasFilters && (
+              <Button
+                variant="secondary"
+                onClick={() => setParams(view === "all" ? {} : { view })}
+              >
+                Clear filters
+              </Button>
+            )}
+          </>
+        }
+        columns={[
+          {
+            label: "Shipment / booked",
+            render: (shipment) => (
+              <div>
+                <span>{shipment.code}</span>
+                <p className="mt-1 text-xs font-normal text-muted-foreground">
+                  {fmtDate(shipment.date)}
+                </p>
+              </div>
+            ),
+          },
+          {
+            label: "Customer / cargo",
+            render: (shipment) => (
+              <div>
+                <p className="font-medium">
+                  {shipment.supplierName || shipment.supplierCode}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {shipment.description ||
+                    shipment.categories.join(", ") ||
+                    "—"}
+                </p>
+              </div>
+            ),
+          },
+          {
+            label: "Flight",
+            render: (shipment) => shipment.flightCode || "Unassigned",
+            mobile: false,
+          },
+          {
+            label: "Weight",
+            render: (shipment) => (
+              <div className="whitespace-nowrap">
+                {shipment.effectiveKg > 0
+                  ? fmtKg(shipment.effectiveKg)
+                  : "Devices"}
+                {shipment.weightDelta !== null && (
+                  <p className="mt-1 text-xs text-danger">
+                    {deltaLabel(shipment.weightDelta)}
+                  </p>
+                )}
+              </div>
+            ),
+          },
+          {
+            label: "Status",
+            render: (shipment) => (
+              <StatusChip
+                index={shipment.statusIndex}
+                label={shipment.statusLabel}
+              />
+            ),
+          },
+          ...(isAdmin
+            ? [
+                {
+                  label: "Payment",
+                  render: (shipment: ShipmentRow) => (
+                    <Chip
+                      colors={PAY_CHIP[shipment.payStatus] ?? PAY_CHIP.unpaid!}
+                    >
+                      {PAY_LABEL[shipment.payStatus]}
+                    </Chip>
+                  ),
+                },
+                {
+                  label: "Bill / due (BDT)",
+                  align: "right" as const,
+                  render: (shipment: ShipmentRow) => (
+                    <div>
+                      <BillFigure
+                        bill={shipment.billAmount}
+                        discount={shipment.discountAmount}
+                      />
+                      {shipment.dueAmount > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {fmtBdt(shipment.dueAmount)} due
+                        </p>
+                      )}
+                    </div>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
+    </div>
+  );
 }

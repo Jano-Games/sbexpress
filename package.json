@@ -14,7 +14,12 @@
       "@prisma/engines",
       "esbuild",
       "prisma"
-    ]
+    ],
+    "overrides": {
+      "@prisma/config>deepmerge-ts": "8.0.0",
+      "prisma>mysql2": "3.23.1",
+      "ajv>fast-uri": "3.1.8"
+    }
   },
   "scripts": {
     "dev": "turbo run dev --filter=backend --filter=frontend --ui=tui",
@@ -36,7 +41,8 @@
     "db:migrate": "pnpm --filter backend db:migrate",
     "db:deploy": "pnpm --filter backend db:deploy",
     "db:studio": "pnpm --filter backend db:studio",
-    "db:seed": "pnpm --filter backend db:seed"
+    "db:seed": "pnpm --filter backend db:seed",
+    "backup:verify": "node scripts/verify-local-backup.mjs"
   },
   "devDependencies": {
     "turbo": "^2.10.8",

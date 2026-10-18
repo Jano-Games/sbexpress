@@ -1,3 +1,4 @@
+import { moneyBody, sourceFields, sourceAt, withSavedMoney } from '../shared/money'
 import { addShipmentBillCharge } from '../shared/shipmentBilling'
 import { assertUniqueBank, bankDetailsSchema, assertUniqueMobile, mobileDetailsSchema } from '../shared/bankAccounts'
 import { Hono } from 'hono'
@@ -14,6 +15,11 @@ import { creditPayment, debitCash } from '../shared/ledger'
 import { financialSummary } from '../shared/financialSummary'
 
 export const financeRoutes = new Hono<AppEnv>()
+  .get('/accounts', requireRole('admin'), async c => {
+    const accounts=await prisma.account.findMany({select:{name:true,currency:true,balance:true},orderBy:{createdAt:'asc'}})
+    return c.json({accounts:accounts.map(a=>({...a,balance:num(a.balance)}))})
+  })
+
   .get('/', requireRole('admin'), async (c) => c.json(await financialSummary(c.req.query('period') ?? c.req.query('month') ?? new Date().toISOString().slice(0, 7))))
 
   .post('/accounts', requireRole('admin'), async (c) => {
@@ -132,7 +138,7 @@ export const financeRoutes = new Hono<AppEnv>()
         note: z.string().min(1, 'Note is required').max(160),
         kind: z.enum(['income','capital']).default('income'),
       })
-      .parse(await c.req.json())
+      .parse(moneyBody(await c.req.json(), ['amount']))
     // Non-shipment money in (e.g. an owner deposit or misc income) — lands in
     // the matching account and the monthly received ledger like any payment.
     await creditPayment(body.method, body.amount, body.note, undefined, body.kind)
@@ -145,11 +151,12 @@ export const financeRoutes = new Hono<AppEnv>()
       .object({
         category: z.enum(['ticket', 'packaging', 'courier', 'salary', 'transport', 'customs', 'others']),
         amount: z.number().positive('Amount is required'),
-        reason: z.string().min(1, 'Reason is required'),
+        reason: z.string().trim().min(1, 'Cost name is required').max(500),
+        label: z.string().trim().min(1).max(120).optional(),
         accountName: z.string().trim().min(1).default('Cash'),
         shipmentCode: z.string().optional(),
       })
-      .parse(await c.req.json())
+      .parse(moneyBody(await c.req.json(), ['amount']))
 
     let shipmentId: string | undefined
     if (body.shipmentCode) {
@@ -157,10 +164,12 @@ export const financeRoutes = new Hono<AppEnv>()
       if (!shipment) throw badRequest(`Unknown shipment ${body.shipmentCode}`)
       shipmentId = shipment.id
     }
+    const cost=shipmentId?await prisma.shipmentCost.create({data:{shipmentId,name:body.label??`${body.category.charAt(0).toUpperCase()+body.category.slice(1)} charge`,category:body.category,amount:body.amount,...sourceFields(body.amount)}}):null
     const paidFrom = await debitCash(body.amount, body.accountName)
     await prisma.expense.create({
       data: {
-        ...paidFrom,
+        ...paidFrom, costId:cost?.id,
+        ...sourceFields(body.amount),
         date: new Date(),
         category: body.category as ExpenseCategory,
         amount: new Prisma.Decimal(body.amount),
@@ -168,7 +177,7 @@ export const financeRoutes = new Hono<AppEnv>()
         shipmentId,
       },
     })
-    if (shipmentId) await addShipmentBillCharge(shipmentId, body.category, body.amount)
+    if (shipmentId) await addShipmentBillCharge(shipmentId, body.category, body.amount, body.label)
     await cacheInvalidate('dashboard')
     return c.json({ ok: true }, 201)
   })

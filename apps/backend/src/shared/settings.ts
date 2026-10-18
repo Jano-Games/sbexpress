@@ -3,6 +3,7 @@ import { prisma } from '../core/db'
 export interface AppSettings {
   /** ৳ per ¥1. */
   rate: number
+  exchangeRates: Record<'BDT' | 'CNY', number>
   /** Weight-discrepancy alert threshold in kg. */
   threshold: number
   investBdt: number
@@ -11,7 +12,7 @@ export interface AppSettings {
   pcsRates: Record<string, number>
 }
 
-const DEFAULTS: AppSettings = { rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {} }
+const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {} }
 
 export async function getSettings(): Promise<AppSettings> {
   const rows = await prisma.setting.findMany()
@@ -34,6 +35,7 @@ export async function getSettings(): Promise<AppSettings> {
   }
   return {
     rate: numFrom('rate'),
+    exchangeRates: {BDT:1,CNY:numFrom('rate')},
     threshold: numFrom('threshold'),
     investBdt: numFrom('investBdt'),
     investCny: numFrom('investCny'),
@@ -49,7 +51,7 @@ export async function putPcsRates(rates: Record<string, number>): Promise<void> 
   await putRaw('pcsRates', JSON.stringify(rates))
 }
 
-async function putRaw(key: string, value: string): Promise<void> {
+export async function putRaw(key: string, value: string): Promise<void> {
   await prisma.setting.upsert({
     where: { key },
     update: { value },

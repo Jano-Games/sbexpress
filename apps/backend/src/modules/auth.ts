@@ -5,7 +5,7 @@
  * tracking links instead.
  */
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { verify } from '@node-rs/argon2'
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
@@ -35,22 +35,18 @@ const SESSION_TTL_SECONDS = 60 * 60 * 12
 
 const sessionKey = (token: string) => `session:${token}`
 
-const clientIp = (c: Context): string => 'staff-login'
+const passwordVersion = (hash: string) => createHash('sha256').update(hash).digest('hex')
 
 export const authRoutes = new Hono()
   .post('/login', async (c) => {
-    // Brake on credential stuffing; the verify below is deliberately the
-    // same code path for unknown email and wrong password.
-    if (!(await rateLimit(`login:${clientIp(c)}`, 20))) {
-      throw new HttpError(429, 'Too many attempts — try again in a minute')
-    }
     const { email, password } = z
       .object({ email: z.string().email('Enter a valid email'), password: z.string().min(1, 'Password required') })
       .parse(await c.req.json())
 
+    if (!(await rateLimit(`login:${createHash('sha256').update(email.toLowerCase()).digest('hex')}`, 20))) throw new HttpError(429, 'Too many attempts for this account — try again in a minute')
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
     const ok = user ? await verify(user.passwordHash, password).catch(() => false) : false
-    if (!user || !ok) throw unauthorized('Invalid email or password')
+    if (!user || !user.active || !ok) throw unauthorized('Invalid email or password')
 
     const session: SessionUser = {
       id: user.id,
@@ -60,7 +56,7 @@ export const authRoutes = new Hono()
       roleLabel: ROLE_LABEL[user.role],
     }
     const token = randomUUID()
-    await redis.set(sessionKey(token), JSON.stringify(session), 'EX', SESSION_TTL_SECONDS)
+    await redis.set(sessionKey(token), JSON.stringify({ ...session, sessionVersion:user.sessionVersion, passwordVersion: passwordVersion(user.passwordHash) }), 'EX', SESSION_TTL_SECONDS)
     return c.json({ token, user: session })
   })
   .post('/logout', async (c) => {
@@ -81,9 +77,14 @@ export async function requireAuth(c: Context<AppEnv>, next: Next): Promise<void>
   if (!token) throw unauthorized()
   const raw = await redis.get(sessionKey(token))
   if (!raw) throw unauthorized('Session expired — sign in again')
-  // Sliding expiry: activity keeps the session alive.
+  const session = JSON.parse(raw) as SessionUser & { passwordVersion?: string; sessionVersion?: number }
+  const current = await prisma.user.findUnique({ where: { id: session.id } })
+  if (!current || !current.active || (session.sessionVersion ?? 0) !== current.sessionVersion || current.role !== session.role || session.passwordVersion !== passwordVersion(current.passwordHash)) {
+    await redis.del(sessionKey(token))
+    throw unauthorized('Account changed — sign in again')
+  }
   await redis.expire(sessionKey(token), SESSION_TTL_SECONDS).catch(() => undefined)
-  c.set('user', JSON.parse(raw) as SessionUser)
+  c.set('user', { id: current.id, name: current.name, email: current.email, role: current.role, roleLabel: ROLE_LABEL[current.role] })
   await next()
 }
 

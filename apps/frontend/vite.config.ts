@@ -15,8 +15,8 @@ export default defineConfig({
     // Proxy /api to the backend so the browser sees one origin in development
     // and CORS never enters the picture.
     proxy: {
-      '/api': { target: 'http://localhost:3002', changeOrigin: true },
+      '/api': { target: process.env.API_PROXY_TARGET ?? 'http://localhost:3002', changeOrigin: true },
     },
   },
-  build: { outDir: 'dist', sourcemap: true },
+  build: { outDir: 'dist', sourcemap: false },
 })

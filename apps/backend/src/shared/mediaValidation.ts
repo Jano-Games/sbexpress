@@ -8,4 +8,8 @@ export function matchesMediaType(type: string, b: Uint8Array): boolean {
   if (type === 'video/webm') return [26,69,223,163].every((v,i)=>b[i]===v)
   return false
 }
+export function matchesDocumentType(type: string, bytes: Uint8Array): boolean {
+  if (type === 'application/pdf') return String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-'
+  return type.startsWith('image/') && matchesMediaType(type, bytes)
+}
 export const mediaLimit = (type: string) => type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024

@@ -1,3 +1,4 @@
+import { moneyBody, sourceFields, sourceAt, withSavedMoney } from '../shared/money'
 import { changeCredit, money } from '../shared/customerCredit'
 import { creditPayment } from '../shared/ledger'
 import { Hono } from 'hono'
@@ -7,12 +8,12 @@ import { prisma } from '../core/db'
 import { badRequest, notFound } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { effectiveKg } from '../shared/compute'
-import { effectiveBill, num, numOrNull, shipmentRow } from '../shared/serialize'
+import { effectiveBill, num, sourceDto, numOrNull, shipmentRow } from '../shared/serialize'
 import { getSettings } from '../shared/settings'
 import { recordShipmentPayment } from './shipments'
 
 const INCLUDE = {
-  shipments: { include: { supplier: true, flight: true, receipt: true, expenses: true, invoice: true } },
+  shipments: { include: { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } },
 } as const
 
 type SupplierFull = Prisma.SupplierGetPayload<{ include: typeof INCLUDE }>
@@ -25,12 +26,13 @@ const remaining = (s: SupplierFull['shipments'][number]): number =>
   Math.max(0, Math.round((bill(s) - num(s.paidAmount)) * 100) / 100)
 
 function summary(x: SupplierFull) {
-  const billed = x.shipments.reduce((a, s) => a + bill(s), 0)
-  const balance = x.shipments.reduce((a, s) => a + remaining(s), 0)
+  const issued=x.shipments.filter(s=>s.invoice?.state==='issued'&&!s.invoice.needsReview)
+  const billed = issued.reduce((a, s) => a + bill(s), 0)
+  const balance = issued.reduce((a, s) => a + remaining(s), 0)
   const paid = Math.round((billed - balance) * 100) / 100
   const discountTotal = x.shipments.reduce((a, s) => a + num(s.invoice?.discount ?? null), 0)
   return {
-    creditBalance: num(x.creditBalance),
+    creditBalance: num(x.creditBalance), pricingPending:x.shipments.length-issued.length,
     discountTotal,
     code: x.code,
     name: x.name,
@@ -50,8 +52,8 @@ function summary(x: SupplierFull) {
 /** Statement of a monthly-terms supplier for one YYYY-MM cycle. */
 export async function buildStatement(code: string, month: string) {
   const supplier = await prisma.supplier.findUnique({ where: { code }, include: INCLUDE })
-  if (!supplier) throw notFound('Supplier not found')
-  const rows = supplier.shipments.filter((s) => s.createdAt.toISOString().startsWith(month))
+  if (!supplier) throw notFound('Customer not found')
+  const rows = supplier.shipments.filter((s) => s.createdAt.toISOString().startsWith(month) && s.invoice?.state==='issued' && !s.invoice.needsReview)
   const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-GB', {
     month: 'long',
     year: 'numeric',
@@ -90,7 +92,7 @@ export const supplierRoutes = new Hono<AppEnv>()
 
     const code = body.code?.trim() || (await nextSupplierCode())
     const existing = await prisma.supplier.findUnique({ where: { code } })
-    if (existing) throw badRequest(`Supplier ${code} already exists`)
+    if (existing) throw badRequest(`Customer ${code} already exists`)
     await prisma.supplier.create({
       data: { code, name: body.name, phone: body.phone, address: body.address, terms: body.terms as SupplierTerms },
     })
@@ -103,7 +105,7 @@ export const supplierRoutes = new Hono<AppEnv>()
 
   .patch('/:code', requireRole('admin'), async (c) => {
     const supplier = await prisma.supplier.findUnique({ where: { code: c.req.param('code')! } })
-    if (!supplier) throw notFound('Supplier not found')
+    if (!supplier) throw notFound('Customer not found')
     const body = z
       .object({
         code: z.string().min(1).optional(),
@@ -116,7 +118,7 @@ export const supplierRoutes = new Hono<AppEnv>()
 
     if (body.code && body.code !== supplier.code) {
       const clash = await prisma.supplier.findUnique({ where: { code: body.code } })
-      if (clash) throw badRequest(`Supplier ${body.code} already exists`)
+      if (clash) throw badRequest(`Customer ${body.code} already exists`)
     }
     const updated = await prisma.supplier.update({
       where: { id: supplier.id },
@@ -130,11 +132,11 @@ export const supplierRoutes = new Hono<AppEnv>()
       where: { code: c.req.param('code')! },
       include: { shipments: { select: { code: true } } },
     })
-    if (!supplier) throw notFound('Supplier not found')
+    if (!supplier) throw notFound('Customer not found')
     if (supplier.shipments.length > 0) {
       throw badRequest(`${supplier.code} has ${supplier.shipments.length} shipment(s) — delete or reassign them first`)
     }
-    if(await prisma.customerCredit.count({where:{supplierId:supplier.id}})||await prisma.statementLink.count({where:{supplierId:supplier.id}}))throw badRequest('Supplier has financial or statement history and cannot be deleted')
+    if(await prisma.customerCredit.count({where:{supplierId:supplier.id}})||await prisma.statementLink.count({where:{supplierId:supplier.id}}))throw badRequest('Customer has financial or statement history and cannot be deleted')
     await prisma.supplier.delete({ where: { id: supplier.id } })
     return c.json({ ok: true })
   })
@@ -147,10 +149,10 @@ export const supplierRoutes = new Hono<AppEnv>()
         invoices: { include: { shipment: { select: { code: true } } }, orderBy: { issuedAt: 'desc' } },
       },
     })
-    if (!supplier) throw notFound('Supplier not found')
+    if (!supplier) throw notFound('Customer not found')
     const settings = await getSettings()
     const recentPayments = await prisma.payment.findMany({
-      where: { shipment: { supplierId: supplier.id } },
+      where: { OR:[{shipment: { supplierId: supplier.id }},{supplierId:supplier.id}] },
       include: { shipment: { select: { code: true } } },
       orderBy: { createdAt: 'desc' },
       take: 12,
@@ -162,12 +164,13 @@ export const supplierRoutes = new Hono<AppEnv>()
           .sort((a, b) => a.code.localeCompare(b.code))
           .map((s) => shipmentRow(s, 'admin', settings.threshold)),
         payments: recentPayments.map((p) => ({
+          ...sourceDto(p,num(p.amount)),kind:p.kind,reference:p.reference,
           code: p.shipment?.code ?? '—',
           method: p.method,
           amount: num(p.amount),
           at: p.createdAt.toISOString(),
         })),
-        invoices: supplier.invoices.map((inv) => ({
+        invoices: supplier.invoices.filter(inv=>inv.state==='issued').map((inv) => ({
           number: inv.number,
           shipmentCode: inv.shipment.code,
           total: num(inv.total),
@@ -181,13 +184,13 @@ export const supplierRoutes = new Hono<AppEnv>()
   .post('/:code/payments', requireRole('admin'), async (c) => {
     const { amount, method } = z
       .object({ amount: z.number().positive('Amount required').max(9999999999).multipleOf(0.01), method: z.string().min(1).max(200).default('Cash') })
-      .parse(await c.req.json())
+      .parse(moneyBody(await c.req.json(), ['amount']))
     const supplier = await prisma.supplier.findUnique({ where: { code: c.req.param('code')! }, include: INCLUDE })
-    if (!supplier) throw notFound('Supplier not found')
+    if (!supplier) throw notFound('Customer not found')
 
     // Oldest bills settle first — the convention monthly-terms suppliers expect.
     const outstanding = supplier.shipments
-      .filter((s) => remaining(s) > 0)
+      .filter((s) => remaining(s) > 0 && s.invoice?.state==='issued' && !s.invoice.needsReview)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.code.localeCompare(b.code))
     const balance = outstanding.reduce((a, s) => a + remaining(s), 0)
     // Any unallocated amount remains available for future bills or a refund.
@@ -197,11 +200,11 @@ export const supplierRoutes = new Hono<AppEnv>()
     for (const s of outstanding) {
       if (left <= 0.005) break
       const pay = Math.min(remaining(s), left)
-      await recordShipmentPayment(s, pay, method, 'Admin')
+      await recordShipmentPayment(s, pay, method, c.get('user').name)
       allocations.push({ code: s.code, amount: pay })
       left = Math.round((left - pay) * 100) / 100
     }
-    if(left>0){await creditPayment(method,left,`${supplier.code} advance`,undefined,'customer-credit');await changeCredit(supplier.id,left,'advance','Unallocated payment')}
+    if(left>0){await creditPayment(method,left,`${supplier.code} advance`,undefined,'customer-credit',undefined,{supplierId:supplier.id});await changeCredit(supplier.id,left,'advance','Unallocated payment')}
     return c.json({ ok: true, allocations, creditAdded:money(left) }, 201)
   })
 

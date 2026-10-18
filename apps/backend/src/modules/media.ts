@@ -1,3 +1,4 @@
+import { writeShipmentLog } from '../shared/actor'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -7,7 +8,7 @@ import { badRequest, notFound, HttpError } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { mediaLimit, mediaTypes } from '../shared/mediaValidation'
 import { r2Configured, signUpload, finalizeUpload, signDownload } from '../shared/r2'
-import { resolvePublicLink } from '../shared/publicLinks'
+import { resolvePublicLink, tokenHash } from '../shared/publicLinks'
 const ref = z.string().uuid()
 async function syncCounts(shipmentId:string){
  const rows=await prisma.shipmentMedia.findMany({where:{shipmentId,status:'ready'},select:{contentType:true}})
@@ -48,7 +49,7 @@ export const mediaRoutes=new Hono<AppEnv>()
   await finalizeUpload(m)
   await prisma.shipmentMedia.update({where:{id:m.id},data:{status:'ready'}})
   await syncCounts(m.shipmentId)
-  await prisma.shipmentLog.create({data:{shipmentId:m.shipmentId,actor:c.get('user').role==='hub'?'Hub':'Admin',message:`Photo/video attached: ${m.name}`}})
+  await writeShipmentLog(m.shipmentId,`Photo/video attached: ${m.name}`)
   return c.json({ok:true})
  })
  .get('/:code/media/:reference/url',requireRole('admin','hub'),async c=>{
@@ -69,7 +70,7 @@ export const mediaRoutes=new Hono<AppEnv>()
   return c.json({ok:true})
  })
 export const publicMediaRoutes=new Hono()
- .use('*',async(c,next)=>{if(!await rateLimit('public-media',120))throw new HttpError(429,'Too many requests');await next()})
+ .use('*',async(c,next)=>{if(!await rateLimit(`public-media:${tokenHash(c.req.path.split('/')[3] ?? '')}`,120))throw new HttpError(429,'Too many requests');await next()})
  .get('/:token/media',async c=>{
   const link=await resolvePublicLink(c.req.param('token'))
   const rows=await prisma.shipmentMedia.findMany({where:{shipmentId:link.shipmentId,status:'ready',shared:true},orderBy:{createdAt:'asc'}})

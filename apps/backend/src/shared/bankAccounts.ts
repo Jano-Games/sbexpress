@@ -1,4 +1,4 @@
-import type { PayMethod } from '@prisma/client'
+import type { Currency, PayMethod } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../core/db'
 import { badRequest } from '../core/errors'
@@ -26,7 +26,7 @@ export async function assertUniqueMobile(mobile: z.infer<typeof mobileDetailsSch
 }
 
 /** Called inside the agency write transaction. An account has only one balance. */
-export async function linkBankFund(method: PayMethod) {
+export async function linkBankFund(method: PayMethod, currency?: Currency) {
   if (method.accountId) return method
   const isBank = method.kind === 'bank_account'
   const provider = isBank ? method.bankName : method.provider
@@ -40,7 +40,8 @@ export async function linkBankFund(method: PayMethod) {
     if (legacy.length === 1 && !legacy[0]!.paymentMethod && methods === 1) matches = legacy
   }
   if (matches.length > 1 || matches.some(a=>a.paymentMethod)) throw badRequest('A fund with this name is already linked. Choose a unique account.')
-  const account = matches[0] ?? await prisma.account.create({data:{name,kind:isBank?'bank':'mobile',currency:'BDT',balance:0}})
+  if (currency && matches[0] && matches[0].currency !== currency) throw badRequest('The existing fund uses a different currency. Use a separate account for this currency.')
+  const account = matches[0] ?? await prisma.account.create({data:{name,kind:isBank?'bank':'mobile',currency:currency ?? 'BDT',balance:0}})
   return prisma.payMethod.update({where:{id:method.id},data:{accountId:account.id}})
 }
 

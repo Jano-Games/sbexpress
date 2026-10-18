@@ -4,3 +4,6 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Private local database snapshots and environment backups
+.local-backups/

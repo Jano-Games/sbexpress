@@ -1,79 +1,124 @@
-import { PageHeader, EmptyState } from '@/components/Workspace'
-import { Link, useNavigate } from 'react-router-dom'
-import { useFetch } from '@/state/useFetch'
-import { useAuth } from '@/state/auth'
-import type { HubOverview as HubData } from '@/api/types'
-import { AnimatedNumber } from '@/components/beui/animated-number'
-import { Card, ErrorBlock, KpiTile, LoadingBlock, NoticeList, SbMark, StatusChip } from '@/components/ui'
-import { deltaLabel, fmtKg } from '@/lib/format'
+import { Link } from "react-router-dom";
+import { PageHeader, RecordList, SummaryStrip } from "@/components/Workspace";
+import { Panel } from "@/components/DesignSystem";
+import { useFetch } from "@/state/useFetch";
+import type { HubOverview as HubData } from "@/api/types";
+import { ErrorBlock, LoadingBlock, StatusChip } from "@/components/ui";
+import { deltaLabel, fmtKg } from "@/lib/format";
 
 export function HubOverview() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const { data, error, loading } = useFetch<HubData>('/dashboard/hub')
-
-  if (error) return <ErrorBlock message={error} />
-  if (loading || !data) return <LoadingBlock />
-
-  const firstName = user?.name.split(' ')[0] ?? 'there'
+  const { data, error } = useFetch<HubData>("/dashboard/hub");
+  if (error) return <ErrorBlock message={error} />;
+  if (!data) return <LoadingBlock />;
 
   return (
-    <div>
-      <PageHeader title="Hub overview" description={`Welcome, ${firstName}. Receive shipments, verify weight, and prepare courier delivery.`} />
-
-      <Card className="overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 bg-ink px-5.5 py-3.5 text-white">
-          <SbMark />
-          <span className="text-[11.5px] font-extrabold tracking-[.08em] text-[#E3E5E8]">BASHUNDHARA HUB · DHAKA</span>
-          <span className="ml-auto text-[12.5px] text-[#E3E5E8]">{data.todayLabel}</span>
-        </div>
-        <div className="grid gap-2.5 p-5 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
-          <KpiTile label="At BD hub now" value={<AnimatedNumber value={data.atHubCount} />} sub="shipments to process" />
-          <KpiTile
-            label={`Incoming${data.incoming.flightCode ? ` · ${data.incoming.flightCode}` : ''}`}
-            value={fmtKg(data.incoming.kg)}
-            sub={`${data.incoming.count} shipments in transit`}
-          />
-          <KpiTile
-            label="Open tasks"
-            value={<AnimatedNumber value={data.openTodoCount} />}
-            valueClassName="text-primary"
-            sub="on your to-do list"
-            onClick={() => navigate('/todos')}
-          />
-        </div>
-      </Card>
-
-      <NoticeList notices={data.notices} />
-
-      <Card className="mt-4 p-5">
-        <div className="mb-3 text-[15px] font-bold">Ready for hub processing</div>
-        <div className="flex flex-col gap-2">
-          {data.toProcess.length === 0 ? (
-            <div className="rounded-[10px] border border-dashed border-[#C9C6BF] p-8 text-center text-[13px] text-muted-foreground">
-              Nothing waiting at the hub.
-            </div>
-          ) : (
-            data.toProcess.map((r) => (
-              <Link
-                key={r.code}
-                className="flex cursor-pointer flex-wrap items-center gap-3.5 rounded-[10px] bg-background px-3.5 py-2.75 hover:bg-muted" to={`/shipments/${r.code}`}
-              >
-                <div className="w-[76px] text-[13px] font-bold">{r.code}</div>
-                <div className="w-20 text-[12.5px] font-bold text-primary">{r.supplierCode}</div>
-                <div className="min-w-[120px] flex-1 text-[12.5px] text-muted-foreground">
-                  {r.categories.join(', ')} · {r.description}
+    <div className="space-y-5">
+      <PageHeader
+        title="Dhaka hub"
+        description="Receive, weigh and pack shipments before arranging delivery."
+        actions={
+          <Link
+            className="text-sm font-medium text-primary"
+            to="/shipments?view=delivery"
+          >
+            View delivery shipments →
+          </Link>
+        }
+      />
+      <SummaryStrip
+        items={[
+          {
+            label: "At the hub",
+            value: data.atHubCount,
+            description: "Shipments awaiting handling",
+          },
+          {
+            label: "Incoming cargo",
+            value: fmtKg(data.incoming.kg),
+            description: `${data.incoming.count} shipments in transit`,
+          },
+          {
+            label: "Open tasks",
+            value: data.openTodoCount,
+            description: "Operational follow-ups",
+          },
+        ]}
+      />
+      <Panel
+        title="Processing sequence"
+        description="Open a shipment below to complete its next handling step."
+      >
+        <ol className="grid gap-5 text-sm sm:grid-cols-3">
+          <li>
+            <h3 className="font-semibold">1. Receive & weigh</h3>
+            <p className="mt-1 text-muted-foreground">
+              Confirm the cargo has arrived and record its measured weight.
+            </p>
+          </li>
+          <li>
+            <h3 className="font-semibold">2. Confirm packing</h3>
+            <p className="mt-1 text-muted-foreground">
+              Check the contents and save the final package count.
+            </p>
+          </li>
+          <li>
+            <h3 className="font-semibold">3. Arrange delivery</h3>
+            <p className="mt-1 text-muted-foreground">
+              Enter the courier or pickup reference before dispatch.
+            </p>
+          </li>
+        </ol>
+      </Panel>
+      <section aria-labelledby="hub-processing-title">
+        <header className="mb-4">
+          <h2 id="hub-processing-title" className="text-xl font-semibold">
+            Ready for processing
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Shipments received at the Dhaka hub and awaiting handling.
+          </p>
+        </header>
+        <RecordList
+          rows={data.toProcess}
+          recordKey={(shipment) => shipment.code}
+          href={(shipment) =>
+            `/shipments/${encodeURIComponent(shipment.code)}?section=handling`
+          }
+          searchText={(shipment) =>
+            `${shipment.code} ${shipment.supplierCode} ${shipment.description}`
+          }
+          placeholder="Search shipment, customer code or cargo"
+          emptyTitle="No shipments waiting"
+          emptyDescription="New shipments appear here when they reach the Dhaka hub."
+          columns={[
+            { label: "Shipment", render: (shipment) => shipment.code },
+            { label: "Customer", render: (shipment) => shipment.supplierCode },
+            { label: "Contents", render: (shipment) => shipment.description },
+            {
+              label: "Weight",
+              render: (shipment) => (
+                <div>
+                  {fmtKg(shipment.effectiveKg)}
+                  {shipment.weightDelta !== null && (
+                    <p className="mt-1 text-xs text-danger">
+                      {deltaLabel(shipment.weightDelta)} difference
+                    </p>
+                  )}
                 </div>
-                <div className="text-[12.5px]">
-                  {r.effectiveKg > 0 ? fmtKg(r.effectiveKg) : 'devices'}{' '}
-                  {r.weightDelta !== null ? <span className="text-[11px] font-bold text-danger">{deltaLabel(r.weightDelta)}</span> : null}
-                </div>
-                <StatusChip index={r.statusIndex} label={r.statusLabel} />
-              </Link>
-            ))
-          )}
-        </div>
-      </Card>
+              ),
+            },
+            {
+              label: "Status",
+              render: (shipment) => (
+                <StatusChip
+                  index={shipment.statusIndex}
+                  label={shipment.statusLabel}
+                />
+              ),
+            },
+          ]}
+        />
+      </section>
     </div>
-  )
+  );
 }
