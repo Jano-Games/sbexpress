@@ -10,7 +10,12 @@ import 'data/session/session_controller.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final store = SecureSessionStore();
-  final api = ApiClient(baseUrl: apiBaseUrl, session: store);
-  final session = SessionController(store: store, auth: AuthRepository(api));
+  late final SessionController session;
+  final api = ApiClient(
+    baseUrl: apiBaseUrl,
+    session: store,
+    onUnauthorized: () => session.handleUnauthorized(),
+  );
+  session = SessionController(store: store, auth: AuthRepository(api));
   runApp(SbExpressApp(session: session, api: api));
 }

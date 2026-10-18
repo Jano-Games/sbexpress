@@ -1,0 +1,6 @@
+# Copy to android/key.properties on the release CI machine.
+# Do not commit key.properties or the keystore. Nearo provides this secret.
+storeFile=upload-keystore.jks
+storePassword=
+keyAlias=
+keyPassword=

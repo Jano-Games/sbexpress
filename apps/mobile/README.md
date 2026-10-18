@@ -10,7 +10,24 @@ flutter test
 flutter run --dart-define=API_BASE_URL=http://localhost:3002
 ```
 
-Android emulator: `http://10.0.2.2:3002`. Release builds should use HTTPS. Debug Android allows cleartext so a local API works.
+Android emulator: `http://10.0.2.2:3002`. Debug Android allows cleartext so a local API works.
+
+## Release transport and session
+
+`API_BASE_URL` defaults to `http://localhost:3002` for debug on this machine. Debug builds may use `http` only for `localhost`, `127.0.0.1`, `::1`, and the emulator host `10.0.2.2`. Release builds refuse every non-https origin, including localhost. A release build needs `--dart-define=API_BASE_URL=https://...`.
+
+Any `401` clears the saved session and returns to login. Screens that were open are discarded. The client does not call logout for that path, because logout would `401` again.
+
+The session token is stored with pinned secure-storage options (encrypted shared preferences, AES-GCM, keychain `first_unlock_this_device`, not iCloud-synced). Android backup and device-transfer rules exclude the `sbexpress_secure` preferences file so the token is not copied off the device.
+
+## Android release signing
+
+Release builds do not ship with the debug key. Debug and profile builds keep the debug signing config. A release assemble fails until a keystore is present. That keystore is a Nearo-provided CI secret and is not in this repo. Provide either:
+
+- `apps/mobile/android/key.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`), or
+- `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`
+
+`storeFile` is relative to `apps/mobile/android/` unless the path is absolute. See `android/key.properties.example`. Do not commit `key.properties` or the `.jks`.
 
 ## This slice
 
@@ -37,7 +54,7 @@ The hub chain label is fixed: `weigh → pack → courier → dispatch → hando
 
 ## Photos
 
-Before upload, photos are converted to JPEG, longest edge 2000px, quality 80. HEIC goes through the platform converter first, then the same JPEG rules. EXIF is dropped by re-encoding; the server strips it again. A failed upload retries the same bytes. A failed receipt screenshot does not block payment. Storage, network/CORS, expiry, and format errors stay distinct.
+Before upload, photos are converted to JPEG, longest edge 2000px, quality 80. Files larger than 25 MB are rejected before decode. HEIC goes through the platform converter first, then the same JPEG rules. EXIF is dropped by re-encoding; the server strips it again. The picker temp file, which still has the original EXIF, is deleted after the upload finishes or fails. Presigned upload URLs must be `https` (debug may use `http` on loopback only). A failed upload retries the same bytes. A failed receipt screenshot does not block payment. Storage, network/CORS, expiry, and format errors stay distinct.
 
 ## Screenshots
 

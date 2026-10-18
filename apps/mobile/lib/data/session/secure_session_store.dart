@@ -3,7 +3,27 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'session_store.dart';
 
 class SecureSessionStore implements SessionStore {
-  SecureSessionStore({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
+  SecureSessionStore({FlutterSecureStorage? storage}) : _storage = storage ?? secureSessionStorage();
+
+  /// Pinned options. Android backup rules exclude [sharedPreferencesName].
+  static const sharedPreferencesName = 'sbexpress_secure';
+
+  static FlutterSecureStorage secureSessionStorage() {
+    return const FlutterSecureStorage(
+      aOptions: AndroidOptions(
+        encryptedSharedPreferences: true,
+        resetOnError: false,
+        sharedPreferencesName: sharedPreferencesName,
+        preferencesKeyPrefix: 'sbx.',
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+      ),
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+        synchronizable: false,
+      ),
+    );
+  }
 
   static const tokenKey = 'sbx.token';
   static const userKey = 'sbx.user';

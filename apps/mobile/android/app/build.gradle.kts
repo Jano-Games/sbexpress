@@ -4,6 +4,26 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val keystoreProperties = java.util.Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+}
+
+fun signingValue(envName: String, propertyName: String): String? {
+    val fromEnv = System.getenv(envName)?.trim()
+    if (!fromEnv.isNullOrEmpty()) return fromEnv
+    val fromFile = keystoreProperties.getProperty(propertyName)?.trim()
+    if (!fromFile.isNullOrEmpty()) return fromFile
+    return null
+}
+
+val releaseStorePath = signingValue("ANDROID_KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("ANDROID_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("ANDROID_KEY_PASSWORD", "keyPassword")
+val hasReleaseKeystore = listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null }
+
 android {
     namespace = "com.sbexpress.sbexpress"
     compileSdk = flutter.compileSdkVersion
@@ -29,12 +49,41 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                val path = releaseStorePath!!
+                val store = java.io.File(path)
+                storeFile = if (store.isAbsolute) store else rootProject.file(path)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Debug signing is only for non-release builds. A release task fails
+            // in whenReady below when the Nearo-provided keystore secret is absent.
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val releasing = allTasks.any { task ->
+        val name = task.name
+        name.contains("Release") && !name.contains("Debug")
+    }
+    if (releasing && !hasReleaseKeystore) {
+        throw GradleException(
+            "Release signing needs a keystore. Set android/key.properties (storeFile, storePassword, keyAlias, keyPassword) or ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD. Debug signing is not used for release. The keystore is a Nearo-provided CI secret and is not in this repo.",
+        )
     }
 }
 

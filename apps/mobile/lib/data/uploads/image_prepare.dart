@@ -6,6 +6,9 @@ const int imageMaxEdge = 2000;
 const int imageJpegQuality = 80;
 const int imageUploadMaxBytes = 10 * 1024 * 1024;
 
+/// Rejected before decode so a huge file never enters the image decoder.
+const int imageInputMaxBytes = 25 * 1024 * 1024;
+
 const String locationStrippedNote = 'লোকেশন তথ্য মুছে দেওয়া হয়েছে';
 
 enum ImageKind { jpeg, png, webp, heic, other }
@@ -73,6 +76,9 @@ Future<PreparedImage> prepareForUpload(
 }) async {
   if (bytes.isEmpty) {
     throw const FormatException('খালি ফাইল নেওয়া যায় না।');
+  }
+  if (bytes.length > imageInputMaxBytes) {
+    throw const FormatException('ছবিটি 25 MB-এর বেশি। আরও ছোট ফাইল দিন।');
   }
   if (_isSvg(name, mime)) {
     throw const FormatException('ফরম্যাট মেলেনি। SVG নেওয়া হয় না। JPEG, PNG, WebP বা HEIC দিন।');

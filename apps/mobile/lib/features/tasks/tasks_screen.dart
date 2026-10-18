@@ -50,7 +50,7 @@ class _TasksScreenState extends State<TasksScreen> {
       if (!mounted) return;
       setState(() => _items = items);
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;
@@ -69,7 +69,7 @@ class _TasksScreenState extends State<TasksScreen> {
       _note.clear();
       await _load();
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -166,7 +166,7 @@ class _TaskCard extends StatelessWidget {
                 try {
                   await AppScope.of(context).tasks.toggle(item.id);
                 } on ApiException catch (error) {
-                  if (context.mounted) {
+                  if (context.mounted && error.status != 401) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
                   }
                 }

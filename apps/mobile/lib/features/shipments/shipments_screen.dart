@@ -56,7 +56,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
           setState(() => _admin = rows);
       }
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;

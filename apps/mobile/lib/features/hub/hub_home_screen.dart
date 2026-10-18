@@ -39,7 +39,7 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
       if (!mounted) return;
       setState(() => _data = data);
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;

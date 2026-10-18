@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../../config.dart';
 import '../json_read.dart';
 import '../session/session_store.dart';
 import 'api_exception.dart';
@@ -12,13 +14,20 @@ class ApiClient {
   ApiClient({
     required String baseUrl,
     required this.session,
+    this.onUnauthorized,
     http.Client? httpClient,
-  })  : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
+  })  : baseUrl = requireApiBaseUrl(baseUrl, releaseMode: kReleaseMode, debugMode: kDebugMode),
         _http = httpClient ?? http.Client();
 
   final String baseUrl;
   final SessionStore session;
+  final Future<void> Function()? onUnauthorized;
   final http.Client _http;
+
+  Future<void> _unauthorized(int status) async {
+    if (status != 401 || onUnauthorized == null) return;
+    await onUnauthorized!();
+  }
 
   Future<Map<String, Object?>> getJson(String path) => _send('GET', path);
 
@@ -36,6 +45,7 @@ class ApiClient {
     String contentType,
     void Function(double progress) onProgress,
   ) async {
+    assertPresignedUploadUrl(url, releaseMode: kReleaseMode, debugMode: kDebugMode);
     final request = http.StreamedRequest('PUT', Uri.parse(url));
     request.headers['content-type'] = contentType;
     request.contentLength = bytes.length;
@@ -54,6 +64,7 @@ class ApiClient {
       final response = await responseFuture;
       final responseBody = await response.stream.bytesToString();
       if (response.statusCode >= 400) {
+        await _unauthorized(response.statusCode);
         throw ApiException(
           status: response.statusCode,
           message: _errorMessage(response.statusCode, responseBody),
@@ -87,6 +98,7 @@ class ApiClient {
         ..body = body == null ? '' : jsonEncode(body));
       final responseBody = await response.stream.bytesToString();
       if (response.statusCode >= 400) {
+        await _unauthorized(response.statusCode);
         throw ApiException(status: response.statusCode, message: _errorMessage(response.statusCode, responseBody), path: path);
       }
       if (responseBody.trim().isEmpty) return <String, Object?>{};

@@ -8,22 +8,60 @@ import 'features/shell/main_shell.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 
-class SbExpressApp extends StatelessWidget {
+class SbExpressApp extends StatefulWidget {
   const SbExpressApp({super.key, required this.session, required this.api});
 
   final SessionController session;
   final ApiClient api;
 
   @override
+  State<SbExpressApp> createState() => _SbExpressAppState();
+}
+
+class _SbExpressAppState extends State<SbExpressApp> {
+  var _navigatorGeneration = 0;
+  var _hadUser = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.session.addListener(_onSession);
+  }
+
+  @override
+  void didUpdateWidget(SbExpressApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.session != widget.session) {
+      oldWidget.session.removeListener(_onSession);
+      widget.session.addListener(_onSession);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.session.removeListener(_onSession);
+    super.dispose();
+  }
+
+  void _onSession() {
+    final hasUser = widget.session.user != null;
+    if (_hadUser && !hasUser) {
+      setState(() => _navigatorGeneration += 1);
+    }
+    _hadUser = hasUser;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppScope.wired(
-      session: session,
-      api: api,
+      session: widget.session,
+      api: widget.api,
       child: MaterialApp(
+        key: ValueKey(_navigatorGeneration),
         title: 'SBExpress',
         theme: buildAppTheme(),
         debugShowCheckedModeBanner: false,
-        home: AuthGate(session: session),
+        home: AuthGate(session: widget.session),
       ),
     );
   }

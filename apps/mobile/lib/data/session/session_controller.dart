@@ -63,6 +63,16 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Any 401, including one mid-session, drops the saved token and the user.
+  /// Does not call the logout endpoint, which would 401 again.
+  Future<void> handleUnauthorized() async {
+    final hadUser = user != null;
+    await _clear();
+    banner = null;
+    ready = true;
+    if (hadUser) notifyListeners();
+  }
+
   Future<void> _clear() async {
     await store.writeToken(null);
     await store.writeUserJson(null);

@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+
+import '../../config.dart';
 import '../api/api_exception.dart';
 import 'image_prepare.dart';
 
@@ -87,6 +90,7 @@ Future<String> transferPreparedUpload({
       if (status != null && status < 500 && status != 429) break;
       continue;
     }
+    assertPresignedUploadUrl(reservation.uploadUrl, releaseMode: kReleaseMode, debugMode: kDebugMode);
     try {
       await put(reservation, file, onProgress ?? (_) {});
     } catch (error) {

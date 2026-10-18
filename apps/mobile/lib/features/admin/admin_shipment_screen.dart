@@ -8,6 +8,7 @@ import '../../data/models/media_item.dart';
 import '../../data/models/shipment.dart';
 import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
+import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
@@ -68,7 +69,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       setState(() => _detail = detail);
       await _loadMedia();
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;
@@ -84,7 +85,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       if (!mounted) return;
       setState(() => _media = media);
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     }
   }
@@ -95,7 +96,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       if (!mounted) return;
       setState(() => _link = link.url);
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     }
   }
@@ -103,7 +104,11 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
   Future<void> _pick(ImageSource source) async {
     final file = await ImagePicker().pickImage(source: source);
     if (file == null) return;
-    await _photos?.select(PickedPhoto(bytes: await file.readAsBytes(), name: file.name, mime: file.mimeType));
+    try {
+      await _photos?.select(PickedPhoto(bytes: await file.readAsBytes(), name: file.name, mime: file.mimeType));
+    } finally {
+      await deletePickedPhotoFile(file.path);
+    }
   }
 
   @override
@@ -141,7 +146,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       await AppScope.of(context).media.setShared(widget.code, item.reference, shared: shared);
       await _loadMedia();
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     }
   }

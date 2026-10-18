@@ -37,7 +37,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       if (!mounted) return;
       setState(() => _counts = counts);
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;

@@ -56,7 +56,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
         _selected ??= queue.all.isEmpty ? null : _key(queue.all.first);
       });
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;
@@ -87,7 +87,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
       _shotUrl = null;
       await _load();
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -104,7 +104,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
       _rejecting = false;
       await _load();
     } on ApiException catch (error) {
-      if (!mounted) return;
+      if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -121,6 +121,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
       setState(() => _shotUrl = url);
     } on ApiException catch (error) {
       if (!mounted) return;
+      if (error.status == 401) return;
       setState(() => _shotError = error.message);
     }
   }
