@@ -18,6 +18,9 @@ const MONEY_KEYS = [
   'profit',
   'cnFare',
   'collectAmount',
+  'paymentTerms',
+  'freeOfCharge',
+  'receiptStatus',
 ] as const
 
 function keysOf(value: unknown, found = new Set<string>()): Set<string> {
@@ -126,10 +129,11 @@ describe('shipment role DTOs', () => {
       bookedKg: 2,
       weighedKg: 2.1,
       status: 'received_bd_hub',
-      paymentTerms: 'invoice',
-      freeOfCharge: false,
     })
     expect('charge' in row).toBe(false)
+    expect('paymentTerms' in row).toBe(false)
+    expect('freeOfCharge' in row).toBe(false)
+    expect('receiptStatus' in row).toBe(false)
   })
 
   it('keeps billing fields on the admin list row', () => {
@@ -143,7 +147,14 @@ describe('shipment role DTOs', () => {
       dueAmount: 1200,
       payMethod: 'bkash',
       payStatus: 'partial',
+      paymentTerms: 'invoice',
+      freeOfCharge: false,
+      receiptStatus: null,
     })
+    const listed = JSON.stringify(row)
+    for (const key of ['paymentTerms', 'freeOfCharge', 'receiptStatus'] as const) {
+      expect(listed.includes(`"${key}":`), key).toBe(true)
+    }
   })
 
   it('omits money, rates and piece prices from hub shipment detail', () => {
@@ -165,7 +176,7 @@ describe('shipment role DTOs', () => {
     const detail = shipmentDetail(shipment, 'admin', 0.5)
     if (!('pricingRates' in detail) || !detail.costs) throw new Error('admin detail dropped billing')
     const json = JSON.stringify(detail)
-    for (const key of ['charge', 'billAmount', 'paidAmount', 'dueAmount', 'payStatus', 'payMethod', 'pricingRates', 'chargeRate', 'chargeCurrency'] as const) {
+    for (const key of ['charge', 'billAmount', 'paidAmount', 'dueAmount', 'payStatus', 'payMethod', 'pricingRates', 'chargeRate', 'chargeCurrency', 'paymentTerms', 'freeOfCharge', 'receiptStatus'] as const) {
       expect(json.includes(`"${key}":`), key).toBe(true)
     }
     expect(detail.pcsItems[0]).toMatchObject({ rate: 400, currency: 'BDT' })

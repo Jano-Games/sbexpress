@@ -30,8 +30,9 @@ pnpm --filter backend create-user <email> "<name>" <admin|hub> <password>
 - **Admin** — everything: overview, shipments, flights, flyers, customers,
   finance, review queue, to-dos, settings.
 - **Hub Manager** — Dhaka-side handling; sees customer short codes only, no
-  names, and no bill, rate, paid, due, or cost/profit fields. The hub API
-  omits those keys. Hub is one trusted Dhaka role (no per-hub scope yet).
+  names, and no bill, rate, paid, due, payment terms, free-of-charge flag,
+  receipt status, or cost/profit fields. The hub API omits those keys. Hub is
+  one trusted Dhaka role (no per-hub scope yet).
 
 Photo uploads are re-encoded on the server so EXIF and GPS metadata are removed
 before storage. PDF and video are copied as uploaded. There is no antivirus

@@ -2,7 +2,7 @@ import { latestReceipt, receiptSummary } from './receiptHistory'
 /**
  * Role-aware serializers. Redaction happens here, not in the client.
  * ShipmentRowAdmin is the full record. ShipmentRowHub omits money keys
- * entirely (it does not send them as null). Hub Manager is one trusted
+ * and payment hints entirely (it does not send them as null). Hub Manager is one trusted
  * Dhaka role; these DTOs do not add a per-hub scope.
  */
 
@@ -80,9 +80,15 @@ const operational = (s: ShipmentWithRelations, threshold: number) => ({
   status: s.status,
   statusIndex: statusIndex(s.status),
   statusLabel: s.exception ? s.exception.replaceAll('_',' ') : s.deliveryMode==='pickup' && s.status==='ready_for_last_mile' && s.lastMileRef ? 'Ready for collection' : STATUS_LABEL[s.status],
-  exception:s.exception,exceptionReason:s.exceptionReason,paymentTerms:s.paymentTerms,freeOfCharge:s.freeOfCharge,
-  receiptStatus: latestReceipt(s.receipts)?.status ?? null,
+  exception:s.exception,exceptionReason:s.exceptionReason,
   date: isoDate(s.createdAt),
+})
+
+/** Billing arrangement hints. Admin only; absent from every hub payload. */
+const paymentHints = (s: ShipmentWithRelations) => ({
+  paymentTerms: s.paymentTerms,
+  freeOfCharge: s.freeOfCharge,
+  receiptStatus: latestReceipt(s.receipts)?.status ?? null,
 })
 
 const moneyFields = (s: ShipmentWithRelations) => {
@@ -102,13 +108,14 @@ const moneyFields = (s: ShipmentWithRelations) => {
 export function shipmentRowAdmin(s: ShipmentWithRelations, threshold: number) {
   return {
     ...operational(s, threshold),
+    ...paymentHints(s),
     supplierName: s.supplier.name,
     ...moneyFields(s),
   }
 }
 
 /**
- * Operational shipment list row. Money keys are absent, not null.
+ * Operational shipment list row. Money keys and payment hints are absent, not null.
  * No collect-on-delivery amount is included.
  */
 export function shipmentRowHub(s: ShipmentWithRelations, threshold: number) {
