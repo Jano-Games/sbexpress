@@ -17,7 +17,7 @@ Android emulator: `http://10.0.2.2:3002`. Release builds should use HTTPS. Debug
 | Screen | Who | Status |
 |---|---|---|
 | 7 Login | All | Email + password. Role comes from `POST /api/auth/login`. No role picker. This API has no OTP. |
-| 1 Hub dashboard | Hub | `GET /api/dashboard/hub`. Weigh, pack, and the delivery-chain counts. |
+| 1 Hub dashboard | Hub | `GET /api/dashboard/hub`. Teal “আজকের বাকি কাজ” hero with weigh, pack, and courier → dispatch → handover counts. |
 | 2 Shipments | Hub | `GET /api/shipments`, parsed with the hub DTO. |
 | 3 Shipment process | Hub | weigh → pack → courier → dispatch → handover, in that order. |
 | 4 Hub tasks | Hub | `GET /api/todos`. Auto steps open the shipment. Manual notes can be completed. |
@@ -38,3 +38,7 @@ The hub chain label is fixed: `weigh → pack → courier → dispatch → hando
 ## Photos
 
 Before upload, photos are converted to JPEG, longest edge 2000px, quality 80. HEIC goes through the platform converter first, then the same JPEG rules. EXIF is dropped by re-encoding; the server strips it again. A failed upload retries the same bytes. A failed receipt screenshot does not block payment. Storage, network/CORS, expiry, and format errors stay distinct.
+
+## Screenshots
+
+`docs/screenshots/` shows Login, the hub dashboard with the teal “আজকের বাকি কাজ” hero, Shipments, and Admin payment review. They were captured from Chrome running this UI. This environment has no Android emulator, so the shots are not from an emulator. The API behind them was a local fixture with the same DTO shapes, including money keys the hub screens ignore.

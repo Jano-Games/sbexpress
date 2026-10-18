@@ -105,6 +105,17 @@ class HubWorkCounts {
   final int pack;
   final int deliveryChain;
 
+  int get remaining => weigh + pack + deliveryChain;
+
+  /// Earliest unfinished bucket. Weigh stays ahead of pack, and pack stays
+  /// ahead of courier → dispatch → handover.
+  HubListStep? get earliest {
+    if (weigh > 0) return HubListStep.weigh;
+    if (pack > 0) return HubListStep.pack;
+    if (deliveryChain > 0) return HubListStep.deliveryChain;
+    return null;
+  }
+
   factory HubWorkCounts.fromShipments(List<OperationalShipment> rows) {
     var weigh = 0;
     var pack = 0;

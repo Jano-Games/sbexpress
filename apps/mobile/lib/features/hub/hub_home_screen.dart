@@ -60,17 +60,16 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
             children: [
-              const Text('হোম', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text(data?.todayLabel ?? 'ঢাকা হাব', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 16),
-              if (_loading && data == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+              if (_loading && data == null) ...[
+                const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+                const SizedBox(height: 16),
+              ],
               if (_error != null) ...[
                 ErrorNote(message: _error!, onRetry: _load),
                 const SizedBox(height: 12),
               ],
               if (data != null) ...[
-                _Counts(data: data),
+                _TodayHero(data: data),
                 const SizedBox(height: 12),
                 _Incoming(incoming: data.incoming, atHub: data.atHubCount, tasks: data.openTodoCount),
                 const SizedBox(height: 18),
@@ -101,62 +100,113 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
   }
 }
 
-class _Counts extends StatelessWidget {
-  const _Counts({required this.data});
+class _TodayHero extends StatelessWidget {
+  const _TodayHero({required this.data});
 
   final HubDashboard data;
 
   @override
   Widget build(BuildContext context) {
     final counts = HubWorkCounts.fromShipments(data.toProcess);
-    final earliest = counts.weigh > 0
-        ? HubListStep.weigh
-        : counts.pack > 0
-            ? HubListStep.pack
-            : counts.deliveryChain > 0
-                ? HubListStep.deliveryChain
-                : null;
-    return Row(
-      children: [
-        Expanded(child: _CountCard(label: 'ওজন', value: '${counts.weigh}', current: earliest == HubListStep.weigh)),
-        const SizedBox(width: 8),
-        Expanded(child: _CountCard(label: 'প্যাক', value: '${counts.pack}', current: earliest == HubListStep.pack)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _CountCard(
-            label: 'courier → dispatch → handover',
-            value: '${counts.deliveryChain}',
-            current: earliest == HubListStep.deliveryChain,
+    final earliest = counts.earliest;
+    final caption = counts.remaining == 0 ? 'আজ হাবে বাকি ধাপ নেই' : 'টি কাজ আজ বাকি';
+    return Container(
+      key: const Key('hub-today-hero'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+      decoration: BoxDecoration(
+        color: AppColors.teal,
+        borderRadius: BorderRadius.circular(cardRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(data.todayLabel, style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontWeight: FontWeight.w500)),
+          const SizedBox(height: 6),
+          const Text(
+            'আজকের বাকি কাজ',
+            key: Key('hub-today-title'),
+            style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700, height: 1.15),
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Text(
+            '${counts.remaining}',
+            key: const Key('hub-today-remaining'),
+            style: const TextStyle(color: Colors.white, fontSize: 44, fontWeight: FontWeight.w700, height: 1),
+          ),
+          const SizedBox(height: 4),
+          Text(caption, style: TextStyle(color: Colors.white.withValues(alpha: 0.86), fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _HeroStat(
+                  statKey: const Key('hub-count-weigh'),
+                  label: hubListStepLabel(HubListStep.weigh),
+                  value: '${counts.weigh}',
+                  current: earliest == HubListStep.weigh,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HeroStat(
+                  statKey: const Key('hub-count-pack'),
+                  label: hubListStepLabel(HubListStep.pack),
+                  value: '${counts.pack}',
+                  current: earliest == HubListStep.pack,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HeroStat(
+                  statKey: const Key('hub-count-delivery'),
+                  label: hubListStepLabel(HubListStep.deliveryChain),
+                  value: '${counts.deliveryChain}',
+                  current: earliest == HubListStep.deliveryChain,
+                ),
+              ),
+            ],
+          ),
+          if (earliest != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'এখন করুন: ${hubListStepLabel(earliest)}',
+              key: const Key('hub-today-now'),
+              style: const TextStyle(color: AppColors.amber, fontSize: 16, fontWeight: FontWeight.w700, height: 1.3),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-class _CountCard extends StatelessWidget {
-  const _CountCard({required this.label, required this.value, required this.current});
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.statKey, required this.label, required this.value, required this.current});
 
+  final Key statKey;
   final String label;
   final String value;
   final bool current;
 
   @override
   Widget build(BuildContext context) {
+    final foreground = current ? AppColors.amberInk : Colors.white;
     return Container(
+      key: statKey,
       constraints: const BoxConstraints(minHeight: minTouchTarget),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: current ? AppColors.amber : AppColors.card,
-        borderRadius: BorderRadius.circular(cardRadius),
-        border: Border.all(color: current ? AppColors.amber : AppColors.line),
+        color: current ? AppColors.amber : Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 12, height: 1.25, fontWeight: FontWeight.w600)),
+          Text(value, style: TextStyle(color: foreground, fontSize: 22, fontWeight: FontWeight.w700, height: 1)),
+          const SizedBox(height: 6),
+          Text(label, style: TextStyle(color: foreground, fontSize: 12, height: 1.25, fontWeight: FontWeight.w600)),
         ],
       ),
     );

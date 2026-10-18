@@ -128,5 +128,38 @@ void main() {
     expect(counts.deliveryChain, 1);
     expect(counts.weigh, 0);
     expect(counts.pack, 0);
+    expect(counts.earliest, HubListStep.deliveryChain);
+  });
+
+  test('today counts keep weigh ahead of pack ahead of the delivery chain', () {
+    OperationalShipment row(String code, String status, double? weighedKg) {
+      return OperationalShipment.fromJson({
+        'code': code,
+        'supplierCode': 'C-1',
+        'flightCode': null,
+        'flightDate': null,
+        'bookedKg': 1,
+        'weighedKg': weighedKg,
+        'effectiveKg': weighedKg ?? 1,
+        'weightDelta': null,
+        'description': 'box',
+        'categories': ['general'],
+        'status': status,
+        'statusIndex': 5,
+        'statusLabel': status,
+        'exception': null,
+        'exceptionReason': '',
+        'date': '2026-10-18',
+      });
+    }
+
+    final counts = HubWorkCounts.fromShipments([
+      row('SH-W', 'received_bd_hub', null),
+      row('SH-P', 'received_bd_hub', 2),
+      row('SH-D', 'out_for_delivery', 2),
+    ]);
+    expect(counts.remaining, 3);
+    expect(counts.earliest, HubListStep.weigh);
+    expect(hubChainOrderLabel, 'weigh → pack → courier → dispatch → handover');
   });
 }
