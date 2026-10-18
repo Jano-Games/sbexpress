@@ -9,6 +9,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { api } from "@/api/client";
+import { prepareUploadFile, transferUpload } from "@/lib/uploadFile";
 import { useFetch } from "@/state/useFetch";
 import { Button } from "@/components/beui/button";
 import { Panel, FormActions, SectionNotice } from "@/components/DesignSystem";
@@ -24,6 +25,11 @@ const kinds = [
     description: "Identity page and any additional pages.",
   },
   {
+    value: "nid",
+    label: "National ID (NID)",
+    description: "National identity card.",
+  },
+  {
     value: "visa",
     label: "Visa / residence permit",
     description: "Visa or current residence documentation.",
@@ -37,6 +43,11 @@ const kinds = [
     value: "admission",
     label: "Admission / JW document",
     description: "Admission letter and supporting study documents.",
+  },
+  {
+    value: "ticket",
+    label: "Flight ticket",
+    description: "Ticket or booking confirmation for this trip.",
   },
   {
     value: "other",
@@ -56,15 +67,8 @@ type Document = {
   verifiedAt: string | null;
   verifiedByName: string | null;
 };
-type Attempt = {
-  file: File;
-  kind: Kind;
-  reference: string;
-  uploadUrl: string;
-  expiresAt: string;
-  uploaded: boolean;
-};
-const accepted = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const accept =
+  "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf";
 const fileSize = (size: number) =>
   size < 1048576
     ? `${Math.max(1, Math.round(size / 1024))} KB`
@@ -90,7 +94,6 @@ export function FlyerDocuments({ name }: { name: string }) {
   const [previewRevision, setPreviewRevision] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [removing, setRemoving] = useState<Document | null>(null);
-  const attempt = useRef<Attempt | null>(null);
   const lock = useRef(false);
   useEffect(() => {
     if (!file) {
@@ -128,28 +131,20 @@ export function FlyerDocuments({ name }: { name: string }) {
   function openUpload(value: Kind) {
     setKind(value);
     setFile(null);
-    attempt.current = null;
     setUploadError("");
     setUploadOpen(true);
   }
   function selectFile(selected?: File) {
     if (!selected) return;
     setUploadError("");
-    attempt.current = null;
     setFile(null);
-    if (!accepted.includes(selected.type)) {
-      setUploadError("Choose a JPEG, PNG, WebP or PDF file.");
-      return;
-    }
-    if (!selected.size || selected.size > 10 * 1048576) {
-      setUploadError("Choose a non-empty file, 10 MB or smaller.");
-      return;
-    }
-    if (selected.name.length > 180) {
-      setUploadError("Shorten the file name to 180 characters or fewer.");
-      return;
-    }
-    setFile(selected);
+    setBusy(true);
+    void prepareUploadFile(selected, { maxBytes: 10 * 1048576, allowPdf: true })
+      .then((prepared) => setFile(prepared))
+      .catch((error: unknown) => {
+        setUploadError(error instanceof Error ? error.message : "Could not prepare that file.");
+      })
+      .finally(() => setBusy(false));
   }
   async function upload(event: FormEvent) {
     event.preventDefault();
@@ -159,46 +154,17 @@ export function FlyerDocuments({ name }: { name: string }) {
     setUploadError("");
     setMessage("");
     try {
-      if (
-        !attempt.current ||
-        attempt.current.file !== file ||
-        attempt.current.kind !== kind ||
-        (!attempt.current.uploaded &&
-          Date.parse(attempt.current.expiresAt) <= Date.now())
-      ) {
-        const result = await api.post<
-          Omit<Attempt, "file" | "kind" | "uploaded">
-        >(`${base}/upload`, {
-          kind,
-          name: file.name,
-          contentType: file.type,
-          size: file.size,
-        });
-        attempt.current = { ...result, file, kind, uploaded: false };
-      }
-      const current = attempt.current;
-      if (!current.uploaded) {
-        const result = await fetch(current.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-        if (!result.ok) {
-          attempt.current = null;
-          throw new Error(
-            "Upload failed. Your file is still selected; try again.",
-          );
-        }
-        current.uploaded = true;
-      }
-      try {
-        await api.post(`${base}/${current.reference}/complete`);
-      } catch (e) {
-        // Reuse the same reservation after a lost response; renew only when expired.
-        if (Date.parse(current.expiresAt) <= Date.now()) attempt.current = null;
-        throw e;
-      }
-      attempt.current = null;
+      await transferUpload({
+        file,
+        reserve: (ready) =>
+          api.post<{ reference: string; uploadUrl: string }>(`${base}/upload`, {
+            kind,
+            name: ready.name,
+            contentType: ready.type,
+            size: ready.size,
+          }),
+        complete: (reference) => api.post(`${base}/${reference}/complete`),
+      });
       setFile(null);
       setUploadOpen(false);
       setMessage(
@@ -377,7 +343,8 @@ export function FlyerDocuments({ name }: { name: string }) {
           Upload document
         </h2>
         <p className="mt-2 mb-5 text-sm text-muted-foreground">
-          {name} · JPEG, PNG, WebP or PDF, up to 10 MB per file.
+          {name} · JPEG, PNG, WebP, HEIC or PDF. Photos are compressed before
+          upload. Up to 10 MB per file.
         </p>
         <form onSubmit={upload} className="space-y-4">
           <label className="block text-sm font-medium">
@@ -388,7 +355,6 @@ export function FlyerDocuments({ name }: { name: string }) {
               disabled={busy}
               onChange={(e) => {
                 setKind(e.target.value as Kind);
-                attempt.current = null;
               }}
             >
               {kinds.map((k) => (
@@ -402,7 +368,7 @@ export function FlyerDocuments({ name }: { name: string }) {
             Choose file
             <input
               type="file"
-              accept={accepted.join(",")}
+              accept={accept}
               disabled={busy}
               className="mt-2 block w-full min-w-0 rounded-md border border-border bg-card p-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1"
               onChange={(e) => {

@@ -10,14 +10,11 @@ import {
   SectionNotice,
 } from "@/components/DesignSystem";
 import { Modal } from "@/components/Modal";
-import {
-  MoneyInput,
-  useMoneyEntry,
-  nativeMoney,
-} from "@/components/MoneyInput";
+import { MoneyInput, useMoneyEntry } from "@/components/MoneyInput";
 import { PageTabs, usePageSection } from "@/components/Workspace";
 import { InvoiceHistory } from "@/components/CustomerCredit";
 import { ShipmentMedia } from "@/components/ShipmentMedia";
+import { DeviceSerialPhotos } from "@/components/DeviceSerialPhotos";
 import { ShipmentCosts } from "@/components/ShipmentCosts";
 import { ShipmentBilling } from "@/components/ShipmentBilling";
 import { useState, useRef } from "react";
@@ -171,9 +168,11 @@ export function ShipmentDetail() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold">{s.code}</h1>
             <StatusChip index={s.statusIndex} label={s.statusLabel} />
-            <Chip colors={PAY_CHIP[s.payStatus] ?? PAY_CHIP.unpaid!}>
-              {PAY_LABEL[s.payStatus]}
-            </Chip>
+            {isAdmin && (
+              <Chip colors={PAY_CHIP[s.payStatus] ?? PAY_CHIP.unpaid!}>
+                {PAY_LABEL[s.payStatus]}
+              </Chip>
+            )}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             {supplierLabel(s.supplierCode, s.supplierName)} · Created{" "}
@@ -373,34 +372,12 @@ export function ShipmentDetail() {
               ]}
             />
           </Panel>
-          {s.pcsItems.length > 0 && (
-            <Panel title="Items billed per piece">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-border text-xs text-muted-foreground">
-                    <tr>
-                      <th className="py-3 font-medium">Category</th>
-                      <th className="py-3 font-medium">Quantity</th>
-                      <th className="py-3 text-right font-medium">
-                        Rate per piece
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {s.pcsItems.map((item, i) => (
-                      <tr key={i}>
-                        <td className="py-3">{item.category}</td>
-                        <td className="py-3">{item.count}</td>
-                        <td className="py-3 text-right">
-                          {nativeMoney(item.rate, item.currency)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Panel>
-          )}
+          <DeviceSerialPhotos
+            code={s.code}
+            items={s.pcsItems}
+            showRates={isAdmin}
+            onChanged={reload}
+          />
         </div>
       )}
       {section === "handling" && isStaff && (

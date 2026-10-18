@@ -4,8 +4,8 @@ Use Flyers → open a flyer → Documents. Registering a flyer from the director
 
 ## Behavior
 
-- Categories: Passport, Visa / residence permit, Student ID, Admission / JW document, and Other documents. Multiple files/pages can be kept in each category.
-- JPEG, PNG, WebP and PDF are supported, up to 10 MB per file and 30 active or unexpired pending files per flyer.
+- Categories: Passport, NID, Visa / residence permit, Student ID, Admission / JW document, Ticket, and Other documents. Multiple files/pages can be kept in each category. Ticket and NID stay on this admin-only router. Hub staff cannot upload identity documents.
+- JPEG, PNG, WebP and PDF are supported, up to 10 MB per file and 30 active or unexpired pending files per flyer. Images are re-encoded on promote so EXIF and GPS do not remain. There is no antivirus scan.
 - Files upload to the configured private R2 storage. Completion checks the expected size, content type and file signature before promoting the staged object to an immutable private key. This checks the file format, not document authenticity or malware.
 - Admin-only previews use expiring signed URLs. Image previews support fit/actual size; PDFs use the browser viewer. Open original / save file is available. No document endpoint exists on customer tracking pages.
 - Upload and verification are separate. Staff open a document and choose Mark verified, or return it to Needs review. Uploader and reviewer names/times are retained. New flyers start with no verified documents; profile checkboxes cannot bypass review.

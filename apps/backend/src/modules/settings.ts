@@ -8,6 +8,7 @@ import { prisma } from '../core/db'
 import { cacheInvalidate } from '../core/redis'
 import { notFound } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
+import { matchesQrDataUrl } from '../shared/mediaValidation'
 import { getSettings, putPcsRates, putSetting, putRaw } from '../shared/settings'
 
 import type { PayMethod } from '@prisma/client'
@@ -33,7 +34,7 @@ const payMethodDto = (m: PayMethod & {account?: {currency: string} | null}) => (
 const qrImageSchema = z
   .string()
   .max(400_000, 'QR image too large — keep it under ~300 KB')
-  .startsWith('data:image/', 'QR must be an image')
+  .refine(matchesQrDataUrl, 'QR image must be a PNG, JPEG or WebP file')
 
 const payMethodSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -62,7 +63,7 @@ export const settingsRoutes = new Hono<AppEnv>()
     return c.json({ rateConfirmed: Boolean(rate && Number(rate.value) > 0), accounts, paymentMethods, users,
       storageConfigured: r2Configured(), cleanupEnabled: process.env.MEDIA_CLEANUP_ENABLED === 'true', lastCleanupAt: cleanup?.value ?? null })
   })
-  .get('/currencies', async c => c.json({ baseCurrency:'BDT', rates:(await getSettings()).exchangeRates }))
+  .get('/currencies', requireRole('admin'), async c => c.json({ baseCurrency:'BDT', rates:(await getSettings()).exchangeRates }))
   .get('/', requireRole('admin'), async (c) => {
     return c.json({ settings: await getSettings() })
   })

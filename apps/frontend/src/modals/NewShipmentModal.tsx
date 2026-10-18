@@ -29,7 +29,7 @@ const PAY_OPTIONS = [
   { value: "monthly", label: "Monthly billing" },
 ];
 
-type PcsUnit = { model: string; serial: string };
+type PcsUnit = { model: string; serial: string; serialPhotoRef?: string | null };
 type PcsDraft = Record<
   string,
   { count: string; rate: string; currency: "BDT" | "CNY"; units: PcsUnit[] }
@@ -389,6 +389,7 @@ export function NewShipmentModal({
             units: resizeUnits(v.units, count).map((u) => ({
               model: u.model.trim(),
               serial: u.serial.trim(),
+              ...(u.serialPhotoRef ? { serialPhotoRef: u.serialPhotoRef } : {}),
             })),
           };
         }),
@@ -732,7 +733,7 @@ export function NewShipmentModal({
                     <FormSection
                       key={category}
                       title={`${category} · per-piece charges`}
-                      description="Enter the quantity, unit price and identifying details for each device."
+                      description="Enter the quantity, unit price and identifying details for each device. IMEI photos are added on the shipment after it is saved."
                     >
                       <div className="grid gap-4 sm:grid-cols-3">
                         <Input

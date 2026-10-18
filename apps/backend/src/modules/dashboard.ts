@@ -6,6 +6,7 @@ import { cacheGetJson, cacheSetJson } from '../core/redis'
 import { requireRole, type AppEnv } from './auth'
 import { effectiveKg, weightDelta } from '../shared/compute'
 import { effectiveBill, num, numOrNull, isoDate, shipmentRow } from '../shared/serialize'
+import { syncHubTodos } from '../shared/hubTodos'
 import { getSettings, type AppSettings } from '../shared/settings'
 import { STATUS_ORDER } from '../shared/status'
 
@@ -75,6 +76,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
   .get('/counts', requireRole('admin', 'hub'), async (c) => {
     const role = c.get('user').role
     if (role === 'hub') {
+      await syncHubTodos()
       const openTodoCount = await prisma.todo.count({ where: { role: 'hub', done: false } })
       return c.json({ reviewCount: 0, openTodoCount })
     }
@@ -172,6 +174,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
     const cached = await cacheGetJson<object>('dashboard:hub')
     if (cached) return c.json(cached)
 
+    await syncHubTodos()
     const [settings, ships, todos, flights] = await Promise.all([
       getSettings(),
       prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } }),

@@ -465,10 +465,13 @@ model Payment {
 model Todo {
   receiptId String? @unique
   statementReceiptId String? @unique
+  /// Stable key for one automatic hub step, so the same step is not queued twice.
+  triggerKey String? @unique
+  shipmentCode String?
   id        String   @id @default(cuid())
   role      TodoRole
   text      String
-  /// True when the system queued it (receipt uploads, statement reminders).
+  /// True when the system queued it (receipt uploads, hub steps).
   auto      Boolean  @default(false)
   done      Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -576,6 +579,10 @@ model ShipmentMedia {
   size Int
   status String @default("pending")
   shared Boolean @default(false)
+  /// "general" tracking attachments, or "device_serial" for one device unit.
+  purpose String @default("general")
+  /// Staff-only link to a pcsItems unit, for example "0:1" (item index, unit index).
+  deviceKey String?
   expiresAt DateTime
   createdAt DateTime @default(now())
   @@index([shipmentId, status])

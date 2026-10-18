@@ -10,11 +10,13 @@ import {
   signDownload,
   signUpload,
 } from '../shared/r2'
+import { assertStaffUploadBudget, reservationSeconds } from '../shared/uploadPolicy'
 
 const referenceSchema = z.string().uuid()
 const uploadSchema = z
   .object({
-    kind: z.enum(['passport', 'student_id', 'visa', 'admission', 'other']),
+    // Ticket and NID stay on this admin-only router. Hub staff cannot upload identity documents.
+    kind: z.enum(['passport', 'nid', 'visa', 'student_id', 'admission', 'ticket', 'other']),
     name: z.string().trim().min(1).max(180),
     contentType: z.enum([
       'image/jpeg',
@@ -84,6 +86,7 @@ export const flyerDocumentRoutes = new Hono<AppEnv>()
     return c.json({ configured: r2Configured(), documents: rows })
   })
   .post('/:name/documents/upload', async (c) => {
+    await assertStaffUploadBudget(c.get('user').id)
     const owner = await flyer(c.req.param('name'))
     const body = uploadSchema.parse(await c.req.json())
     if (
@@ -100,9 +103,10 @@ export const flyerDocumentRoutes = new Hono<AppEnv>()
       throw badRequest(
         'Maximum 30 documents per flyer. Remove an old file or let unfinished uploads expire.',
       )
+    const seconds = reservationSeconds(body.contentType)
     const stagingKey = `staging/${randomUUID()}`,
       objectKey = `media/${randomUUID()}`
-    const uploadUrl = await signUpload(stagingKey, body.contentType, body.size)
+    const uploadUrl = await signUpload(stagingKey, body.contentType, body.size, seconds)
     const user = c.get('user')
     const row = await prisma.flyerDocument.create({
       data: {
@@ -112,7 +116,7 @@ export const flyerDocumentRoutes = new Hono<AppEnv>()
         objectKey,
         uploadedById: user.id,
         uploadedByName: user.name,
-        expiresAt: new Date(Date.now() + 300000),
+        expiresAt: new Date(Date.now() + seconds * 1000),
       },
     })
     return c.json(
@@ -129,10 +133,10 @@ export const flyerDocumentRoutes = new Hono<AppEnv>()
     if (row.status === 'ready') return c.json({ ok: true })
     if (row.expiresAt <= new Date())
       throw badRequest('Upload expired; select the file and upload again')
-    await finalizeUpload(row, { allowPdf: true })
+    const stored = await finalizeUpload(row, { allowPdf: true })
     await prisma.flyerDocument.update({
       where: { id: row.id },
-      data: { status: 'ready' },
+      data: { status: 'ready', size: stored.size, contentType: stored.contentType },
     })
     return c.json({ ok: true })
   })

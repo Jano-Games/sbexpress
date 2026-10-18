@@ -100,7 +100,11 @@ const pcsItemsSchema = z
       count: z.number().int().min(1),
       rate: z.number().min(0),
       currency: z.enum(['BDT', 'CNY']).default('BDT'),
-      units: z.array(z.object({ model: z.string().max(120).default(''), serial: z.string().max(120).default('') })).max(20).default([]),
+      units: z.array(z.object({
+        model: z.string().max(120).default(''),
+        serial: z.string().max(120).default(''),
+        serialPhotoRef: z.string().uuid().nullable().optional(),
+      })).max(20).default([]),
     }),
   )
   .max(20)

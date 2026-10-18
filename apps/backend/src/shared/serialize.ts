@@ -1,7 +1,9 @@
 import { latestReceipt, receiptSummary } from './receiptHistory'
 /**
- * Role-aware serializers. Redaction happens here, not in the client: the hub
- * role gets supplier short codes only, and cost/profit lines are admin-only.
+ * Role-aware serializers. Redaction happens here, not in the client.
+ * ShipmentRowAdmin is the full record. ShipmentRowHub omits money keys
+ * and payment hints entirely (it does not send them as null). Hub Manager is one trusted
+ * Dhaka role; these DTOs do not add a per-hub scope.
  */
 
 import { shipmentCostItems, type ShipmentCostItem } from './shipmentCosts'
@@ -55,36 +57,115 @@ export function shipmentOperatingCosts(s: {
   return { ...costs, total: costs.cnTransport + costs.courier + costs.customs + costs.other }
 }
 
-export function shipmentRow(s: ShipmentWithRelations, role: Role, threshold: number) {
+type PcsUnit = { model?: string; serial?: string; serialPhotoRef?: string | null }
+type StoredPcsItem = {
+  category?: string
+  count?: number
+  rate?: number
+  currency?: 'BDT' | 'CNY'
+  units?: PcsUnit[]
+}
+
+const operational = (s: ShipmentWithRelations, threshold: number) => ({
+  code: s.code,
+  supplierCode: s.supplier.code,
+  flightCode: s.flight?.code ?? null,
+  flightDate: s.flight ? isoDate(s.flight.date) : null,
+  bookedKg: num(s.bookedKg),
+  weighedKg: numOrNull(s.weighedKg),
+  effectiveKg: effectiveKg(num(s.bookedKg), numOrNull(s.weighedKg)),
+  weightDelta: weightDelta(num(s.bookedKg), numOrNull(s.weighedKg), threshold),
+  description: s.description,
+  categories: s.categories,
+  status: s.status,
+  statusIndex: statusIndex(s.status),
+  statusLabel: s.exception ? s.exception.replaceAll('_',' ') : s.deliveryMode==='pickup' && s.status==='ready_for_last_mile' && s.lastMileRef ? 'Ready for collection' : STATUS_LABEL[s.status],
+  exception:s.exception,exceptionReason:s.exceptionReason,
+  date: isoDate(s.createdAt),
+})
+
+/** Billing arrangement hints. Admin only; absent from every hub payload. */
+const paymentHints = (s: ShipmentWithRelations) => ({
+  paymentTerms: s.paymentTerms,
+  freeOfCharge: s.freeOfCharge,
+  receiptStatus: latestReceipt(s.receipts)?.status ?? null,
+})
+
+const moneyFields = (s: ShipmentWithRelations) => {
+  const bill = effectiveBill(s as Parameters<typeof effectiveBill>[0])
   return {
-    code: s.code,
-    supplierCode: s.supplier.code,
-    supplierName: role === 'hub' ? null : s.supplier.name,
-    flightCode: s.flight?.code ?? null,
-    flightDate: s.flight ? isoDate(s.flight.date) : null,
-    bookedKg: num(s.bookedKg),
-    weighedKg: numOrNull(s.weighedKg),
-    effectiveKg: effectiveKg(num(s.bookedKg), numOrNull(s.weighedKg)),
-    weightDelta: weightDelta(num(s.bookedKg), numOrNull(s.weighedKg), threshold),
-    description: s.description,
-    categories: s.categories,
     charge: num(s.charge),
-    billAmount: effectiveBill(s as Parameters<typeof effectiveBill>[0]),
+    billAmount: bill,
     discountAmount: num((s as { invoice?: { discount: Prisma.Decimal } | null }).invoice?.discount ?? null),
     paidAmount: num(s.paidAmount),
-    dueAmount: Math.max(
-      0,
-      Math.round((effectiveBill(s as Parameters<typeof effectiveBill>[0]) - num(s.paidAmount)) * 100) / 100,
-    ),
-    status: s.status,
-    statusIndex: statusIndex(s.status),
-    statusLabel: s.exception ? s.exception.replaceAll('_',' ') : s.deliveryMode==='pickup' && s.status==='ready_for_last_mile' && s.lastMileRef ? 'Ready for collection' : STATUS_LABEL[s.status],
-    exception:s.exception,exceptionReason:s.exceptionReason,paymentTerms:s.paymentTerms,freeOfCharge:s.freeOfCharge,
+    dueAmount: Math.max(0, Math.round((bill - num(s.paidAmount)) * 100) / 100),
     payStatus: paymentStatus(s),
     payMethod: s.payMethod,
-    receiptStatus: latestReceipt(s.receipts)?.status ?? null,
-    date: isoDate(s.createdAt),
   }
+}
+
+/** Full shipment list row, including billing fields. */
+export function shipmentRowAdmin(s: ShipmentWithRelations, threshold: number) {
+  return {
+    ...operational(s, threshold),
+    ...paymentHints(s),
+    supplierName: s.supplier.name,
+    ...moneyFields(s),
+  }
+}
+
+/**
+ * Operational shipment list row. Money keys and payment hints are absent, not null.
+ * No collect-on-delivery amount is included.
+ */
+export function shipmentRowHub(s: ShipmentWithRelations, threshold: number) {
+  return {
+    ...operational(s, threshold),
+    supplierName: null,
+  }
+}
+
+export type ShipmentRowAdmin = ReturnType<typeof shipmentRowAdmin>
+export type ShipmentRowHub = ReturnType<typeof shipmentRowHub>
+
+export function shipmentRow(s: ShipmentWithRelations, role: Role, threshold: number): ShipmentRowAdmin | ShipmentRowHub {
+  switch (role) {
+    case 'admin':
+      return shipmentRowAdmin(s, threshold)
+    case 'hub':
+      return shipmentRowHub(s, threshold)
+    default: {
+      const unreachable: never = role
+      return unreachable
+    }
+  }
+}
+
+const adminPcsItems = (value: unknown) =>
+  (Array.isArray(value) ? value as StoredPcsItem[] : []).map((item) => ({
+    category: item.category ?? '',
+    count: item.count ?? 0,
+    rate: item.rate ?? 0,
+    currency: item.currency ?? 'BDT',
+    units: (item.units ?? []).map((unit) => ({
+      model: unit.model ?? '',
+      serial: unit.serial ?? '',
+      serialPhotoRef: unit.serialPhotoRef ?? null,
+    })),
+  }))
+
+/** Category, count and serials only. Rate and currency are omitted. */
+export function hubPcsItems(value: unknown) {
+  const items = Array.isArray(value) ? value as StoredPcsItem[] : []
+  return items.map((item) => ({
+    category: item.category ?? '',
+    count: item.count ?? 0,
+    units: (item.units ?? []).map((unit) => ({
+      model: unit.model ?? '',
+      serial: unit.serial ?? '',
+      ...(unit.serialPhotoRef ? { serialPhotoRef: unit.serialPhotoRef } : {}),
+    })),
+  }))
 }
 
 export function shipmentDetail(
@@ -98,6 +179,34 @@ export function shipmentDetail(
   role: Role,
   threshold: number,
 ) {
+  const handling = {
+    flyerName:s.flyer?.name ?? null,
+    packedAt:s.packedAt?.toISOString() ?? null,
+    packageCount:s.packageCount,
+    serials: s.serials,
+    photosCount: s.photosCount,
+    hasVideo: s.hasVideo,
+    lastMile: s.lastMileCourier ? { courier: s.lastMileCourier, ref: s.lastMileRef ?? '',mode:s.deliveryMode,bookedAt:s.deliveryBookedAt?.toISOString()??null,dispatchedAt:s.dispatchedAt?.toISOString()??null,handedOverAt:s.handedOverAt?.toISOString()??null } : null,
+    trackToken: null,
+    flightSpaceKg: s.flight?.spaceKg ?? null,
+  }
+  if (role === 'hub') {
+    return {
+      ...shipmentRowHub(s, threshold),
+      ...handling,
+      pcsItems: hubPcsItems(s.pcsItems),
+      log: s.logs.filter(l => /^(Status|Weighed|Packed|Last mile|Delivery|Exception|Shipment resumed|Checkpoint|Device)/.test(l.message)).map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
+      costs: null,
+      receipt: null,
+      receiptHistory: [],
+      invoice: null,
+      payments: [],
+    }
+  }
+  if (role !== 'admin') {
+    const unreachable: never = role
+    return unreachable
+  }
   const flightEcon = s.flight ? { actualCost: num(s.flight.agencyShare), spaceKg: s.flight.spaceKg } : null
   const money = {
     bookedKg: num(s.bookedKg),
@@ -111,64 +220,45 @@ export function shipmentDetail(
   const net = effectiveBill(s) - fareShare(money, flightEcon) - shipmentOperatingCosts(s).total
 
   return {
-    ...shipmentRow(s, role, threshold),
+    ...shipmentRowAdmin(s, threshold),
+    ...handling,
     pricingRates: s.pricingRates as Record<string,number>,
-    costSources: role === 'admin' ? s.costSources as Record<string,{sourceCurrency:string;sourceFxRate:number;sourceAmount:number}> : {},
+    costSources: s.costSources as Record<string,{sourceCurrency:string;sourceFxRate:number;sourceAmount:number}>,
     chargeRate: num(s.chargeRate),
     chargeCurrency: s.chargeCurrency,
-    pcsItems: (
-      (s.pcsItems as
-        | { category: string; count: number; rate: number; currency?: 'BDT' | 'CNY'; units?: { model: string; serial: string }[] }[]
-        | null) ?? []
-    ).map((i) => ({ ...i, currency: i.currency ?? 'BDT', units: i.units ?? [] })),
-    flyerName:s.flyer?.name ?? null,
-    packedAt:s.packedAt?.toISOString() ?? null,
-    packageCount:s.packageCount,
-    serials: s.serials,
-    photosCount: s.photosCount,
-    hasVideo: s.hasVideo,
-    lastMile: s.lastMileCourier ? { courier: s.lastMileCourier, ref: s.lastMileRef ?? '',mode:s.deliveryMode,bookedAt:s.deliveryBookedAt?.toISOString()??null,dispatchedAt:s.dispatchedAt?.toISOString()??null,handedOverAt:s.handedOverAt?.toISOString()??null } : null,
-    trackToken: null,
-    log: (role === 'hub' ? s.logs.filter(l => /^(Status|Weighed|Packed|Last mile|Delivery|Exception|Shipment resumed|Checkpoint)/.test(l.message)) : s.logs).map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
-    flightSpaceKg: s.flight?.spaceKg ?? null,
-    costs:
-      role === 'admin'
-        ? {
-            items: shipmentCostItems(s),
-            total: Math.round(shipmentOperatingCosts(s).total * 100) / 100,
-            unpaidCosts: {
-              cnFare:Math.max(0,num(s.cnFare)-s.expenses.filter(e=>e.costField === 'cnFare').reduce((a,e)=>a+num(e.amount),0)),
-              bdFare:Math.max(0,num(s.bdFare)-s.expenses.filter(e=>e.costField === 'bdFare').reduce((a,e)=>a+num(e.amount),0)),
-              customsTax:Math.max(0,num(s.customsTax)-s.expenses.filter(e=>e.costField === 'customsTax').reduce((a,e)=>a+num(e.amount),0)),
-            },
-            fareShare: Math.round(fareShare(money, flightEcon) * 100) / 100,
-            cnFare: money.cnFare,
-            bdFare: money.bdFare,
-            customsTax: money.customsTax,
-            afterSalesFee: money.afterSalesFee,
-            extraLines: extras,
-            profit: Math.round(net * 100) / 100,
-            profitPct: effectiveBill(s) > 0 ? Math.round((net / effectiveBill(s)) * 100) : null,
-          }
-        : null,
-    receipt: role==='admin' && latestReceipt(s.receipts) ? receiptSummary(latestReceipt(s.receipts)!) : null,
-    receiptHistory: role==='admin' ? [...s.receipts].sort((a,b)=>b.uploadedAt.getTime()-a.uploadedAt.getTime()).map(receiptSummary) : [],
-    invoice:
-      role === 'admin' && s.invoice
-        ? {
-            ...sourceDto(s.invoice,num(s.invoice.total)),
-            state:s.invoice.state,needsReview:s.invoice.needsReview,pricingMode:s.invoice.pricingMode,
-            number: s.invoice.number,
-            total: num(s.invoice.total),
-            discount: num(s.invoice.discount),
-            issuedAt: isoDate(s.invoice.issuedAt),
-            updatedAt: isoDate(s.invoice.updatedAt),
-          }
-        : null,
-    payments:
-      role !== 'hub'
-        ? (s.payments ?? []).map((p) => ({ id:p.id,reference:p.reference,canReverse:!p.reversedAt&&!p.reversalOfId&&num(p.amount)>0,reversedAt:p.reversedAt?.toISOString()??null,reversalOfId:p.reversalOfId,...sourceDto(p,num(p.amount)), method: p.method, amount: num(p.amount), at: p.createdAt.toISOString() }))
-        : [],
+    pcsItems: adminPcsItems(s.pcsItems),
+    log: s.logs.map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
+    costs: {
+      items: shipmentCostItems(s),
+      total: Math.round(shipmentOperatingCosts(s).total * 100) / 100,
+      unpaidCosts: {
+        cnFare:Math.max(0,num(s.cnFare)-s.expenses.filter(e=>e.costField === 'cnFare').reduce((a,e)=>a+num(e.amount),0)),
+        bdFare:Math.max(0,num(s.bdFare)-s.expenses.filter(e=>e.costField === 'bdFare').reduce((a,e)=>a+num(e.amount),0)),
+        customsTax:Math.max(0,num(s.customsTax)-s.expenses.filter(e=>e.costField === 'customsTax').reduce((a,e)=>a+num(e.amount),0)),
+      },
+      fareShare: Math.round(fareShare(money, flightEcon) * 100) / 100,
+      cnFare: money.cnFare,
+      bdFare: money.bdFare,
+      customsTax: money.customsTax,
+      afterSalesFee: money.afterSalesFee,
+      extraLines: extras,
+      profit: Math.round(net * 100) / 100,
+      profitPct: effectiveBill(s) > 0 ? Math.round((net / effectiveBill(s)) * 100) : null,
+    },
+    receipt: latestReceipt(s.receipts) ? receiptSummary(latestReceipt(s.receipts)!) : null,
+    receiptHistory: [...s.receipts].sort((a,b)=>b.uploadedAt.getTime()-a.uploadedAt.getTime()).map(receiptSummary),
+    invoice: s.invoice
+      ? {
+          ...sourceDto(s.invoice,num(s.invoice.total)),
+          state:s.invoice.state,needsReview:s.invoice.needsReview,pricingMode:s.invoice.pricingMode,
+          number: s.invoice.number,
+          total: num(s.invoice.total),
+          discount: num(s.invoice.discount),
+          issuedAt: isoDate(s.invoice.issuedAt),
+          updatedAt: isoDate(s.invoice.updatedAt),
+        }
+      : null,
+    payments: (s.payments ?? []).map((p) => ({ id:p.id,reference:p.reference,canReverse:!p.reversedAt&&!p.reversalOfId&&num(p.amount)>0,reversedAt:p.reversedAt?.toISOString()??null,reversalOfId:p.reversalOfId,...sourceDto(p,num(p.amount)), method: p.method, amount: num(p.amount), at: p.createdAt.toISOString() })),
   }
 }
 

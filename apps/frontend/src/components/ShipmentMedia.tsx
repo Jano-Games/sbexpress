@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
+import { prepareUploadFile, transferUpload } from "@/lib/uploadFile";
 import { useFetch } from "@/state/useFetch";
 import { Button } from "@/components/beui/button";
 import { Panel, FormActions, SectionNotice } from "@/components/DesignSystem";
@@ -13,19 +14,8 @@ type Item = {
   shared: boolean;
 };
 type Props = { code?: string; token?: string; admin?: boolean };
-type UploadAttempt = {
-  file: File;
-  reference: string;
-  uploadUrl: string;
-  uploaded: boolean;
-};
-const acceptedTypes = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "video/mp4",
-  "video/webm",
-];
+const accept =
+  "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/webm";
 
 export function ShipmentMedia(props: Props) {
   return <MediaPanel key={props.token ?? props.code} {...props} />;
@@ -46,7 +36,7 @@ function MediaPanel({ code, token, admin = false }: Props) {
   const [selected, setSelected] = useState<File | null>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const locked = useRef(false);
-  const attempt = useRef<UploadAttempt | null>(null);
+  const selection = useRef(0);
 
   useEffect(() => {
     if (!selected) {
@@ -76,20 +66,30 @@ function MediaPanel({ code, token, admin = false }: Props) {
   }
 
   function select(file: File | undefined) {
-    if (!file || locked.current) return;
+    if (locked.current) return;
+    const mine = ++selection.current;
     setMessage("");
     setNotice("");
-    if (!acceptedTypes.includes(file.type)) {
-      setMessage("Choose a JPEG, PNG, WebP, MP4 or WebM file.");
+    if (!file) {
+      setSelected(null);
       return;
     }
-    const limit = (file.type.startsWith("video/") ? 100 : 10) * 1024 * 1024;
-    if (file.size === 0 || file.size > limit) {
-      setMessage(`Choose a non-empty file under ${limit / 1048576} MB.`);
-      return;
-    }
-    attempt.current = null;
-    setSelected(file);
+    setBusy(true);
+    void prepareUploadFile(file, {
+      maxBytes: 10 * 1024 * 1024,
+      allowVideo: true,
+    })
+      .then((prepared) => {
+        if (selection.current === mine) setSelected(prepared);
+      })
+      .catch((error: unknown) => {
+        if (selection.current !== mine) return;
+        setSelected(null);
+        setMessage(error instanceof Error ? error.message : "Could not prepare that file.");
+      })
+      .finally(() => {
+        if (selection.current === mine) setBusy(false);
+      });
   }
 
   function submit(event: FormEvent) {
@@ -97,37 +97,15 @@ function MediaPanel({ code, token, admin = false }: Props) {
     if (!selected || token || locked.current) return;
     const file = selected;
     void run(async () => {
-      // Reserve storage only after explicit submission. Keep a completed PUT
-      // across retries so a failed completion request does not upload twice.
-      if (!attempt.current || attempt.current.file !== file) {
-        const reservation = await api.post<{
-          reference: string;
-          uploadUrl: string;
-        }>(`${base}/media/upload`, {
-          name: file.name,
-          contentType: file.type,
-          size: file.size,
-        });
-        attempt.current = { file, ...reservation, uploaded: false };
-      }
-      const current = attempt.current;
-      if (!current.uploaded) {
-        const response = await fetch(current.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-        if (!response.ok) {
-          // A rejected/expired URL needs a fresh reservation on the next submit.
-          attempt.current = null;
-          throw new Error(
-            "Upload failed. Your file is still selected; please try again.",
-          );
-        }
-        current.uploaded = true;
-      }
-      await api.post(`${base}/media/${current.reference}/complete`);
-      attempt.current = null;
+      await transferUpload({
+        file,
+        reserve: (ready) =>
+          api.post<{ reference: string; uploadUrl: string }>(
+            `${base}/media/upload`,
+            { name: ready.name, contentType: ready.type, size: ready.size },
+          ),
+        complete: (reference) => api.post(`${base}/media/${reference}/complete`),
+      });
       setSelected(null);
       setNotice("Attachment uploaded. It is private until shared.");
     });
@@ -152,7 +130,7 @@ function MediaPanel({ code, token, admin = false }: Props) {
                 <input
                   className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground file:mr-4 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm"
                   type="file"
-                  accept={acceptedTypes.join(",")}
+                  accept={accept}
                   disabled={busy}
                   onChange={(event) => {
                     const file = event.target.files?.[0];
@@ -162,7 +140,9 @@ function MediaPanel({ code, token, admin = false }: Props) {
                 />
               </label>
               <p className="text-xs text-muted-foreground">
-                JPEG, PNG or WebP up to 10 MB. MP4 or WebM up to 100 MB.
+                Photos are compressed before upload, including HEIC. JPEG, PNG,
+                WebP or HEIC up to 10 MB after compression. MP4 or WebM up to
+                100 MB. If an upload fails, it is retried once.
               </p>
               {selected && (
                 <div className="rounded-md border border-border p-4">
@@ -193,8 +173,8 @@ function MediaPanel({ code, token, admin = false }: Props) {
                       variant="secondary"
                       disabled={busy}
                       onClick={() => {
+                        selection.current += 1;
                         setSelected(null);
-                        attempt.current = null;
                         setMessage("");
                         setNotice("");
                       }}

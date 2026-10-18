@@ -349,7 +349,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
     await issueInvoice()
     const storage = await import('../src/shared/r2')
     const upload = vi.spyOn(storage, 'signUpload').mockResolvedValue('https://storage.invalid/upload')
-    const finalize = vi.spyOn(storage, 'finalizeUpload').mockResolvedValue(undefined)
+    const finalize = vi.spyOn(storage, 'finalizeUpload').mockImplementation(async (row: { size: number; contentType: string }) => ({ size: row.size, contentType: row.contentType }))
     const download = vi.spyOn(storage, 'signDownload').mockResolvedValue('https://storage.invalid/preview')
     try {
       const link = (await call('/shipments/SH-AUDIT/track-link', 'POST', {scope:'invoice'})).data
@@ -405,7 +405,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
       expect((await prisma.receiptUpload.findUnique({ where: { reference: reserved.reference } })).status).toBe('pending')
       expect(await prisma.receipt.count()).toBe(0)
       expect((await call(`/review/screenshots/${reserved.reference}/url`)).status).toBe(404)
-      finalize.mockResolvedValue(undefined)
+      finalize.mockImplementation(async (row: { size: number; contentType: string }) => ({ size: row.size, contentType: row.contentType }))
       await prisma.receipt.create({ data: { shipmentId: shipment.id, method: 'Cash', amount: 1, txnRef: 'ALREADY-PENDING' } })
       expect((await call(`/track/${link.token}/receipt`, 'POST', body, 'public')).status).toBe(400)
       expect(finalize).toHaveBeenCalledTimes(2)
@@ -1417,7 +1417,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
   it('retains private flyer files across rename/archive and verifies or removes exact files', async () => {
     const storage=await import('../src/shared/r2')
     const sign=vi.spyOn(storage,'signUpload').mockResolvedValue('https://storage.invalid/upload')
-    const finalize=vi.spyOn(storage,'finalizeUpload').mockResolvedValue(undefined)
+    const finalize=vi.spyOn(storage,'finalizeUpload').mockImplementation(async (row: { size: number; contentType: string }) => ({ size: row.size, contentType: row.contentType }))
     const download=vi.spyOn(storage,'signDownload').mockResolvedValue('https://storage.invalid/private-preview')
     try {
       await call('/flyers','POST',{firstName:'Review',lastName:'Owner'})

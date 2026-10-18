@@ -512,6 +512,7 @@ export interface ReviewItem {
 
 export interface Todo {
   href?: string | null;
+  role?: "admin" | "hub";
   id: string;
   text: string;
   auto: boolean;
@@ -533,8 +534,8 @@ export interface PcsItem {
   count: number;
   rate: number;
   currency: "BDT" | "CNY";
-  /** One entry per piece: model + serial/IMEI. */
-  units: { model: string; serial: string }[];
+  /** One entry per piece: model + serial/IMEI, plus an optional private photo. */
+  units: { model: string; serial: string; serialPhotoRef?: string | null }[];
 }
 
 export type PayMethodKind = "mobile_banking" | "bank_account";

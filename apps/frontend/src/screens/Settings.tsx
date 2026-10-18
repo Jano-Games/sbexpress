@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { api } from "@/api/client";
+import { sniffImage } from "@/lib/uploadFile";
 import { useFetch } from "@/state/useFetch";
 import type { AppSettings, PayMethodKind, PayMethodRow } from "@/api/types";
 import { CurrencyFields, useMoneyEntry } from "@/components/MoneyInput";
@@ -263,19 +264,28 @@ export function Settings() {
 
   function pickQr(file: File | undefined) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      fail(new Error("Select an image file for the payment QR"));
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      fail(new Error("Use a PNG, JPEG or WebP image for the payment QR."));
       return;
     }
     if (file.size > 300 * 1024) {
       fail(new Error("QR image too large — keep it under 300 KB"));
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () =>
-      setForm((current) => ({ ...current, qrImage: String(reader.result) }));
-    reader.onerror = () => fail(new Error("The QR image could not be read"));
-    reader.readAsDataURL(file);
+    void file.arrayBuffer().then((buffer) => {
+      const kind = sniffImage(new Uint8Array(buffer).subarray(0, 32));
+      const expected = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpeg";
+      if (kind !== expected) {
+        fail(new Error("That file is not a PNG, JPEG or WebP image."));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () =>
+        setForm((current) => ({ ...current, qrImage: String(reader.result) }));
+      reader.onerror = () => fail(new Error("The QR image could not be read"));
+      reader.readAsDataURL(file);
+    }).catch(() => fail(new Error("The QR image could not be read")));
   }
 
   async function submitMethod() {
@@ -861,12 +871,12 @@ export function Settings() {
               </FormSection>
               <FormSection
                 title="Payment QR image"
-                description="Optional image, up to 300 KB. Without an uploaded image, the tracking page generates a QR from the payment number."
+                description="Optional PNG, JPEG or WebP image, up to 300 KB. SVG files are not accepted. Without an uploaded image, the tracking page generates a QR from the payment number."
               >
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   aria-label="Payment QR image"
                   onChange={(event) => {
