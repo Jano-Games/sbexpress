@@ -1,0 +1,125 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:http/http.dart' as http;
+
+import '../json_read.dart';
+import '../session/session_store.dart';
+import 'api_exception.dart';
+
+class ApiClient {
+  ApiClient({
+    required String baseUrl,
+    required this.session,
+    http.Client? httpClient,
+  })  : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
+        _http = httpClient ?? http.Client();
+
+  final String baseUrl;
+  final SessionStore session;
+  final http.Client _http;
+
+  Future<Map<String, Object?>> getJson(String path) => _send('GET', path);
+
+  Future<Map<String, Object?>> postJson(String path, {Object? body, bool idempotent = false}) {
+    return _send('POST', path, body: body ?? const <String, Object?>{}, idempotent: idempotent);
+  }
+
+  Future<Map<String, Object?>> patchJson(String path, {required Object? body}) {
+    return _send('PATCH', path, body: body ?? const <String, Object?>{});
+  }
+
+  Future<void> putBytes(
+    String url,
+    List<int> bytes,
+    String contentType,
+    void Function(double progress) onProgress,
+  ) async {
+    final request = http.StreamedRequest('PUT', Uri.parse(url));
+    request.headers['content-type'] = contentType;
+    request.contentLength = bytes.length;
+    const chunk = 64 * 1024;
+    var sent = 0;
+    try {
+      final responseFuture = _http.send(request);
+      for (var offset = 0; offset < bytes.length; offset += chunk) {
+        final end = min(offset + chunk, bytes.length);
+        request.sink.add(bytes.sublist(offset, end));
+        sent = end;
+        onProgress(bytes.isEmpty ? 1 : sent / bytes.length);
+      }
+      if (bytes.isEmpty) onProgress(1);
+      await request.sink.close();
+      final response = await responseFuture;
+      final responseBody = await response.stream.bytesToString();
+      if (response.statusCode >= 400) {
+        throw ApiException(
+          status: response.statusCode,
+          message: _errorMessage(response.statusCode, responseBody),
+          path: url,
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } on SocketException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: url);
+    } on http.ClientException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: url);
+    }
+  }
+
+  Future<Map<String, Object?>> _send(
+    String method,
+    String path, {
+    Object? body,
+    bool idempotent = false,
+  }) async {
+    final headers = <String, String>{'accept': 'application/json'};
+    final token = await session.readToken();
+    if (token != null && token.isNotEmpty) headers['authorization'] = 'Bearer $token';
+    if (body != null) headers['content-type'] = 'application/json';
+    if (idempotent) headers['idempotency-key'] = newIdempotencyKey();
+    final uri = Uri.parse('$baseUrl$path');
+    try {
+      final response = await _http.send(http.Request(method, uri)
+        ..headers.addAll(headers)
+        ..body = body == null ? '' : jsonEncode(body));
+      final responseBody = await response.stream.bytesToString();
+      if (response.statusCode >= 400) {
+        throw ApiException(status: response.statusCode, message: _errorMessage(response.statusCode, responseBody), path: path);
+      }
+      if (responseBody.trim().isEmpty) return <String, Object?>{};
+      final decoded = jsonDecode(responseBody);
+      return asJsonMap(decoded, 'response');
+    } on ApiException {
+      rethrow;
+    } on FormatException catch (error) {
+      throw ApiException(status: 200, message: error.message, path: path);
+    } on SocketException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: path);
+    } on http.ClientException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: path);
+    }
+  }
+}
+
+String _errorMessage(int status, String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map && decoded['error'] is String) return decoded['error'] as String;
+  } on FormatException {
+    // Non-JSON error body.
+  }
+  if (body.trim().isNotEmpty && body.length < 240) return body.trim();
+  return 'Request failed ($status)';
+}
+
+String newIdempotencyKey() {
+  final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  String hex(int value) => value.toRadixString(16).padLeft(2, '0');
+  final text = bytes.map(hex).join();
+  return '${text.substring(0, 8)}-${text.substring(8, 12)}-${text.substring(12, 16)}-${text.substring(16, 20)}-${text.substring(20)}';
+}

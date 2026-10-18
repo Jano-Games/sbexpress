@@ -1,0 +1,6 @@
+{
+  "name": "mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SBExpress Flutter app for Admin and Hub Manager. Flutter tooling lives in this folder; see README.md. Node scripts are intentionally absent so the pnpm workspace does not try to run Flutter."
+}

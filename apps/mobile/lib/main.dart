@@ -1,0 +1,16 @@
+import 'package:flutter/widgets.dart';
+
+import 'app.dart';
+import 'config.dart';
+import 'data/api/api_client.dart';
+import 'data/repositories/auth_repository.dart';
+import 'data/session/secure_session_store.dart';
+import 'data/session/session_controller.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  final store = SecureSessionStore();
+  final api = ApiClient(baseUrl: apiBaseUrl, session: store);
+  final session = SessionController(store: store, auth: AuthRepository(api));
+  runApp(SbExpressApp(session: session, api: api));
+}
