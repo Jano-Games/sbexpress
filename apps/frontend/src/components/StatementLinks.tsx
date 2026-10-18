@@ -16,6 +16,7 @@ import { api } from "@/api/client";
 import { useFetch } from "@/state/useFetch";
 import { ErrorBlock, LoadingBlock } from "@/components/ui";
 import { MoneyInput, useMoneyEntry } from "@/components/MoneyInput";
+import { optionalScreenshotReference } from "@/lib/uploadFile";
 import {
   DetailGrid,
   FormActions,
@@ -334,7 +335,14 @@ export function PublicStatement() {
     setBusy(true);
     setMessage("");
     try {
-      const imageReference = await screenshot.upload();
+      const imageReference = await optionalScreenshotReference({
+        hasFile: Boolean(screenshot.file),
+        upload: () => screenshot.upload(),
+        confirmWithoutScreenshot: () =>
+          window.confirm(
+            "The screenshot could not be uploaded. Submit this payment without a screenshot?",
+          ),
+      });
       await api.post(`/statements/${token}/receipt`, {
         imageReference,
         ...entry.meta,
@@ -554,6 +562,7 @@ export function PublicStatement() {
                           type="submit"
                           disabled={
                             busy ||
+                            screenshot.preparing ||
                             !selected ||
                             !entry.valid ||
                             !Number.isFinite(Number(amount)) ||

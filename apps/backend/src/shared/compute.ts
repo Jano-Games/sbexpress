@@ -82,7 +82,7 @@ export interface PcsItem {
   rate: number
   currency?: 'BDT' | 'CNY'
   /** One entry per piece: model + serial/IMEI. */
-  units?: { model: string; serial: string }[]
+  units?: { model: string; serial: string; serialPhotoRef?: string | null }[]
 }
 
 /** The device part of a charge in BDT: per-piece rates, CNY at the fx rate. */

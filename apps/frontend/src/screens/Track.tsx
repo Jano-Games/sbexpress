@@ -24,6 +24,7 @@ import { Button } from "@/components/beui/button";
 import { Input } from "@/components/beui/input";
 import { useToast } from "@/components/beui/toast";
 import { useMoneyEntry, nativeMoney } from "@/components/MoneyInput";
+import { optionalScreenshotReference } from "@/lib/uploadFile";
 import { InvoicePdfActions } from "@/components/InvoicePdfActions";
 import { ShipmentMedia } from "@/components/ShipmentMedia";
 import {
@@ -349,7 +350,14 @@ function Payment({
     setBusy(true);
     setError("");
     try {
-      const imageReference = await screenshot.upload();
+      const imageReference = await optionalScreenshotReference({
+        hasFile: Boolean(screenshot.file),
+        upload: () => screenshot.upload(),
+        confirmWithoutScreenshot: () =>
+          window.confirm(
+            "The screenshot could not be uploaded. Submit this payment without a screenshot?",
+          ),
+      });
       await api.post(`/track/${token}/receipt`, {
         imageReference,
         ...entry.meta,
@@ -550,7 +558,7 @@ function Payment({
                 )}
                 <Button
                   type="submit"
-                  disabled={busy || !valid}
+                  disabled={busy || !valid || screenshot.preparing}
                   className="track-submit"
                 >
                   {busy ? "Submitting…" : "Submit payment details"}

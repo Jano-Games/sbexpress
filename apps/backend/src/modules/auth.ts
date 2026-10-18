@@ -14,6 +14,11 @@ import { prisma } from '../core/db'
 import { redis, rateLimit } from '../core/redis'
 import { unauthorized, forbidden, HttpError } from '../core/errors'
 
+/**
+ * Hub Manager is one fully trusted Dhaka role. There is no hubId scope yet:
+ * every hub user sees the same operational shipments. Do not treat hub as a
+ * separate tenant boundary.
+ */
 export type Role = 'admin' | 'hub'
 
 export interface SessionUser {

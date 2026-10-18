@@ -11,11 +11,13 @@ vi.mock('../src/core/db', () => ({ prisma: db }))
 vi.mock('../src/shared/financialSummary', () => ({ financialSummary: vi.fn() }))
 vi.mock('../src/core/redis', () => ({ cacheGetJson: vi.fn(), cacheSetJson: vi.fn() }))
 vi.mock('../src/modules/flights', () => ({ autoCompletePastFlights: vi.fn() }))
+vi.mock('../src/shared/hubTodos', () => ({ syncHubTodos: vi.fn() }))
 vi.mock('../src/modules/auth', () => ({ requireRole: (...roles: Role[]) => async (c: Context<AppEnv>, next: Next) => {
   if (!roles.includes(c.get('user').role)) return c.json({ error: 'Forbidden' }, 403)
   await next()
 } }))
 const { dashboardRoutes } = await import('../src/modules/dashboard')
+const { syncHubTodos } = await import('../src/shared/hubTodos')
 
 function appFor(role: Role) {
   const app = new Hono<AppEnv>()
@@ -41,6 +43,7 @@ describe('Lightweight role-scoped dashboard counts', () => {
     expect(db.receipt.count).toHaveBeenCalledWith({ where: { status: 'pending' } })
     expect(db.statementReceipt.count).toHaveBeenCalledWith({ where: { status: 'pending' } })
     expect(db.todo.count).toHaveBeenCalledWith({ where: { role: 'admin', done: false } })
+    expect(syncHubTodos).not.toHaveBeenCalled()
   })
 
   it('returns only hub task counts without querying financial review data', async () => {
@@ -50,5 +53,6 @@ describe('Lightweight role-scoped dashboard counts', () => {
     expect(db.todo.count).toHaveBeenCalledWith({ where: { role: 'hub', done: false } })
     expect(db.receipt.count).not.toHaveBeenCalled()
     expect(db.statementReceipt.count).not.toHaveBeenCalled()
+    expect(syncHubTodos).toHaveBeenCalledOnce()
   })
 })

@@ -2,25 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import { api } from "@/api/client";
 import { Button } from "@/components/beui/button";
+import { prepareUploadFile, transferUpload } from "@/lib/uploadFile";
 
-const types = ["image/jpeg", "image/png", "image/webp"];
-type Attempt = {
-  file: File;
-  reference: string;
-  uploadUrl: string;
-  expiresAt: string;
-  uploaded: boolean;
-};
+const accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
 
 export function useReceiptScreenshot(base: string) {
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
-  const attempt = useRef<Attempt | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const selection = useRef(0);
   useEffect(() => {
+    selection.current += 1;
     setFile(null);
-    attempt.current = null;
     setError("");
+    setPreparing(false);
   }, [base]);
   useEffect(() => {
     if (!file) {
@@ -32,52 +28,41 @@ export function useReceiptScreenshot(base: string) {
     return () => URL.revokeObjectURL(next);
   }, [file]);
   function select(next: File | null) {
-    if (
-      next &&
-      (!types.includes(next.type) || !next.size || next.size > 5 * 1024 * 1024)
-    ) {
-      setError("Choose a JPG, PNG or WebP image up to 5 MB.");
+    const mine = ++selection.current;
+    setError("");
+    if (!next) {
+      setFile(null);
+      setPreparing(false);
       return;
     }
-    attempt.current = null;
-    setError("");
-    setFile(next);
+    setPreparing(true);
+    void prepareUploadFile(next, { maxBytes: 5 * 1024 * 1024 })
+      .then((prepared) => {
+        if (selection.current === mine) setFile(prepared);
+      })
+      .catch((reason: unknown) => {
+        if (selection.current !== mine) return;
+        setFile(null);
+        setError(reason instanceof Error ? reason.message : "Could not prepare that image.");
+      })
+      .finally(() => {
+        if (selection.current === mine) setPreparing(false);
+      });
   }
   async function upload(): Promise<string | undefined> {
+    if (preparing) throw new Error("The screenshot is still being prepared.");
     if (!file) return undefined;
-    if (
-      !attempt.current ||
-      attempt.current.file !== file ||
-      Date.parse(attempt.current.expiresAt) <= Date.now()
-    ) {
-      const reservation = await api.post<Omit<Attempt, "file" | "uploaded">>(
-        `${base}/receipt-image/upload`,
-        {
-          name: file.name,
-          contentType: file.type,
-          size: file.size,
-        },
-      );
-      attempt.current = { file, ...reservation, uploaded: false };
-    }
-    const current = attempt.current;
-    if (!current.uploaded) {
-      const response = await fetch(current.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!response.ok) {
-        attempt.current = null;
-        throw new Error(
-          "Screenshot upload failed. Your image is still selected; please retry.",
-        );
-      }
-      current.uploaded = true;
-    }
-    return current.reference;
+    return transferUpload({
+      file,
+      reserve: (ready) =>
+        api.post<{ reference: string; uploadUrl: string }>(
+          `${base}/receipt-image/upload`,
+          { name: ready.name, contentType: ready.type, size: ready.size },
+        ),
+      complete: async () => undefined,
+    });
   }
-  return { file, url, error, select, upload, clear: () => select(null) };
+  return { file, url, error, preparing, select, upload, clear: () => select(null) };
 }
 
 export function ReceiptScreenshotInput({
@@ -102,7 +87,7 @@ export function ReceiptScreenshotInput({
             className="receipt-upload-file"
             type="file"
             aria-label="Payment screenshot"
-            accept={types.join(",")}
+            accept={accept}
             disabled={disabled}
             onChange={(event) => {
               entry.select(event.target.files?.[0] ?? null);
@@ -112,8 +97,8 @@ export function ReceiptScreenshotInput({
         </div>
       </label>
       <p className="receipt-upload-help">
-        Attach the payment confirmation from your bank or wallet. JPG, PNG or
-        WebP · Up to 5 MB.
+        Optional. Payment can be submitted without a screenshot. JPG, PNG, WebP
+        or HEIC photos are compressed before upload, up to 5 MB.
       </p>
       {entry.error && (
         <p className="text-sm text-danger" role="alert">
@@ -128,7 +113,9 @@ export function ReceiptScreenshotInput({
           <div>
             <strong>{entry.file.name}</strong>
             <span>
-              {(entry.file.size / 1024).toFixed(0)} KB · Ready to submit
+              {entry.preparing
+                ? "Preparing image…"
+                : `${(entry.file.size / 1024).toFixed(0)} KB · Ready to submit`}
             </span>
           </div>
           <Button
