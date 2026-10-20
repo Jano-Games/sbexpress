@@ -1,0 +1,120 @@
+import 'package:flutter/material.dart';
+
+import '../../app_scope.dart';
+import '../../data/api/api_exception.dart';
+import '../../data/models/session_user.dart';
+import '../../data/models/shipment.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/ui.dart';
+import '../admin/admin_shipment_screen.dart';
+import '../imei/imei_guide_screen.dart';
+import '../shipments/shipment_process_screen.dart';
+
+enum ShipmentPickTarget { photos, invoice, imei }
+
+class ShipmentPickerScreen extends StatefulWidget {
+  const ShipmentPickerScreen({super.key, required this.target});
+
+  final ShipmentPickTarget target;
+
+  @override
+  State<ShipmentPickerScreen> createState() => _ShipmentPickerScreenState();
+}
+
+class _ShipmentPickerScreenState extends State<ShipmentPickerScreen> {
+  final _query = TextEditingController();
+  List<OperationalShipment> _rows = const [];
+  String? _error;
+  var _loading = true;
+  var _hub = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final scope = AppScope.of(context);
+      final hub = scope.session.user?.role == UserRole.hub;
+      final rows = hub ? await scope.shipments.listHub() : await scope.shipments.listAdmin();
+      if (!mounted) return;
+      setState(() {
+        _hub = hub;
+        _rows = rows;
+      });
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.text.trim().toLowerCase();
+    final visible = [
+      for (final row in _rows)
+        if (query.isEmpty || row.code.toLowerCase().contains(query) || row.description.toLowerCase().contains(query)) row,
+    ];
+    final title = switch (widget.target) {
+      ShipmentPickTarget.photos => 'ছবি',
+      ShipmentPickTarget.invoice => 'ইনভয়েস ও শেয়ার',
+      ShipmentPickTarget.imei => 'IMEI ছবি',
+    };
+    return Scaffold(
+      appBar: BackTitle(title: title),
+      body: RefreshIndicator(
+        color: AppColors.teal,
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
+          children: [
+            PageHeader(title: title, subtitle: _hub ? 'কাস্টমার কোড দিয়ে খুলুন। নাম এখানে নেই।' : 'যে শিপমেন্ট খুলবেন সেটা বেছে নিন।'),
+            TextField(controller: _query, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'কোড')),
+            const SizedBox(height: 12),
+            if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+            if (!_loading && visible.isEmpty) const EmptyNote(title: 'শিপমেন্ট নেই', body: 'তালিকা খালি।'),
+            for (final row in visible) ...[
+              DirectoryTile(
+                title: row.code,
+                subtitle: '${_hub ? row.supplierCode : (row is AdminShipment ? (row.supplierName ?? row.supplierCode) : row.supplierCode)} · ${row.description}',
+                badge: banglaStatus(row.status, row.statusLabel),
+                onTap: () => _open(row.code),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _open(String code) {
+    final screen = switch (widget.target) {
+      ShipmentPickTarget.imei => DeviceUnitsScreen(code: code, hub: _hub),
+      ShipmentPickTarget.photos when _hub => ShipmentProcessScreen(code: code),
+      ShipmentPickTarget.photos => AdminShipmentScreen(code: code, initialTab: 2),
+      ShipmentPickTarget.invoice => AdminShipmentScreen(code: code, initialTab: 1),
+    };
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+}

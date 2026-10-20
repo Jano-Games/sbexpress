@@ -3,6 +3,243 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 
+class PageHeader extends StatelessWidget {
+  const PageHeader({super.key, required this.title, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, height: 1.15)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(subtitle!, style: const TextStyle(color: AppColors.muted, height: 1.4)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class BrandLockup extends StatelessWidget {
+  const BrandLockup({super.key, this.subtitle});
+
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(12)),
+          child: const Text('SB', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Sichuan Bangla Express', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, height: 1.2)),
+              Text(subtitle ?? 'Chengdu → Dhaka', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class MetricTile extends StatelessWidget {
+  const MetricTile({super.key, required this.label, required this.value, this.hint, this.tone = ChipTone.teal});
+
+  final String label;
+  final String value;
+  final String? hint;
+  final ChipTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = toneColors(tone);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 84),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(cardRadius),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: colors.foreground, height: 1.15)),
+          if (hint != null) ...[
+            const SizedBox(height: 4),
+            Text(hint!, style: const TextStyle(color: AppColors.muted, fontSize: 12, height: 1.3)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class CapacityBar extends StatelessWidget {
+  const CapacityBar({super.key, required this.booked, required this.space});
+
+  final double booked;
+  final double space;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = space <= 0 ? 0.0 : (booked / space).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              height: 8,
+              child: Stack(
+                children: [
+                  Container(decoration: BoxDecoration(color: AppColors.neutralSoft, borderRadius: BorderRadius.circular(99))),
+                  Container(
+                    width: constraints.maxWidth * ratio,
+                    decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(99)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${booked.toStringAsFixed(1)} / ${space.toStringAsFixed(space == space.roundToDouble() ? 0 : 1)} kg',
+          style: const TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+}
+
+class KvRow extends StatelessWidget {
+  const KvRow({super.key, required this.label, required this.value, this.valueColor});
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Text(label, style: const TextStyle(color: AppColors.muted))),
+          const SizedBox(width: 12),
+          Flexible(child: Text(value, textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w600, color: valueColor ?? AppColors.ink))),
+        ],
+      ),
+    );
+  }
+}
+
+class DirectoryTile extends StatelessWidget {
+  const DirectoryTile({super.key, required this.title, required this.subtitle, required this.onTap, this.badge});
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.card,
+      borderRadius: BorderRadius.circular(cardRadius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(cardRadius),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: minTouchTarget),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(cardRadius), border: Border.all(color: AppColors.line)),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    const SizedBox(height: 3),
+                    Text(subtitle, style: const TextStyle(color: AppColors.muted, height: 1.35)),
+                  ],
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                StatusPill(label: badge!),
+              ],
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: AppColors.muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ChoiceChips extends StatelessWidget {
+  const ChoiceChips({super.key, required this.options, required this.selected, required this.onSelected});
+
+  final List<({String value, String label})> options;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final option in options)
+          Material(
+            color: option.value == selected ? AppColors.teal : AppColors.card,
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              onTap: () => onSelected(option.value),
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: minTouchTarget, minWidth: minTouchTarget),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: option.value == selected ? AppColors.teal : AppColors.line),
+                ),
+                child: Text(
+                  option.label,
+                  style: TextStyle(color: option.value == selected ? Colors.white : AppColors.ink, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 enum AppButtonKind { current, teal, quiet, danger }
 
 class AppButton extends StatelessWidget {
@@ -87,16 +324,18 @@ class PaperCard extends StatelessWidget {
 }
 
 class StatusPill extends StatelessWidget {
-  const StatusPill({super.key, required this.label});
+  const StatusPill({super.key, required this.label, this.tone = ChipTone.teal});
 
   final String label;
+  final ChipTone tone;
 
   @override
   Widget build(BuildContext context) {
+    final colors = toneColors(tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: AppColors.tealSoft, borderRadius: BorderRadius.circular(999)),
-      child: Text(label, style: const TextStyle(color: AppColors.tealInk, fontWeight: FontWeight.w600, fontSize: 13)),
+      decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(999)),
+      child: Text(label, style: TextStyle(color: colors.foreground, fontWeight: FontWeight.w600, fontSize: 13)),
     );
   }
 }

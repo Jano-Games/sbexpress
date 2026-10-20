@@ -1,13 +1,17 @@
+import java.io.File
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystoreProperties = java.util.Properties()
+val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 fun signingValue(envName: String, propertyName: String): String? {
@@ -53,7 +57,7 @@ android {
         if (hasReleaseKeystore) {
             create("release") {
                 val path = releaseStorePath!!
-                val store = java.io.File(path)
+                val store = File(path)
                 storeFile = if (store.isAbsolute) store else rootProject.file(path)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias

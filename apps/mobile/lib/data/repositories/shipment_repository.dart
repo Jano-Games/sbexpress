@@ -1,6 +1,7 @@
 import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/shipment.dart';
+import '../models/workspace.dart';
 
 class ShipmentRepository {
   ShipmentRepository(this.api);
@@ -58,9 +59,38 @@ class ShipmentRepository {
     return api.postJson('${_path(code)}/exception', body: {'type': type, 'reason': reason});
   }
 
-  Future<TrackingLink> shareTracking(String code, {int days = 7}) async {
+  Future<String> create(IntakeDraft draft) async {
+    final json = await api.postJson('/api/shipments', body: draft.toJson());
+    return requiredString(json, 'code');
+  }
+
+  Future<InvoiceDocument> invoice(String code) async {
+    final json = await api.getJson('${_path(code)}/invoice');
+    return InvoiceDocument.fromJson(json);
+  }
+
+  Future<String> issueInvoice(String code, InvoiceDocument document, {String? revisionReason, bool confirmFree = false}) async {
+    final json = await api.postJson(
+      '${_path(code)}/invoice',
+      body: invoiceIssueBody(document, revisionReason: revisionReason, confirmFree: confirmFree),
+      idempotent: true,
+    );
+    return requiredString(json, 'number');
+  }
+
+  /// Records money already received into a real ledger account. The amount and
+  /// account name are chosen by the operator; nothing is filled in for them.
+  Future<void> recordPayment(String code, {required double amount, required String accountName, String currency = 'BDT'}) {
+    return api.postJson('${_path(code)}/payments', idempotent: true, body: {
+      'amount': amount,
+      'method': accountName,
+      if (currency != 'BDT') 'money': {'currency': currency},
+    });
+  }
+
+  Future<TrackingLink> shareTracking(String code, {int days = 7, String scope = 'tracking_only'}) async {
     final json = await api.postJson('${_path(code)}/track-link', body: {
-      'scope': 'tracking_only',
+      'scope': scope,
       'days': days,
     });
     return TrackingLink(url: requiredString(json, 'url'), expiresAt: requiredString(json, 'expiresAt'));

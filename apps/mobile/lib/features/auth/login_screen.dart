@@ -59,8 +59,10 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
           children: [
             const _Mark(),
-            const SizedBox(height: 28),
-            const Text('SBExpress', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.teal)),
+            const SizedBox(height: 18),
+            const Text('Sichuan Bangla Express', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, height: 1.15, color: AppColors.teal)),
+            const SizedBox(height: 8),
+            const Text('Chengdu → Dhaka', style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             const Text(
               'স্টাফ লগইন ইমেইল ও পাসওয়ার্ডে। ভূমিকা অ্যাকাউন্ট থেকে আসে।',

@@ -12,6 +12,7 @@ import '../../data/uploads/photo_upload.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_icons.dart';
 import '../../widgets/ui.dart';
+import '../imei/imei_guide_screen.dart';
 
 class ShipmentProcessScreen extends StatefulWidget {
   const ShipmentProcessScreen({super.key, required this.code});
@@ -143,6 +144,14 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
           ],
           if (detail != null && chain != null) ...[
             _Facts(detail: detail),
+            if (detail.deviceCount > 0) ...[
+              const SizedBox(height: 12),
+              AppButton(
+                label: detail.devicePhotoCount < detail.deviceCount ? 'IMEI ছবি নিন' : 'IMEI ছবি দেখুন',
+                kind: AppButtonKind.quiet,
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DeviceUnitsScreen(code: widget.code, hub: true))),
+              ),
+            ],
             const SizedBox(height: 12),
             for (final step in HubChainStep.values) ...[
               _StepTile(step: step, chain: chain),

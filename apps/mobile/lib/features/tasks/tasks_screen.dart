@@ -27,6 +27,7 @@ class _TasksScreenState extends State<TasksScreen> {
   String? _error;
   var _loading = true;
   var _busy = false;
+  var _assignTo = 'admin';
 
   @override
   void initState() {
@@ -65,7 +66,7 @@ class _TasksScreenState extends State<TasksScreen> {
     if (text.isEmpty) return;
     setState(() => _busy = true);
     try {
-      await widget.tasks.addNote(text);
+      await widget.tasks.addNote(text, assignTo: widget.role == UserRole.admin ? _assignTo : null);
       _note.clear();
       await _load();
     } on ApiException catch (error) {
@@ -93,6 +94,17 @@ class _TasksScreenState extends State<TasksScreen> {
               const Text('অটো কাজ শিপমেন্টের ধাপ শেষ হলে নিজে বন্ধ হয়।', style: TextStyle(color: AppColors.muted, height: 1.35)),
               const SizedBox(height: 12),
               TextField(controller: _note, decoration: const InputDecoration(labelText: 'নিজের নোট')),
+              if (widget.role == UserRole.admin) ...[
+                const SizedBox(height: 8),
+                ChoiceChips(
+                  options: const [
+                    (value: 'admin', label: 'নিজের নোট'),
+                    (value: 'hub', label: 'হাবকে দিন'),
+                  ],
+                  selected: _assignTo,
+                  onSelected: (value) => setState(() => _assignTo = value),
+                ),
+              ],
               const SizedBox(height: 8),
               AppButton(label: 'নোট যোগ করুন', kind: AppButtonKind.teal, busy: _busy, onPressed: _add),
               const SizedBox(height: 16),
@@ -100,7 +112,7 @@ class _TasksScreenState extends State<TasksScreen> {
               if (_error != null) ErrorNote(message: _error!, onRetry: _load),
               if (!_loading && open.isEmpty) const EmptyNote(title: 'খোলা কাজ নেই', body: 'নতুন অটো কাজ এলে এখানে দেখা যাবে।'),
               for (final item in open) ...[
-                _TaskCard(item: item, role: widget.role, onChanged: _load, onOpen: () => _open(item)),
+                _TaskCard(item: item, onChanged: _load, onOpen: () => _open(item)),
                 const SizedBox(height: 8),
               ],
               if (done.isNotEmpty) ...[
@@ -134,10 +146,9 @@ class _TasksScreenState extends State<TasksScreen> {
 }
 
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({required this.item, required this.role, required this.onChanged, required this.onOpen});
+  const _TaskCard({required this.item, required this.onChanged, required this.onOpen});
 
   final TaskItem item;
-  final UserRole role;
   final Future<void> Function() onChanged;
   final VoidCallback onOpen;
 
@@ -174,6 +185,100 @@ class _TaskCard extends StatelessWidget {
               },
             ),
         ],
+      ),
+    );
+  }
+}
+
+class AssignTaskScreen extends StatefulWidget {
+  const AssignTaskScreen({super.key});
+
+  @override
+  State<AssignTaskScreen> createState() => _AssignTaskScreenState();
+}
+
+class _AssignTaskScreenState extends State<AssignTaskScreen> {
+  final _note = TextEditingController();
+  List<TaskItem> _hubTasks = const [];
+  String? _error;
+  var _loading = true;
+  var _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final items = await AppScope.of(context).tasks.list(scope: 'hub');
+      if (!mounted) return;
+      setState(() => _hubTasks = items);
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _add() async {
+    final text = _note.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await AppScope.of(context).tasks.addNote(text, assignTo: 'hub');
+      _note.clear();
+      await _load();
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final open = [for (final item in _hubTasks) if (!item.done) item];
+    return Scaffold(
+      appBar: const BackTitle(title: 'কাজ অ্যাসাইন'),
+      body: RefreshIndicator(
+        color: AppColors.teal,
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
+          children: [
+            const PageHeader(title: 'হাবকে কাজ দিন', subtitle: 'ম্যানুয়াল নোট। ওজন, প্যাক ও কুরিয়ারের অটো কাজ নিজে বন্ধ হয়।'),
+            TextField(controller: _note, decoration: const InputDecoration(labelText: 'কাজের কথা')),
+            const SizedBox(height: 8),
+            AppButton(label: 'হাবকে দিন', kind: AppButtonKind.current, busy: _busy, onPressed: _add),
+            const SizedBox(height: 16),
+            if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+            if (!_loading && open.isEmpty) const EmptyNote(title: 'হাবের খোলা নোট নেই', body: 'নতুন কাজ দিলে এখানে দেখা যাবে।'),
+            for (final item in open) ...[
+              PaperCard(child: Text(item.text, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.35))),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
       ),
     );
   }

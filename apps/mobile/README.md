@@ -1,16 +1,22 @@
 # SBExpress mobile
 
-Flutter app for Admin and Hub Manager. It talks to the API on branch `cursor/hub-api-upload-fixes-6df5` (SBExpress PR #1). After that PR merges, point `API_BASE_URL` at the merged API. The parsers stay on these DTO rules.
+Android Flutter app for Admin and Hub Manager. It uses the same bearer session and JSON API as the web workspace. iOS is not a target.
 
 ```bash
 cd apps/mobile
 flutter pub get
 flutter analyze
 flutter test
-flutter run --dart-define=API_BASE_URL=http://localhost:3002
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3002
 ```
 
-Android emulator: `http://10.0.2.2:3002`. Debug Android allows cleartext so a local API works.
+Android emulator reaches the host API at `http://10.0.2.2:3002`. A device on the same network needs the computer's LAN address. Debug Android allows cleartext so a local API works. `flutter run` without a device id targets the connected Android emulator or phone.
+
+A debug APK (signed with the debug key):
+
+```bash
+flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3002
+```
 
 ## Release transport and session
 
@@ -29,20 +35,30 @@ Release builds do not ship with the debug key. Debug and profile builds keep the
 
 `storeFile` is relative to `apps/mobile/android/` unless the path is absolute. See `android/key.properties.example`. Do not commit `key.properties` or the `.jks`.
 
-## This slice
+## Screens
 
-| Screen | Who | Status |
+Bottom navigation stays four tabs: হোম, Shipment, কাজ, আরও. Admin and hub see different homes and a different আরও directory. Money, customer names, invoices and settings are absent from the hub role, matching the hub API.
+
+| Screen | Who | API |
 |---|---|---|
-| 7 Login | All | Email + password. Role comes from `POST /api/auth/login`. No role picker. This API has no OTP. |
-| 1 Hub dashboard | Hub | `GET /api/dashboard/hub`. Teal “আজকের বাকি কাজ” hero with weigh, pack, and courier → dispatch → handover counts. |
-| 2 Shipments | Hub | `GET /api/shipments`, parsed with the hub DTO. |
-| 3 Shipment process | Hub | weigh → pack → courier → dispatch → handover, in that order. |
-| 4 Hub tasks | Hub | `GET /api/todos`. Auto steps open the shipment. Manual notes can be completed. |
-| 6 Payment review | Admin | `GET /api/review`, approve (idempotency key) and reject. Screenshot is optional. |
-| 9 Shipment detail | Admin | Summary, bill, photos. Tracking-only share. Invoice-included share is not in this slice. |
-| 18 More | Both | Role badge and logout. Other entries are labeled stubs. |
+| Login | All | `POST /api/auth/login`. Email and password. Role comes from the account. |
+| Hub home | Hub | `GET /api/dashboard/hub`. Teal “আজকের বাকি কাজ” hero. |
+| Admin home | Admin | `GET /api/dashboard/overview`. Review count, cash, unpaid, next flight, active shipments. |
+| Shipments | Both | `GET /api/shipments`. Hub rows drop money and names. Admin can start intake. |
+| Shipment process | Hub | Receive, weigh, pack, courier, dispatch, handover. IMEI photos when the shipment has devices. |
+| Shipment detail | Admin | Summary, bill, photos. Issue the calculated invoice, share tracking or invoice, record a payment into an existing ledger account. |
+| Tasks | Both | `GET/POST /api/todos`. Admin can assign a note to hub. |
+| Intake | Admin | Customers, categories, optional flight and flyer, `POST /api/shipments`. |
+| Flights | Admin | List, detail, create, assign a flyer. Ticket cash is not posted from the phone. |
+| Flyers | Admin | Profile, flights, document list, JPEG upload, verify. |
+| Customers | Admin | List, detail, create. Balances come from issued invoices. |
+| Finance | Admin | `GET /api/finance`. Read-only cash, results, receivables and accounts. |
+| Settings | Admin | Setup status, confirm the CNY rate, show pay methods and staff. No new bank details are typed here. |
+| IMEI guide | Both | Camera frame, then `POST /device-photo`. The photo stays private. |
+| Media | Both | Pick a shipment and open its photos. |
+| Payment review | Admin | Approve with an idempotency key, or reject. |
 
-Stubbed, with no invented data: 5 IMEI guide frame, 8 intake, 10 issue-and-share, 11 flights, 12 flyer documents, 13 customers, 14 finance snapshot, 15 task assignment, 16 settings, 17 media browser (shipment photos themselves are live).
+Empty rates and empty ticket costs save as zero. The app does not invent an account name, a payment amount, or a bank number.
 
 ## DTO rules
 
@@ -58,4 +74,4 @@ Before upload, photos are converted to JPEG, longest edge 2000px, quality 80. Fi
 
 ## Screenshots
 
-`docs/screenshots/` shows Login, the hub dashboard with the teal “আজকের বাকি কাজ” hero, Shipments, and Admin payment review. They were captured from Chrome running this UI. This environment has no Android emulator, so the shots are not from an emulator. The API behind them was a local fixture with the same DTO shapes, including money keys the hub screens ignore.
+`docs/screenshots/` shows the login screen, the hub “আজকের বাকি কাজ” hero, the shipment list, and admin payment review. Later captures of the admin home, flights, customers and finance snapshot are widget renders of the same UI against fixture JSON with the real DTO shapes. They are not from an Android emulator when the environment has no emulator. Hub fixtures may still contain money keys; the hub screens do not render them.

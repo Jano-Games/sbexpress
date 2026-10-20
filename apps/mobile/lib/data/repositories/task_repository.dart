@@ -7,13 +7,17 @@ class TaskRepository {
 
   final ApiClient api;
 
-  Future<List<TaskItem>> list() async {
-    final json = await api.getJson('/api/todos');
+  Future<List<TaskItem>> list({String? scope}) async {
+    final path = scope == null ? '/api/todos' : '/api/todos?scope=${Uri.encodeQueryComponent(scope)}';
+    final json = await api.getJson(path);
     return [for (final row in requiredMapList(json, 'todos')) TaskItem.fromJson(row)];
   }
 
-  Future<void> addNote(String text) async {
-    await api.postJson('/api/todos', body: {'text': text});
+  Future<void> addNote(String text, {String? assignTo}) async {
+    await api.postJson('/api/todos', body: {
+      'text': text,
+      if (assignTo != null) 'assignTo': assignTo,
+    });
   }
 
   Future<bool> toggle(String id) async {

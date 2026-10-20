@@ -15,12 +15,12 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'imei',
           title: 'IMEI ছবি',
-          body: 'গাইড ফ্রেমের ক্যামেরা এই স্লাইসে নেই। শিপমেন্টের সাধারণ ছবি যোগ করলে ডিভাইসেই JPEG-এ কমপ্রেস হয়। IMEI ছবি কাস্টমারের সাথে শেয়ার হয় না।',
+          body: 'ডিভাইস বেছে নিয়ে গাইড ফ্রেমে সিরিয়ালের ছবি নিন। কাস্টমারের সাথে শেয়ার হয় না।',
         ),
         MoreDestination(
           id: 'media',
           title: 'ছবি / মিডিয়া',
-          body: 'হাব শুধু নিজের শিপমেন্টের ছবি দেখে ও যোগ করে। একটি Shipment খুলে ছবি যোগ করুন। শেয়ার টগল অ্যাডমিনের।',
+          body: 'শিপমেন্ট খুলে সাধারণ ছবি দেখুন ও যোগ করুন। শেয়ার টগল অ্যাডমিনের।',
         ),
       ];
     case UserRole.admin:
@@ -28,43 +28,69 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'intake',
           title: 'শিপমেন্ট ইনটেক',
-          body: 'তিন ধাপের ইনটেক (কাস্টমার, ক্যাটাগরি, পেমেন্ট টার্ম) এই স্লাইসে নেই।',
+          body: 'কাস্টমার, ক্যাটাগরি, ওজন ও চাইলে ফ্লাইট।',
         ),
         MoreDestination(
           id: 'invoice-share',
           title: 'ইনভয়েস ইস্যু ও শেয়ার',
-          body: 'Issue করে পাঠান এই স্লাইসে নেই। শিপমেন্ট ডিটেইলে শুধু tracking লিংক শেয়ার করা যায়।',
+          body: 'হিসাব করা বিল ইস্যু করে ট্র্যাকিং বা ইনভয়েস লিংক দিন।',
         ),
         MoreDestination(
           id: 'flights',
           title: 'ফ্লাইট',
-          body: 'ফ্লাইট তালিকা ও ফ্লায়ার অ্যাসাইন এই স্লাইসে নেই।',
+          body: 'ক্যাপাসিটি, ফ্লায়ার অ্যাসাইন ও বুকিং।',
+        ),
+        MoreDestination(
+          id: 'flyers',
+          title: 'ফ্লায়ার',
+          body: 'প্রোফাইল, ফোন ও ডকুমেন্ট যাচাই।',
         ),
         MoreDestination(
           id: 'customers',
           title: 'কাস্টমার',
-          body: 'কাস্টমার তালিকা ও বকেয়া এই স্লাইসে নেই।',
+          body: 'নাম, বকেয়া ও শিপমেন্ট।',
         ),
         MoreDestination(
           id: 'finance',
           title: 'ফাইন্যান্স',
-          body: 'আজকের আয়-ব্যয়ের স্ন্যাপশট এই স্লাইসে নেই। পেমেন্ট রিভিউ হোম থেকে খোলা যায়।',
+          body: 'ক্যাশ, বকেয়া ও বুকড ফল। নতুন এন্ট্রি ওয়েবে।',
         ),
         MoreDestination(
           id: 'assign',
           title: 'কাজ অ্যাসাইন',
-          body: 'হাব ম্যানেজারকে ম্যানুয়াল কাজ দেওয়ার পিপল পিকার এই স্লাইসে নেই। নিজের নোট কাজ ট্যাবে লেখা যায়।',
+          body: 'হাব ম্যানেজারকে নোট কাজ দিন।',
         ),
         MoreDestination(
           id: 'settings',
           title: 'সেটিংস',
-          body: 'পেমেন্ট মেথড, রেট ও স্টোরেজ স্ট্যাটাস এই স্লাইসে নেই।',
+          body: 'CNY রেট, পেমেন্ট মেথড, স্টোরেজ ও স্টাফ।',
         ),
         MoreDestination(
           id: 'media',
           title: 'ছবি / মিডিয়া',
-          body: 'শিপমেন্ট খুলে ছবি ট্যাবে ব্রাউজ, যোগ ও কাস্টমার শেয়ার টগল করা যায়।',
+          body: 'শিপমেন্টের ছবি দেখুন, যোগ করুন ও শেয়ার করুন।',
         ),
+      ];
+  }
+}
+
+class MoreGroup {
+  const MoreGroup(this.title, this.ids);
+
+  final String title;
+  final List<String> ids;
+}
+
+List<MoreGroup> moreGroups(UserRole role) {
+  switch (role) {
+    case UserRole.hub:
+      return const [
+        MoreGroup('হাবের কাজ', ['imei', 'media']),
+      ];
+    case UserRole.admin:
+      return const [
+        MoreGroup('অপারেশন', ['intake', 'flights', 'flyers', 'customers', 'invoice-share', 'media']),
+        MoreGroup('টাকা ও সেটআপ', ['finance', 'assign', 'settings']),
       ];
   }
 }
