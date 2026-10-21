@@ -39,6 +39,13 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
   final _amount = TextEditingController();
   String? _account;
 
+  FinanceAccount? get _selectedAccount {
+    for (final account in _accounts) {
+      if (account.name == _account) return account;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -297,7 +304,12 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
             TextField(
               controller: _amount,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: 'প্রাপ্ত অঙ্ক', helperText: 'বাকি ${formatBdt(invoice.dueAmount)}'),
+              decoration: InputDecoration(
+                labelText: 'প্রাপ্ত অঙ্ক (${_selectedAccount?.currency ?? 'BDT'})',
+                helperText: _selectedAccount == null || _selectedAccount!.currency == 'BDT'
+                    ? 'বাকি ${formatBdt(invoice.dueAmount)}। অঙ্ক BDT।'
+                    : '${_selectedAccount!.currency}-এ লিখুন। বাকি ${formatBdt(invoice.dueAmount)} BDT; সেভ করা রেটে রূপান্তর হবে।',
+              ),
             ),
             const SizedBox(height: 8),
             AppButton(label: 'জমা সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _pay),

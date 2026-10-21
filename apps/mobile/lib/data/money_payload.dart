@@ -7,6 +7,14 @@ double? parseMoney(String text) {
   return roundMoney(value);
 }
 
+/// Empty means zero. Anything else must be a non-negative amount with at most two decimal places.
+double? readOptionalMoney(String text) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return 0;
+  if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(trimmed)) return null;
+  return roundMoney(double.parse(trimmed));
+}
+
 /// BDT is the ledger default. A CNY account sends the typed amount in CNY.
 Map<String, Object?> moneyPayload(double amount, {String currency = 'BDT'}) {
   return {

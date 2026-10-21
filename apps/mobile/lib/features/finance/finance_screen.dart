@@ -101,6 +101,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ),
               const SizedBox(height: 8),
               MetricTile(label: 'নেট ক্যাশ', value: formatBdt(data.net), tone: data.net < 0 ? ChipTone.red : ChipTone.teal),
+              const SizedBox(height: 8),
+              const Text(
+                'জমাতে কাস্টমার রসিদ, আয় ও মূলধন আছে। নতুন ফান্ডের শুরুর ব্যালেন্স মূলধন, প্রফিট নয়।',
+                style: TextStyle(color: AppColors.muted, height: 1.35),
+              ),
               const SizedBox(height: 16),
               const SectionTitle(title: 'বুকড ফল', subtitle: 'ক্যাশ ফ্লো আলাদা। এটা পিরিয়ডের বিল বনাম খরচ।'),
               PaperCard(

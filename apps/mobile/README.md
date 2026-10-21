@@ -75,11 +75,11 @@ Bottom navigation stays four tabs: হোম, Shipment, কাজ, আরও. Ad
 | Shipment detail | Admin | Summary, bill, photos. Issue or edit the invoice, view and share the PDF, record a payment into an existing ledger account. |
 | Tasks | Both | `GET/POST /api/todos`. Admin can assign a note to hub. |
 | Intake | Admin | Customers, categories, optional flight and flyer, `POST /api/shipments`. |
-| Flights | Admin | List, detail, create, assign a flyer. Ticket cash is not posted from the phone. |
+| Flights | Admin | List, detail, create, assign a flyer. Ticket cash posts only when a fund is selected, and the confirmation states the BDT amount. |
 | Flyers | Admin | Profile, flights, document list, JPEG upload, verify. PDF documents open in the app and can still be shared. |
 | Customers | Admin | List, detail, create, statement links, credit, and account activity with reversal. Balances come from issued invoices. |
 | Finance | Admin | Cash, transfers, income and expenses, ledger, reconciliation, and a new fund. A non-zero opening balance is capital in the ledger, not income. |
-| Settings | Admin | Setup status, confirm the CNY rate, show pay methods and staff. No new bank details are typed here. |
+| Settings | Admin | Setup status, confirm the CNY rate, add bKash or bank methods, and manage staff. |
 | IMEI guide | Both | Camera frame, then `POST /device-photo`. The photo stays private. |
 | Media | Both | Pick a shipment and open its photos. |
 | Payment review | Admin | Approve with an idempotency key, or reject. |

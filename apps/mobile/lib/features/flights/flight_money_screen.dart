@@ -152,8 +152,8 @@ class _TicketSettleScreenState extends State<TicketSettleScreen> {
       return;
     }
     final effect = summary.ticketDue > 0
-        ? 'বাকি ${formatBdt(summary.ticketDue)} ${chosen.name} থেকে কাটা হবে।'
-        : 'রিফান্ড ${formatBdt(summary.ticketRefundDue)} ${chosen.name}-এ ফিরবে।';
+        ? 'বাকি ${bdtFundMovement(amountBdt: summary.ticketDue, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: false)}'
+        : 'রিফান্ড ${bdtFundMovement(amountBdt: summary.ticketRefundDue, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: true)}';
     final ok = await confirmMoney(context, title: 'টিকিট সেটল', body: effect);
     if (!ok || !mounted) return;
     setState(() {

@@ -6,6 +6,7 @@ import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
 import '../../theme/app_colors.dart';
+import '../../data/money_payload.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -97,10 +98,10 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       setState(() => _error = 'অন্তত একজন ফ্লায়ার বেছে নিন।');
       return;
     }
-    final actual = double.tryParse(_cost.text.trim()) ?? 0;
-    final agency = double.tryParse(_agency.text.trim()) ?? 0;
-    if (actual < 0 || agency < 0 || agency > actual) {
-      setState(() => _error = 'এজেন্সি শেয়ার আসল খরচের বেশি হতে পারে না। খালি রাখলে ০।');
+    final actual = readOptionalMoney(_cost.text);
+    final agency = readOptionalMoney(_agency.text);
+    if (actual == null || agency == null || agency > actual) {
+      setState(() => _error = 'টিকিট ও এজেন্সি শেয়ার ০ বা তার বেশি, দুই দশমিক পর্যন্ত। খালি রাখলে ০। এজেন্সি শেয়ার আসল খরচের বেশি হতে পারে না।');
       return;
     }
     FinanceAccount? paying;
@@ -108,7 +109,12 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       if (account.name == _account) paying = account;
     }
     if (actual > 0 && paying != null) {
-      final ok = await confirmMoney(context, title: 'টিকিট ক্যাশ', body: '${formatMoney(actual, paying.currency)} ${paying.name} থেকে টিকিটের জন্য যাবে।');
+      final chosen = paying;
+      final ok = await confirmMoney(
+        context,
+        title: 'টিকিট ক্যাশ',
+        body: bdtFundMovement(amountBdt: actual, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: false),
+      );
       if (!ok || !mounted) return;
     }
     setState(() {

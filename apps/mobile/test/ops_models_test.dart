@@ -11,7 +11,9 @@ import 'package:sbexpress/data/models/flight.dart';
 import 'package:sbexpress/data/models/ledger_actions.dart';
 import 'package:sbexpress/data/models/workspace.dart';
 import 'package:sbexpress/data/pay_method_body.dart';
+import 'package:sbexpress/data/money_payload.dart';
 import 'package:sbexpress/data/repositories/finance_repository.dart';
+import 'package:sbexpress/features/admin/money_format.dart';
 import 'package:sbexpress/data/repositories/flight_repository.dart';
 import 'package:sbexpress/data/repositories/shipment_repository.dart';
 import 'package:sbexpress/features/more/destinations.dart';
@@ -214,6 +216,21 @@ void main() {
         'flyerReceivables': 0,
       }),
       throwsFormatException,
+    );
+  });
+
+  test('optional money stays at two decimals and ticket cash stays labeled in BDT', () {
+    expect(readOptionalMoney(''), 0);
+    expect(readOptionalMoney('10.50'), 10.5);
+    expect(readOptionalMoney('10.555'), isNull);
+    expect(readOptionalMoney('-1'), isNull);
+    expect(
+      bdtFundMovement(amountBdt: 1750, accountName: 'Chengdu', accountCurrency: 'CNY', intoAccount: false),
+      '৳1,750.00 Chengdu-এ কাটবে। অঙ্কটি BDT; CNY ব্যালেন্স সেভ করা রেটে বদলাবে।',
+    );
+    expect(
+      bdtFundMovement(amountBdt: 600, accountName: 'Cash', accountCurrency: 'BDT', intoAccount: false),
+      '৳600.00 Cash থেকে যাবে।',
     );
   });
 
