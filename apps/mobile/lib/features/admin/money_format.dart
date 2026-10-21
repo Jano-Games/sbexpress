@@ -1,3 +1,27 @@
+/// Ticket and settlement cash is stored in BDT. A CNY fund is debited or credited at the saved rate.
+String bdtFundMovement({
+  required double amountBdt,
+  required String accountName,
+  required String accountCurrency,
+  required bool intoAccount,
+}) {
+  final amount = formatBdt(amountBdt);
+  if (accountCurrency == 'BDT') {
+    return intoAccount ? '$amount $accountName-এ ঢুকবে।' : '$amount $accountName থেকে যাবে।';
+  }
+  final direction = intoAccount ? 'ঢুকবে' : 'কাটবে';
+  return '$amount $accountName-এ $direction। অঙ্কটি BDT; $accountCurrency ব্যালেন্স সেভ করা রেটে বদলাবে।';
+}
+
+String formatMoney(double value, String currency) {
+  if (currency == 'CNY') {
+    final negative = value < 0;
+    final text = '¥${value.abs().toStringAsFixed(2)}';
+    return negative ? '-$text' : text;
+  }
+  return formatBdt(value);
+}
+
 String formatBdt(double value) {
   final negative = value < 0;
   final fixed = value.abs().toStringAsFixed(2);

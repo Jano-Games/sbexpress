@@ -1,5 +1,6 @@
 import '../api/api_client.dart';
 import '../models/dashboard.dart';
+import '../models/workspace.dart';
 
 class DashboardRepository {
   DashboardRepository(this.api);
@@ -14,5 +15,10 @@ class DashboardRepository {
   Future<DashboardCounts> counts() async {
     final json = await api.getJson('/api/dashboard/counts');
     return DashboardCounts.fromJson(json);
+  }
+
+  Future<AdminOverview> overview() async {
+    final json = await api.getJson('/api/dashboard/overview');
+    return AdminOverview.fromJson(json);
   }
 }

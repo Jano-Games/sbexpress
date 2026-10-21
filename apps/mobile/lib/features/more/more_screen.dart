@@ -5,6 +5,14 @@ import '../../data/session/session_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_icons.dart';
 import '../../widgets/ui.dart';
+import '../customers/customers_screen.dart';
+import '../finance/finance_screen.dart';
+import '../flights/flights_screen.dart';
+import '../flyers/flyers_screen.dart';
+import '../intake/intake_screen.dart';
+import '../settings/settings_screen.dart';
+import '../shipments/shipment_picker_screen.dart';
+import '../tasks/tasks_screen.dart';
 import 'destinations.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -15,18 +23,19 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = moreDestinations(user.role);
+    final items = {for (final item in moreDestinations(user.role)) item.id: item};
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          padding: const EdgeInsets.fromLTRB(pageGutter, 20, pageGutter, 28),
           children: [
-            const Text('আরও', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 12),
+            const PageHeader(title: 'আরও', subtitle: 'বাকি কাজ এখান থেকে। হাব ম্যানেজার টাকা ও কাস্টমারের নাম দেখেন না।'),
             PaperCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const BrandLockup(),
+                  const SizedBox(height: 12),
                   Text(user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text(user.email, style: const TextStyle(color: AppColors.muted)),
@@ -36,9 +45,17 @@ class MoreScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            for (final item in items) ...[
-              _MoreTile(item: item, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StubScreen(destination: item)))),
-              const SizedBox(height: 8),
+            for (final group in moreGroups(user.role)) ...[
+              SectionTitle(title: group.title),
+              for (final id in group.ids) ...[
+                if (items[id] != null)
+                  DirectoryTile(
+                    title: items[id]!.title,
+                    subtitle: items[id]!.body,
+                    onTap: () => openMoreDestination(context, items[id]!),
+                  ),
+                const SizedBox(height: 8),
+              ],
             ],
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -59,51 +76,20 @@ class MoreScreen extends StatelessWidget {
   }
 }
 
-class _MoreTile extends StatelessWidget {
-  const _MoreTile({required this.item, required this.onTap});
-
-  final MoreDestination item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(cardRadius),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(cardRadius),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: minTouchTarget),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(cardRadius), border: Border.all(color: AppColors.line)),
-          child: Row(
-            children: [
-              Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16))),
-              const Text('পরে', style: TextStyle(color: AppColors.muted)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class StubScreen extends StatelessWidget {
-  const StubScreen({super.key, required this.destination});
-
-  final MoreDestination destination;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: BackTitle(title: destination.title),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          EmptyNote(title: 'এই স্ক্রিন এই স্লাইসে নেই', body: destination.body),
-        ],
-      ),
-    );
-  }
+void openMoreDestination(BuildContext context, MoreDestination item) {
+  final screen = switch (item.id) {
+    'intake' => const IntakeScreen(),
+    'invoice-share' => const ShipmentPickerScreen(target: ShipmentPickTarget.invoice),
+    'flights' => const FlightsScreen(),
+    'flyers' => const FlyersScreen(),
+    'customers' => const CustomersScreen(),
+    'finance' => const FinanceScreen(),
+    'assign' => const AssignTaskScreen(),
+    'settings' => const SettingsScreen(),
+    'media' => const ShipmentPickerScreen(target: ShipmentPickTarget.photos),
+    'imei' => const ShipmentPickerScreen(target: ShipmentPickTarget.imei),
+    _ => null,
+  };
+  if (screen == null) return;
+  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
 }

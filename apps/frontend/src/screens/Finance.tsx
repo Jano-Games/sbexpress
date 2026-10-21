@@ -868,7 +868,7 @@ export function Finance() {
               : action === "account"
                 ? editingAccount
                   ? "Update account details. Name, currency and balance are preserved."
-                  : "Set up a fund and its opening balance."
+                  : "Set up a fund. A non-zero opening balance is posted as capital in this account's currency. It is not income."
                 : action === "expense"
                   ? "Record a business expense paid from an account."
                   : "Record an actual movement of money."}

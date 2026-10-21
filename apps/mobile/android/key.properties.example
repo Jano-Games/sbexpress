@@ -1,6 +1,8 @@
-# Copy to android/key.properties on the release CI machine.
-# Do not commit key.properties or the keystore. Nearo provides this secret.
-storeFile=upload-keystore.jks
+# Copy to android/key.properties. Do not commit that file or the keystore.
+# storeFile is relative to apps/mobile/android/ unless it is absolute.
+# If MOBILE_KEYSTORE_PASSWORD is set in the environment, it replaces both
+# storePassword and keyPassword. keyAlias defaults to sbexpress when omitted.
+storeFile=/absolute/path/sbexpress-release.keystore
 storePassword=
-keyAlias=
+keyAlias=sbexpress
 keyPassword=

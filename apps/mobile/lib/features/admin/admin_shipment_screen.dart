@@ -13,11 +13,13 @@ import '../../data/uploads/photo_upload.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import 'money_format.dart';
+import 'shipment_money_panel.dart';
 
 class AdminShipmentScreen extends StatefulWidget {
-  const AdminShipmentScreen({super.key, required this.code});
+  const AdminShipmentScreen({super.key, required this.code, this.initialTab = 0});
 
   final String code;
+  final int initialTab;
 
   @override
   State<AdminShipmentScreen> createState() => _AdminShipmentScreenState();
@@ -35,6 +37,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTab;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
@@ -134,7 +137,10 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
           if (_loading && detail == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (detail != null && _tab == 0) _Summary(detail: detail, link: _link, onShare: _share),
-          if (detail != null && _tab == 1) _Bill(detail: detail),
+          if (detail != null && _tab == 1) ...[
+            _Bill(detail: detail),
+            ShipmentMoneyPanel(code: widget.code, dueAmount: detail.dueAmount),
+          ],
           if (detail != null && _tab == 2) _Photos(media: _media, photos: _photos, onPick: _pick, onToggle: _toggleShare),
         ],
       ),
@@ -223,7 +229,7 @@ class _Summary extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 8),
-        const Text('ইনভয়েসসহ শেয়ার এই স্লাইসে নেই।', style: TextStyle(color: AppColors.muted)),
+        const Text('ইনভয়েস ইস্যু ও ইনভয়েসসহ লিংক বিল ট্যাবে।', style: TextStyle(color: AppColors.muted, height: 1.35)),
       ],
     );
   }
