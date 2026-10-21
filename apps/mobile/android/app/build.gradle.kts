@@ -14,18 +14,23 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-fun signingValue(envName: String, propertyName: String): String? {
-    val fromEnv = System.getenv(envName)?.trim()
-    if (!fromEnv.isNullOrEmpty()) return fromEnv
-    val fromFile = keystoreProperties.getProperty(propertyName)?.trim()
-    if (!fromFile.isNullOrEmpty()) return fromFile
+fun firstNonBlank(vararg values: String?): String? {
+    for (value in values) {
+        val trimmed = value?.trim()
+        if (!trimmed.isNullOrEmpty()) return trimmed
+    }
     return null
 }
 
-val releaseStorePath = signingValue("ANDROID_KEYSTORE_PATH", "storeFile")
-val releaseStorePassword = signingValue("ANDROID_KEYSTORE_PASSWORD", "storePassword")
-val releaseKeyAlias = signingValue("ANDROID_KEY_ALIAS", "keyAlias")
-val releaseKeyPassword = signingValue("ANDROID_KEY_PASSWORD", "keyPassword")
+fun env(name: String): String? = System.getenv(name)
+
+// MOBILE_KEYSTORE_PASSWORD, when set, is both the store password and the key password.
+val mobilePassword = env("MOBILE_KEYSTORE_PASSWORD")?.trim()?.takeIf { it.isNotEmpty() }
+val releaseStorePath = firstNonBlank(env("ANDROID_KEYSTORE_PATH"), keystoreProperties.getProperty("storeFile"))
+val releaseStorePassword = mobilePassword ?: firstNonBlank(env("ANDROID_KEYSTORE_PASSWORD"), keystoreProperties.getProperty("storePassword"))
+val releaseKeyPassword = mobilePassword ?: firstNonBlank(env("ANDROID_KEY_PASSWORD"), keystoreProperties.getProperty("keyPassword"))
+val releaseKeyAlias = firstNonBlank(env("ANDROID_KEY_ALIAS"), keystoreProperties.getProperty("keyAlias"))
+    ?: if (releaseStorePath != null) "sbexpress" else null
 val hasReleaseKeystore = listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null }
 
 android {
@@ -69,7 +74,7 @@ android {
     buildTypes {
         release {
             // Debug signing is only for non-release builds. A release task fails
-            // in whenReady below when the Nearo-provided keystore secret is absent.
+            // in whenReady below when the release keystore is absent.
             signingConfig = if (hasReleaseKeystore) {
                 signingConfigs.getByName("release")
             } else {
@@ -86,7 +91,7 @@ gradle.taskGraph.whenReady {
     }
     if (releasing && !hasReleaseKeystore) {
         throw GradleException(
-            "Release signing needs a keystore. Set android/key.properties (storeFile, storePassword, keyAlias, keyPassword) or ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD. Debug signing is not used for release. The keystore is a Nearo-provided CI secret and is not in this repo.",
+            "Release signing needs a keystore. Set android/key.properties (storeFile, storePassword, keyAlias, keyPassword) or ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD. MOBILE_KEYSTORE_PASSWORD, when set, is used for both the store password and the key password. The alias defaults to sbexpress when a keystore path is set and no alias is given. Debug signing is not used for release. Do not commit the keystore or passwords.",
         )
     }
 }

@@ -1,6 +1,3 @@
-import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,6 +14,7 @@ import '../../data/uploads/photo_upload.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../flights/flight_detail_screen.dart';
+import '../pdf/pdf_bytes_screen.dart';
 
 class FlyerDetailScreen extends StatefulWidget {
   const FlyerDetailScreen({super.key, required this.name});
@@ -112,31 +110,46 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     }
   }
 
-  Future<void> _shareDocument(FlyerDocument document) async {
+  Future<List<int>?> _loadDocument(FlyerDocument document) async {
     setState(() => _busy = true);
     try {
       final url = await AppScope.of(context).flyers.documentUrl(widget.name, document.reference);
-      final bytes = await downloadUrl(url);
-      if (!mounted) return;
-      final mime = document.contentType.isEmpty ? 'application/octet-stream' : document.contentType;
-      await shareBytes(bytes: bytes, filename: document.name, mimeType: mime);
+      return await downloadUrl(url);
     } on ApiException catch (error) {
-      if (!mounted || error.status == 401) return;
-      setState(() => _error = error.message);
+      if (mounted && error.status != 401) setState(() => _error = error.message);
+      return null;
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = error.toString());
+      return null;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _pickPdf() async {
-    final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf'], withData: true);
-    final file = picked?.files.single;
-    if (file == null) return;
-    final Uint8List? bytes = file.bytes ?? (file.path == null ? null : await File(file.path!).readAsBytes());
+  Future<void> _viewDocument(FlyerDocument document) async {
+    final bytes = await _loadDocument(document);
     if (!mounted || bytes == null) return;
+    await openPdf(context, title: document.name, filename: document.name, bytes: bytes);
+  }
+
+  Future<void> _shareDocument(FlyerDocument document) async {
+    final bytes = await _loadDocument(document);
+    if (!mounted || bytes == null) return;
+    final mime = document.contentType.isEmpty ? 'application/octet-stream' : document.contentType;
+    try {
+      await shareBytes(bytes: bytes, filename: document.name, mimeType: mime);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    }
+  }
+
+  Future<void> _pickPdf() async {
+    final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf']);
+    if (picked.isEmpty) return;
+    final file = picked.single;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
     if (bytes.length > imageUploadMaxBytes) {
       setState(() => _error = 'PDF ১০ MB-এর বেশি। আরও ছোট ফাইল দিন।');
       return;
@@ -230,7 +243,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                 const SizedBox(height: 8),
               ],
               const SizedBox(height: 8),
-              const SectionTitle(title: 'ডকুমেন্ট', subtitle: 'ছবি JPEG-এ যায়। PDF আলাদা। ফাইল অন্য অ্যাপে খুলবে। IMEI ছবি এখানে নয়।'),
+              const SectionTitle(title: 'ডকুমেন্ট', subtitle: 'ছবি JPEG-এ যায়। PDF অ্যাপে খোলে, শেয়ারও থাকে। IMEI ছবি এখানে নয়।'),
               if (documents != null && !documents.configured)
                 const ErrorNote(message: 'স্টোরেজ এখনো তৈরি হয়নি। সেটআপ শেষ না হওয়া পর্যন্ত আপলোড বন্ধ।'),
               DropdownButtonFormField<String>(
@@ -271,7 +284,11 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                         Text(document.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                         Text('${flyerDocumentKinds[document.kind] ?? document.kind} · ${document.uploadedByName}', style: const TextStyle(color: AppColors.muted)),
                         const SizedBox(height: 8),
-                        AppButton(label: 'দেখুন / শেয়ার', kind: AppButtonKind.quiet, busy: _busy, onPressed: () => _shareDocument(document)),
+                        if (document.isPdf) ...[
+                          AppButton(label: 'অ্যাপে দেখুন', kind: AppButtonKind.teal, busy: _busy, onPressed: () => _viewDocument(document)),
+                          const SizedBox(height: 8),
+                        ],
+                        AppButton(label: 'শেয়ার', kind: AppButtonKind.quiet, busy: _busy, onPressed: () => _shareDocument(document)),
                         const SizedBox(height: 8),
                         AppButton(
                           label: document.verified ? 'যাচাই তুলে নিন' : 'যাচাই করুন',

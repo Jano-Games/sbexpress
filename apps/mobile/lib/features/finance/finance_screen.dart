@@ -10,6 +10,7 @@ import '../admin/payment_review_screen.dart';
 import 'fund_account_screen.dart';
 import 'ledger_screen.dart';
 import 'office_entry_screen.dart';
+import 'reconciliation_screen.dart';
 import 'transfer_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
@@ -163,6 +164,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ),
               const SizedBox(height: 8),
               AppButton(label: 'লেজার', kind: AppButtonKind.quiet, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const LedgerScreen()))),
+              const SizedBox(height: 8),
+              AppButton(label: 'মিলিয়ে দেখা', kind: AppButtonKind.quiet, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ReconciliationScreen()))),
               const SizedBox(height: 8),
               AppButton(
                 label: 'নতুন ফান্ড',

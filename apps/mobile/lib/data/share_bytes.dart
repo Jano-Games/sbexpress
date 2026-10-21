@@ -10,7 +10,7 @@ Future<void> shareBytes({required List<int> bytes, required String filename, req
   final safe = filename.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '-');
   final file = File('${Directory.systemTemp.path}/$safe');
   await file.writeAsBytes(bytes, flush: true);
-  await Share.shareXFiles([XFile(file.path, mimeType: mimeType, name: safe)]);
+  await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: mimeType, name: safe)]));
 }
 
 Future<List<int>> downloadUrl(String url) async {

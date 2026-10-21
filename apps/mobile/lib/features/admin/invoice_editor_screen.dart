@@ -6,6 +6,7 @@ import '../../data/models/workspace.dart';
 import '../../data/money_payload.dart';
 import '../../data/share_bytes.dart';
 import '../../theme/app_colors.dart';
+import '../pdf/pdf_bytes_screen.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
 import 'money_format.dart';
@@ -210,23 +211,38 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
     }
   }
 
-  Future<void> _pdf() async {
+  Future<List<int>?> _loadPdf() async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final bytes = await AppScope.of(context).shipments.invoicePdf(widget.code);
-      if (!mounted) return;
-      await shareBytes(bytes: bytes, filename: 'invoice-${widget.code}.pdf', mimeType: 'application/pdf');
+      return await AppScope.of(context).shipments.invoicePdf(widget.code);
     } on ApiException catch (error) {
-      if (!mounted || error.status == 401) return;
-      setState(() => _error = error.message);
+      if (mounted && error.status != 401) setState(() => _error = error.message);
+      return null;
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+      return null;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _viewPdf() async {
+    final bytes = await _loadPdf();
+    if (!mounted || bytes == null) return;
+    await openPdf(context, title: widget.code, filename: 'invoice-${widget.code}.pdf', bytes: bytes);
+  }
+
+  Future<void> _pdf() async {
+    final bytes = await _loadPdf();
+    if (!mounted || bytes == null) return;
+    try {
+      await shareBytes(bytes: bytes, filename: 'invoice-${widget.code}.pdf', mimeType: 'application/pdf');
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -322,7 +338,9 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
             ],
             AppButton(label: issued ? 'ইস্যু আপডেট' : 'ইস্যু করুন', kind: AppButtonKind.current, busy: _busy, onPressed: () => _save('issued')),
             const SizedBox(height: 8),
-            AppButton(label: 'PDF শেয়ার', kind: AppButtonKind.teal, busy: _busy, onPressed: _pdf),
+            AppButton(label: 'PDF দেখুন', kind: AppButtonKind.teal, busy: _busy, onPressed: _viewPdf),
+            const SizedBox(height: 8),
+            AppButton(label: 'PDF শেয়ার', kind: AppButtonKind.quiet, busy: _busy, onPressed: _pdf),
           ],
         ],
       ),

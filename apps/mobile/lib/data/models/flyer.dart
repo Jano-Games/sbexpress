@@ -178,6 +178,7 @@ class FlyerDocument {
   final String? verifiedByName;
 
   bool get verified => verifiedAt != null;
+  bool get isPdf => contentType.toLowerCase().contains('pdf') || name.toLowerCase().endsWith('.pdf');
 
   factory FlyerDocument.fromJson(Map<String, Object?> json) {
     return FlyerDocument(

@@ -7,3 +7,8 @@ dist/
 
 # Private local database snapshots and environment backups
 .local-backups/
+
+# Android release signing. Never commit keystores or passwords.
+*.jks
+*.keystore
+**/key.properties

@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
+import 'customer_activity_screen.dart';
 import 'customer_credit_screen.dart';
 import 'customer_form_screen.dart';
 import 'statement_screen.dart';
@@ -217,6 +218,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 label: 'মাসিক স্টেটমেন্ট',
                 kind: AppButtonKind.teal,
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => StatementScreen(code: detail.code, name: detail.name))),
+              ),
+              const SizedBox(height: 8),
+              AppButton(
+                label: 'অ্যাকাউন্ট হিসাব',
+                kind: AppButtonKind.quiet,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => CustomerActivityScreen(code: detail.code, name: detail.name)),
+                ),
               ),
               const SizedBox(height: 8),
               AppButton(

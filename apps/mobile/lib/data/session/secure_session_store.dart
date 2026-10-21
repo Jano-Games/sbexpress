@@ -5,15 +5,14 @@ import 'session_store.dart';
 class SecureSessionStore implements SessionStore {
   SecureSessionStore({FlutterSecureStorage? storage}) : _storage = storage ?? secureSessionStorage();
 
-  /// Pinned options. Android backup rules exclude [sharedPreferencesName].
-  static const sharedPreferencesName = 'sbexpress_secure';
+  /// Pinned options. Android backup rules exclude this preferences file.
+  static const storageNamespace = 'sbexpress_secure';
 
   static FlutterSecureStorage secureSessionStorage() {
     return const FlutterSecureStorage(
       aOptions: AndroidOptions(
-        encryptedSharedPreferences: true,
         resetOnError: false,
-        sharedPreferencesName: sharedPreferencesName,
+        storageNamespace: storageNamespace,
         preferencesKeyPrefix: 'sbx.',
         keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
         storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,

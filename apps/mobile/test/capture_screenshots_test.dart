@@ -24,9 +24,12 @@ import 'package:sbexpress/data/session/session_store.dart';
 import 'package:sbexpress/features/admin/admin_home_screen.dart';
 import 'package:sbexpress/features/admin/invoice_editor_screen.dart';
 import 'package:sbexpress/features/admin/shipment_costs_screen.dart';
+import 'package:sbexpress/features/customers/customer_activity_screen.dart';
 import 'package:sbexpress/features/customers/customers_screen.dart';
 import 'package:sbexpress/features/customers/statement_screen.dart';
 import 'package:sbexpress/features/finance/finance_screen.dart';
+import 'package:sbexpress/features/finance/fund_account_screen.dart';
+import 'package:sbexpress/features/finance/reconciliation_screen.dart';
 import 'package:sbexpress/features/finance/transfer_screen.dart';
 import 'package:sbexpress/features/flights/flight_money_screen.dart';
 import 'package:sbexpress/features/flights/flights_screen.dart';
@@ -72,6 +75,9 @@ void main() {
     await _shot(tester, _scoped(scope, const ShipmentCostsScreen(code: 'SH-18')), '13-costs', find.byType(ShipmentCostsScreen));
     await _shot(tester, _scoped(scope, const StatementScreen(code: 'C-14', name: 'Nila Store')), '14-statement', find.byType(StatementScreen));
     await _shot(tester, _scoped(scope, const PayMethodFormScreen()), '15-pay-method', find.byType(PayMethodFormScreen));
+    await _shot(tester, _scoped(scope, const ReconciliationScreen()), '16-reconciliation', find.byType(ReconciliationScreen));
+    await _shot(tester, _scoped(scope, const CustomerActivityScreen(code: 'C-14', name: 'Nila Store')), '17-activity', find.byType(CustomerActivityScreen));
+    await _shot(tester, _scoped(scope, const FundAccountScreen()), '18-opening-balance', find.byType(FundAccountScreen));
   });
 }
 
@@ -120,19 +126,23 @@ ApiClient _api() {
                   ? _statementReceipts()
                   : path.endsWith('/users')
                       ? _usersBody()
-                      : path.contains('/shipments/')
-                          ? _costBody()
-                          : path.contains('/flights/')
-                              ? _flightDetail()
-                              : path.endsWith('/hub')
-                                  ? _hubBody()
-                                  : path.endsWith('/overview')
-                                      ? _overviewBody()
-                                      : path.endsWith('/flights')
-                                          ? _flightsBody()
-                                          : path.endsWith('/suppliers')
-                                              ? _customersBody()
-                                              : _financeBody();
+                      : path.contains('/reconciliation')
+                          ? _reconciliationBody()
+                          : path.contains('/activity')
+                              ? _activityBody()
+                              : path.contains('/shipments/')
+                                  ? _costBody()
+                                  : path.contains('/flights/')
+                                      ? _flightDetail()
+                                      : path.endsWith('/hub')
+                                          ? _hubBody()
+                                          : path.endsWith('/overview')
+                                              ? _overviewBody()
+                                              : path.endsWith('/flights')
+                                                  ? _flightsBody()
+                                                  : path.endsWith('/suppliers')
+                                                      ? _customersBody()
+                                                      : _financeBody();
       return http.Response(jsonEncode(body), 200, headers: {'content-type': 'application/json'});
     }),
   );
@@ -237,6 +247,60 @@ Map<String, Object?> _customersBody() => {
           'creditBalance': 0,
           'pricingPending': 1,
           'discountTotal': 200,
+        },
+      ],
+    };
+
+Map<String, Object?> _reconciliationBody() => {
+      'accounts': [
+        {'name': 'Dhaka cash', 'currency': 'BDT', 'balance': 84250, 'recordedNetMovement': 18000, 'impliedOpeningBalance': 66250},
+        {'name': 'Chengdu cash', 'currency': 'CNY', 'balance': 1200, 'recordedNetMovement': 1200, 'impliedOpeningBalance': 0},
+      ],
+      'missingPostings': [
+        {'kind': 'payment', 'reference': 'Legacy deposit', 'amount': 50},
+      ],
+      'shipmentDifferences': [
+        {'code': 'SH-18', 'allocatedPaid': 1000, 'ledgerPaid': 800, 'difference': 200},
+      ],
+      'note': 'Implied opening balances are derived from current balances and recorded movements.',
+    };
+
+Map<String, Object?> _activityBody() => {
+      'page': 1,
+      'total': 2,
+      'limit': 25,
+      'entries': [
+        {
+          'id': 'p1',
+          'label': 'Payment',
+          'kind': 'customer',
+          'amount': 1000,
+          'sourceCurrency': 'BDT',
+          'sourceAmount': 1000,
+          'sourceFxRate': 1,
+          'at': '2026-10-20T09:30:00.000Z',
+          'reference': 'SH-18 / bkash',
+          'shipmentCode': 'SH-18',
+          'accountName': 'Dhaka cash',
+          'reason': '',
+          'canReverse': true,
+          'reversalKind': 'payment',
+        },
+        {
+          'id': 'c1',
+          'label': 'Credit applied',
+          'kind': 'applied',
+          'amount': -200,
+          'sourceCurrency': 'CNY',
+          'sourceAmount': 11.43,
+          'sourceFxRate': 17.5,
+          'at': '2026-10-19T04:00:00.000Z',
+          'reference': 'advance',
+          'shipmentCode': null,
+          'accountName': null,
+          'reason': 'Applied to bill',
+          'canReverse': false,
+          'reversalKind': 'credit',
         },
       ],
     };

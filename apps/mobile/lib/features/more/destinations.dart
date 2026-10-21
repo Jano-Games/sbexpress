@@ -33,7 +33,7 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'invoice-share',
           title: 'ইনভয়েস ইস্যু ও শেয়ার',
-          body: 'লাইন, ছাড়, PDF ও ট্র্যাকিং বা ইনভয়েস লিংক।',
+          body: 'লাইন, ছাড়, PDF দেখা ও শেয়ার, ট্র্যাকিং বা ইনভয়েস লিংক।',
         ),
         MoreDestination(
           id: 'flights',
@@ -48,12 +48,12 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'customers',
           title: 'কাস্টমার',
-          body: 'নাম, বকেয়া ও শিপমেন্ট।',
+          body: 'নাম, বকেয়া, অ্যাকাউন্ট হিসাব ও শিপমেন্ট।',
         ),
         MoreDestination(
           id: 'finance',
           title: 'ফাইন্যান্স',
-          body: 'ক্যাশ, ট্রান্সফার, জমা, খরচ ও লেজার।',
+          body: 'ক্যাশ, ট্রান্সফার, শুরুর ব্যালেন্স, মিল, জমা, খরচ ও লেজার।',
         ),
         MoreDestination(
           id: 'assign',

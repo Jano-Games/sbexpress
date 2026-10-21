@@ -24,16 +24,42 @@ flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3002
 
 Any `401` clears the saved session and returns to login. Screens that were open are discarded. The client does not call logout for that path, because logout would `401` again.
 
-The session token is stored with pinned secure-storage options (encrypted shared preferences, AES-GCM, keychain `first_unlock_this_device`, not iCloud-synced). Android backup and device-transfer rules exclude the `sbexpress_secure` preferences file so the token is not copied off the device.
+The session token is stored with pinned secure-storage options (AES-GCM, storage namespace `sbexpress_secure`, keychain `first_unlock_this_device`, not iCloud-synced). Android backup and device-transfer rules exclude that preferences file, its key file, and its configuration file so the token is not copied off the device.
 
 ## Android release signing
 
-Release builds do not ship with the debug key. Debug and profile builds keep the debug signing config. A release assemble fails until a keystore is present. That keystore is a Nearo-provided CI secret and is not in this repo. Provide either:
+Release builds do not use the debug key. Debug and profile builds keep debug signing. `assembleRelease` fails until a keystore is configured. The keystore and passwords stay out of git (`*.jks`, `*.keystore`, and `key.properties` are ignored).
 
-- `apps/mobile/android/key.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`), or
-- `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`
+Gradle reads, in order:
 
-`storeFile` is relative to `apps/mobile/android/` unless the path is absolute. See `android/key.properties.example`. Do not commit `key.properties` or the `.jks`.
+1. `MOBILE_KEYSTORE_PASSWORD`, when set, is used for both the store password and the key password.
+2. Otherwise `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_PASSWORD`, then `storePassword` and `keyPassword` in `android/key.properties`.
+3. The keystore path from `ANDROID_KEYSTORE_PATH`, then `storeFile`. A relative `storeFile` is resolved from `apps/mobile/android/`.
+4. The alias from `ANDROID_KEY_ALIAS`, then `keyAlias`. If a path is set and no alias is given, the alias is `sbexpress`.
+
+Create a keystore once and keep the file with the owner. Do not commit it:
+
+```bash
+keytool -genkeypair -v \
+  -keystore "$HOME/sbexpress-release.keystore" \
+  -alias sbexpress \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -storepass:env MOBILE_KEYSTORE_PASSWORD \
+  -keypass:env MOBILE_KEYSTORE_PASSWORD \
+  -dname "CN=Sichuan Bangla Express, OU=Mobile, O=SBExpress, C=BD"
+```
+
+Then build a signed release APK. The API origin must be https:
+
+```bash
+export ANDROID_KEYSTORE_PATH="$HOME/sbexpress-release.keystore"
+export ANDROID_KEY_ALIAS=sbexpress
+export MOBILE_KEYSTORE_PASSWORD='the owner password'
+cd apps/mobile
+flutter build apk --release --dart-define=API_BASE_URL=https://api.example
+```
+
+`android/key.properties.example` shows the file form. Copy it to `android/key.properties` only on the machine that signs the release.
 
 ## Screens
 
@@ -46,13 +72,13 @@ Bottom navigation stays four tabs: হোম, Shipment, কাজ, আরও. Ad
 | Admin home | Admin | `GET /api/dashboard/overview`. Review count, cash, unpaid, next flight, active shipments. |
 | Shipments | Both | `GET /api/shipments`. Hub rows drop money and names. Admin can start intake. |
 | Shipment process | Hub | Receive, weigh, pack, courier, dispatch, handover. IMEI photos when the shipment has devices. |
-| Shipment detail | Admin | Summary, bill, photos. Issue the calculated invoice, share tracking or invoice, record a payment into an existing ledger account. |
+| Shipment detail | Admin | Summary, bill, photos. Issue or edit the invoice, view and share the PDF, record a payment into an existing ledger account. |
 | Tasks | Both | `GET/POST /api/todos`. Admin can assign a note to hub. |
 | Intake | Admin | Customers, categories, optional flight and flyer, `POST /api/shipments`. |
 | Flights | Admin | List, detail, create, assign a flyer. Ticket cash is not posted from the phone. |
-| Flyers | Admin | Profile, flights, document list, JPEG upload, verify. |
-| Customers | Admin | List, detail, create. Balances come from issued invoices. |
-| Finance | Admin | `GET /api/finance`. Read-only cash, results, receivables and accounts. |
+| Flyers | Admin | Profile, flights, document list, JPEG upload, verify. PDF documents open in the app and can still be shared. |
+| Customers | Admin | List, detail, create, statement links, credit, and account activity with reversal. Balances come from issued invoices. |
+| Finance | Admin | Cash, transfers, income and expenses, ledger, reconciliation, and a new fund. A non-zero opening balance is capital in the ledger, not income. |
 | Settings | Admin | Setup status, confirm the CNY rate, show pay methods and staff. No new bank details are typed here. |
 | IMEI guide | Both | Camera frame, then `POST /device-photo`. The photo stays private. |
 | Media | Both | Pick a shipment and open its photos. |

@@ -1,4 +1,6 @@
 import { moneyBody, sourceFields, sourceAt, withSavedMoney } from '../shared/money'
+import { openingCapital } from '../shared/openingBalance'
+import { getSettings } from '../shared/settings'
 import { addShipmentBillCharge } from '../shared/shipmentBilling'
 import { assertUniqueBank, bankDetailsSchema, assertUniqueMobile, mobileDetailsSchema } from '../shared/bankAccounts'
 import { Hono } from 'hono'
@@ -10,7 +12,7 @@ import { cacheInvalidate } from '../core/redis'
 import { badRequest, notFound } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { num } from '../shared/serialize'
-import { creditPayment, debitCash } from '../shared/ledger'
+import { creditPayment, debitCash, postOpeningCapital } from '../shared/ledger'
 
 import { financialSummary } from '../shared/financialSummary'
 
@@ -30,7 +32,7 @@ export const financeRoutes = new Hono<AppEnv>()
         bank: bankDetailsSchema.optional(),
         mobile: mobileDetailsSchema.optional(),
         currency: z.enum(['BDT', 'CNY']).default('BDT'),
-        balance: z.number().default(0),
+        balance: z.number().finite().min(0).max(9999999999).default(0),
       })
       .parse(await c.req.json())
     if (await prisma.account.findFirst({ where: { name: { equals: body.name.trim(), mode: 'insensitive' } } })) throw badRequest('An account with this name already exists')
@@ -38,6 +40,8 @@ export const financeRoutes = new Hono<AppEnv>()
     if (body.kind !== 'bank' && body.bank) throw badRequest('Bank details require a bank account')
     if (['mobile','wallet'].includes(body.kind ?? '') && !body.mobile) throw badRequest('Mobile provider and account number are required')
     if (body.mobile && !['mobile','wallet'].includes(body.kind ?? '')) throw badRequest('Mobile details require mobile money or wallet type')
+    const quoted = body.currency === 'CNY' ? (await getSettings()).exchangeRates.CNY : 1
+    const capital = openingCapital(body.balance, body.currency, quoted)
     if (body.mobile) await assertUniqueMobile(body.mobile)
     if (body.bank) await assertUniqueBank(body.bank)
     const account = await prisma.account.create({
@@ -45,7 +49,7 @@ export const financeRoutes = new Hono<AppEnv>()
         name: body.name.trim(),
         kind: body.kind ?? (body.name.trim().toLowerCase() === 'cash' && body.currency === 'BDT' ? 'cash' : 'fund') as AccountKind,
         currency: body.currency as Currency,
-        balance: new Prisma.Decimal(body.balance),
+        balance: new Prisma.Decimal(0),
       },
     })
     if (body.bank) {
@@ -56,6 +60,7 @@ export const financeRoutes = new Hono<AppEnv>()
       const last = await prisma.payMethod.findFirst({orderBy:{order:'desc'}})
       await prisma.payMethod.create({data:{kind:'mobile_banking',...body.mobile,accountId:account.id,order:(last?.order ?? -1)+1}})
     }
+    if (capital) await postOpeningCapital(account, capital.opening, capital.amountBdt, capital.rate)
     await cacheInvalidate('dashboard')
     return c.json({ ok: true }, 201)
   })

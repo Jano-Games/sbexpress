@@ -52,7 +52,7 @@ pnpm db:seed        # initialize missing settings; preserve all existing data
 pnpm dev            # turbo TUI: backend on :3002, frontend on :5178
 ```
 
-The Android app lives in `apps/mobile`. It is not part of the pnpm scripts. Hub staff still never see money or customer names. Admin can record payments, confirm the CNY rate, edit invoices, settle costs and flight cash, share PDFs, manage statement links and staff, and add bKash or bank methods. A debug build points at the emulator host:
+The Android app lives in `apps/mobile`. It is not part of the pnpm scripts. Hub staff still never see money or customer names. Admin can record payments, confirm the CNY rate, edit invoices, view and share PDFs, settle costs and flight cash, reconcile finance, read customer activity, open a fund with a ledger opening balance, manage statement links and staff, and add bKash or bank methods. A debug build points at the emulator host:
 
 ```bash
 cd apps/mobile
@@ -61,7 +61,7 @@ flutter test
 flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3002
 ```
 
-Release builds require HTTPS and a signing key (`android/key.properties` or `ANDROID_KEYSTORE_*`). There is no in-app PDF viewer: invoices and flyer files open through the Android share sheet. Customers still upload statement receipts on the public web link. Finance reconciliation stays on the web.
+Release builds require HTTPS. Signing reads `android/key.properties` or `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. `MOBILE_KEYSTORE_PASSWORD`, when set, is both the store password and the key password. The alias defaults to `sbexpress`. Do not commit the keystore or passwords. See `apps/mobile/README.md`. Customers still submit payment receipts on the public web link.
 
 `apps/backend/.env` is gitignored. Copy `.env.example` on first setup; its defaults
 use Docker PostgreSQL at `localhost:5435/mamun_local` and Redis at `localhost:6382`.

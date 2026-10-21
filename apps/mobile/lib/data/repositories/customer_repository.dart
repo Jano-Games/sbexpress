@@ -1,6 +1,7 @@
 import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/customer.dart';
+import '../models/customer_activity.dart';
 import '../models/ledger_actions.dart';
 import '../money_payload.dart';
 import 'shipment_repository.dart';
@@ -57,6 +58,11 @@ class CustomerRepository {
 
   Future<void> rejectStatementReceipt(String code, String reference, String reason) {
     return api.postJson('${_path(code)}/statement-receipts/${Uri.encodeComponent(reference)}/reject', body: {'reason': reason});
+  }
+
+  Future<CustomerActivityPage> activity(String code, {int page = 1}) async {
+    final json = await api.getJson('${_path(code)}/activity?page=$page');
+    return CustomerActivityPage.fromJson(json);
   }
 
   Future<double> creditBalance(String code) async {

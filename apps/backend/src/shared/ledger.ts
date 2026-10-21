@@ -36,6 +36,35 @@ export async function creditPayment(
 
 }
 
+/** Record a new fund's opening cash as capital. The typed currency amount is exact; BDT is the saved-rate equivalent. */
+export async function postOpeningCapital(
+  account: { id: string; name: string; currency: 'BDT' | 'CNY' },
+  opening: number,
+  amountBdt: number,
+  rate: number,
+) {
+  await prisma.account.update({
+    where: { id: account.id },
+    data: { balance: { increment: new Prisma.Decimal(opening) } },
+  })
+  return prisma.payment.create({
+    data: {
+      sourceCurrency: account.currency,
+      sourceFxRate: rate,
+      sourceAmount: new Prisma.Decimal(opening),
+      date: new Date(),
+      method: account.name,
+      amount: new Prisma.Decimal(amountBdt),
+      reference: 'Opening balance',
+      kind: 'capital',
+      accountName: account.name,
+      accountCurrency: account.currency,
+      accountAmount: new Prisma.Decimal(opening),
+      fxRate: rate,
+    },
+  })
+}
+
 /** Expenses come out of the Dhaka cash drawer. */
 export async function debitCash(amountBdt: number, accountName = 'Cash'): Promise<{accountName:string;accountCurrency:'BDT'|'CNY';accountAmount:number;fxRate:number}> {
   const accounts = await prisma.account.findMany({ orderBy: { createdAt: 'asc' } })

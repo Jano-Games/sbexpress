@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/money_payload.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
+import '../admin/money_format.dart';
 
 class FundAccountScreen extends StatefulWidget {
   const FundAccountScreen({super.key});
@@ -15,6 +17,7 @@ class FundAccountScreen extends StatefulWidget {
 
 class _FundAccountScreenState extends State<FundAccountScreen> {
   final _name = TextEditingController();
+  final _opening = TextEditingController();
   var _kind = 'cash';
   var _currency = 'BDT';
   String? _error;
@@ -23,6 +26,7 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
   @override
   void dispose() {
     _name.dispose();
+    _opening.dispose();
     super.dispose();
   }
 
@@ -32,14 +36,23 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
       setState(() => _error = 'অ্যাকাউন্টের আসল নাম লিখুন।');
       return;
     }
-    final ok = await confirmMoney(context, title: 'নতুন ফান্ড', body: '$name ($_currency) খুলবে। শুরুর ব্যালেন্স ০। টাকা ঢোকাতে আয় বা ট্রান্সফার ব্যবহার করুন।');
+    final typed = _opening.text.trim();
+    final opening = typed.isEmpty ? 0.0 : parseMoney(typed);
+    if (opening == null || opening < 0) {
+      setState(() => _error = 'শুরুর ব্যালেন্স ০ বা তার বেশি, দুই দশমিক পর্যন্ত।');
+      return;
+    }
+    final body = opening == 0
+        ? '$name ($_currency) খুলবে। শুরুর ব্যালেন্স ০। টাকা ঢোকাতে আয় বা ট্রান্সফার ব্যবহার করুন।'
+        : '$name-এ ${formatMoney(opening, _currency)} শুরুর ব্যালেন্স ক্যাপিটাল হিসেবে লেজারে যাবে। এটা আয় নয়।';
+    final ok = await confirmMoney(context, title: 'নতুন ফান্ড', body: body);
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await AppScope.of(context).finance.createAccount(name: name, kind: _kind, currency: _currency);
+      await AppScope.of(context).finance.createAccount(name: name, kind: _kind, currency: _currency, balance: opening);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ApiException catch (error) {
@@ -57,8 +70,17 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
         children: [
-          const PageHeader(title: 'নতুন ফান্ড', subtitle: 'ক্যাশ বা সাধারণ ফান্ড। ব্যাংক ও বিকাশ পেমেন্ট মেথড থেকে যোগ হয়, যাতে নম্বর মিলে।'),
+          const PageHeader(
+            title: 'নতুন ফান্ড',
+            subtitle: 'ক্যাশ বা সাধারণ ফান্ড। শুরুর টাকা ক্যাপিটাল পেমেন্ট। খালি রাখলে ০, কোনো লেজার লাইন হয় না। ব্যাংক ও বিকাশ পেমেন্ট মেথড থেকে যোগ হয়।',
+          ),
           TextField(controller: _name, decoration: const InputDecoration(labelText: 'অ্যাকাউন্টের নাম')),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _opening,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: 'শুরুর ব্যালেন্স ($_currency)', helperText: 'অ্যাকাউন্টের মুদ্রায়। খালি মানে ০।'),
+          ),
           const SizedBox(height: 12),
           const SectionTitle(title: 'ধরন'),
           ChoiceChips(

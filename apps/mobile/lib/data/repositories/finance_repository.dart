@@ -2,6 +2,7 @@ import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/finance_snapshot.dart';
 import '../models/ledger_actions.dart';
+import '../models/reconciliation.dart';
 import '../money_payload.dart';
 
 class FinanceRepository {
@@ -36,12 +37,13 @@ class FinanceRepository {
     ));
   }
 
-  Future<void> createAccount({required String name, required String kind, required String currency}) {
-    return api.postJson('/api/finance/accounts', body: {
-      'name': name.trim(),
-      'kind': kind,
-      'currency': currency,
-    });
+  Future<void> createAccount({required String name, required String kind, required String currency, double balance = 0}) {
+    return api.postJson('/api/finance/accounts', body: accountBody(name: name, kind: kind, currency: currency, balance: balance));
+  }
+
+  Future<ReconciliationReport> reconciliation() async {
+    final json = await api.getJson('/api/finance/reconciliation');
+    return ReconciliationReport.fromJson(json);
   }
 
   Future<void> recordIncome({required double amount, required String accountName, required String currency, required String note, String kind = 'income'}) {
@@ -71,6 +73,20 @@ class FinanceRepository {
   Future<void> reverse({required String kind, required String id, required String reason}) {
     return api.postJson('/api/finance/reverse', idempotent: true, body: {'kind': kind, 'id': id, 'reason': reason});
   }
+}
+
+Map<String, Object?> accountBody({
+  required String name,
+  required String kind,
+  required String currency,
+  double balance = 0,
+}) {
+  return {
+    'name': name.trim(),
+    'kind': kind,
+    'currency': currency,
+    'balance': roundMoney(balance),
+  };
 }
 
 Map<String, Object?> transferBody({

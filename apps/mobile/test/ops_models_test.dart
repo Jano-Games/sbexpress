@@ -3,7 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:sbexpress/data/models/customer.dart';
+import 'package:sbexpress/data/models/customer_activity.dart';
 import 'package:sbexpress/data/models/finance_snapshot.dart';
+import 'package:sbexpress/data/models/flyer.dart';
+import 'package:sbexpress/data/models/reconciliation.dart';
 import 'package:sbexpress/data/models/flight.dart';
 import 'package:sbexpress/data/models/ledger_actions.dart';
 import 'package:sbexpress/data/models/workspace.dart';
@@ -212,6 +215,71 @@ void main() {
       }),
       throwsFormatException,
     );
+  });
+
+  test('new fund opening balance is sent in the account currency', () {
+    expect(accountBody(name: ' Reserve ', kind: 'fund', currency: 'BDT'), {
+      'name': 'Reserve',
+      'kind': 'fund',
+      'currency': 'BDT',
+      'balance': 0,
+    });
+    expect(accountBody(name: 'Chengdu', kind: 'cash', currency: 'CNY', balance: 10.5)['balance'], 10.5);
+  });
+
+  test('reconciliation and customer activity keep ledger fields', () {
+    final report = ReconciliationReport.fromJson({
+      'accounts': [
+        {'name': 'Cash', 'currency': 'BDT', 'balance': 100, 'recordedNetMovement': 40, 'impliedOpeningBalance': 60},
+      ],
+      'missingPostings': [
+        {'kind': 'payment', 'reference': 'Legacy', 'amount': 50},
+      ],
+      'shipmentDifferences': [
+        {'code': 'SH-1', 'allocatedPaid': 10, 'ledgerPaid': 8, 'difference': 2},
+      ],
+      'note': 'Verify these against bank/cash records.',
+    });
+    expect(report.accounts.single.impliedOpeningBalance, 60);
+    expect(report.missingPostings.single.reference, 'Legacy');
+    expect(report.shipmentDifferences.single.difference, 2);
+    final activity = CustomerActivityPage.fromJson({
+      'page': 1,
+      'total': 1,
+      'limit': 25,
+      'entries': [
+        {
+          'id': 'p1',
+          'label': 'Payment',
+          'kind': 'customer',
+          'amount': 1200,
+          'sourceCurrency': 'BDT',
+          'sourceAmount': 1200,
+          'sourceFxRate': 1,
+          'at': '2026-10-21T08:00:00.000Z',
+          'reference': 'SH-1',
+          'shipmentCode': 'SH-1',
+          'accountName': 'Cash',
+          'reason': '',
+          'canReverse': true,
+          'reversalKind': 'payment',
+        },
+      ],
+    });
+    expect(activityLabel(activity.entries.single.label), 'পেমেন্ট');
+    expect(activity.entries.single.canReverse, isTrue);
+    final pdf = FlyerDocument.fromJson({
+      'reference': 'd1',
+      'kind': 'passport',
+      'name': 'visa.pdf',
+      'contentType': 'application/pdf',
+      'size': 10,
+      'createdAt': '2026-10-21T00:00:00.000Z',
+      'uploadedByName': 'Rafiq',
+      'verifiedAt': null,
+      'verifiedByName': null,
+    });
+    expect(pdf.isPdf, isTrue);
   });
 
   test('hub directory still has no finance tools', () {
