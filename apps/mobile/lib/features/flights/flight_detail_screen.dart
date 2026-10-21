@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
+import 'flight_money_screen.dart';
 
 class FlightDetailScreen extends StatefulWidget {
   const FlightDetailScreen({super.key, required this.code});
@@ -115,7 +116,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              const SectionTitle(title: 'টিকিট', subtitle: 'অঙ্ক লেজার থেকে। নতুন পেমেন্ট এখানে যোগ করা হয় না।'),
+              const SectionTitle(title: 'টিকিট', subtitle: 'ক্যাশ সেটল, কনট্রিবিউশন ও ফ্লায়ার জমা আলাদা পেজে।'),
               PaperCard(
                 child: Column(
                   children: [
@@ -124,9 +125,19 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                     KvRow(label: 'ফ্লায়ার বাকি', value: formatBdt(summary.flyerDue)),
                     KvRow(label: 'টিকিট পরিশোধ', value: formatBdt(summary.ticketPaid)),
                     KvRow(label: 'টিকিট বাকি', value: formatBdt(summary.ticketDue), valueColor: summary.ticketDue > 0 ? AppColors.danger : AppColors.ok),
+                    if (summary.ticketRefundDue > 0) KvRow(label: 'টিকিট রিফান্ড', value: formatBdt(summary.ticketRefundDue)),
                     KvRow(label: 'শিপমেন্ট বিল', value: formatBdt(summary.revenue)),
                   ],
                 ),
+              ),
+              const SizedBox(height: 8),
+              AppButton(
+                label: 'টিকিট ও কনট্রিবিউশন',
+                kind: AppButtonKind.current,
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FlightMoneyScreen(code: widget.code)));
+                  if (mounted) await _load();
+                },
               ),
               const SizedBox(height: 16),
               const SectionTitle(title: 'ফ্লায়ার'),

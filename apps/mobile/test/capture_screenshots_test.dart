@@ -22,9 +22,16 @@ import 'package:sbexpress/data/repositories/task_repository.dart';
 import 'package:sbexpress/data/session/session_controller.dart';
 import 'package:sbexpress/data/session/session_store.dart';
 import 'package:sbexpress/features/admin/admin_home_screen.dart';
+import 'package:sbexpress/features/admin/invoice_editor_screen.dart';
+import 'package:sbexpress/features/admin/shipment_costs_screen.dart';
 import 'package:sbexpress/features/customers/customers_screen.dart';
+import 'package:sbexpress/features/customers/statement_screen.dart';
 import 'package:sbexpress/features/finance/finance_screen.dart';
+import 'package:sbexpress/features/finance/transfer_screen.dart';
+import 'package:sbexpress/features/flights/flight_money_screen.dart';
 import 'package:sbexpress/features/flights/flights_screen.dart';
+import 'package:sbexpress/features/settings/pay_method_form_screen.dart';
+import 'package:sbexpress/features/settings/staff_screen.dart';
 import 'package:sbexpress/theme/app_theme.dart';
 
 void main() {
@@ -58,6 +65,13 @@ void main() {
     await _shot(tester, _scoped(scope, const FlightsScreen()), '06-flights', find.byType(FlightsScreen));
     await _shot(tester, _scoped(scope, const CustomersScreen()), '07-customers', find.byType(CustomersScreen));
     await _shot(tester, _scoped(scope, const FinanceScreen()), '08-finance', find.byType(FinanceScreen));
+    await _shot(tester, _scoped(scope, const InvoiceEditorScreen(code: 'SH-18')), '09-invoice-editor', find.byType(InvoiceEditorScreen));
+    await _shot(tester, _scoped(scope, const TransferScreen()), '10-transfer', find.byType(TransferScreen));
+    await _shot(tester, _scoped(scope, const StaffScreen()), '11-staff', find.byType(StaffScreen));
+    await _shot(tester, _scoped(scope, const FlightMoneyScreen(code: 'BG305-20261021-ab12cd')), '12-flight-money', find.byType(FlightMoneyScreen));
+    await _shot(tester, _scoped(scope, const ShipmentCostsScreen(code: 'SH-18')), '13-costs', find.byType(ShipmentCostsScreen));
+    await _shot(tester, _scoped(scope, const StatementScreen(code: 'C-14', name: 'Nila Store')), '14-statement', find.byType(StatementScreen));
+    await _shot(tester, _scoped(scope, const PayMethodFormScreen()), '15-pay-method', find.byType(PayMethodFormScreen));
   });
 }
 
@@ -98,15 +112,27 @@ ApiClient _api() {
     session: MemorySessionStore()..token = 'tok',
     httpClient: MockClient((request) async {
       final path = request.url.path;
-      final body = path.endsWith('/hub')
-          ? _hubBody()
-          : path.endsWith('/overview')
-              ? _overviewBody()
-              : path.endsWith('/flights')
-                  ? _flightsBody()
-                  : path.endsWith('/suppliers')
-                      ? _customersBody()
-                      : _financeBody();
+      final body = path.contains('/invoice')
+          ? _invoiceBody()
+          : path.contains('statement-links')
+              ? _statementLinks()
+              : path.contains('statement-receipts')
+                  ? _statementReceipts()
+                  : path.endsWith('/users')
+                      ? _usersBody()
+                      : path.contains('/shipments/')
+                          ? _costBody()
+                          : path.contains('/flights/')
+                              ? _flightDetail()
+                              : path.endsWith('/hub')
+                                  ? _hubBody()
+                                  : path.endsWith('/overview')
+                                      ? _overviewBody()
+                                      : path.endsWith('/flights')
+                                          ? _flightsBody()
+                                          : path.endsWith('/suppliers')
+                                              ? _customersBody()
+                                              : _financeBody();
       return http.Response(jsonEncode(body), 200, headers: {'content-type': 'application/json'});
     }),
   );
@@ -227,6 +253,7 @@ Map<String, Object?> _financeBody() => {
       'results': {'shipmentCount': 6, 'billing': 64000, 'costs': 22000, 'profit': 42000, 'marginPct': 65},
       'accounts': [
         {'name': 'Dhaka cash', 'kind': 'cash', 'currency': 'BDT', 'balance': 84250},
+        {'name': 'Chengdu cash', 'kind': 'cash', 'currency': 'CNY', 'balance': 1200},
       ],
       'ticketPayables': 0,
       'costPayables': 1400,
@@ -251,3 +278,85 @@ Map<String, Object?> _shipment({required String code, required String status, re
       'exceptionReason': '',
       'date': '2026-10-18',
     };
+
+Map<String, Object?> _invoiceBody() => {
+      'saved': true,
+      'invoice': {
+        'state': 'draft',
+        'needsReview': false,
+        'pricingMode': 'automatic',
+        'number': 'INV-18',
+        'lines': [
+          {'label': 'Freight', 'amount': 4800},
+          {'label': 'Packing', 'amount': 200},
+        ],
+        'discount': 200,
+        'note': '',
+        'total': 4800,
+        'paidAmount': 1000,
+        'dueAmount': 3800,
+      },
+    };
+
+Map<String, Object?> _costBody() => {
+      'costs': {
+        'items': [
+          {
+            'id': 'cost-1',
+            'name': 'Courier',
+            'category': 'courier',
+            'amount': 350,
+            'paidAmount': 0,
+            'dueAmount': 350,
+            'costField': null,
+            'voidedAt': null,
+          },
+        ],
+        'total': 350,
+        'unpaidCosts': {'cnFare': 0, 'bdFare': 0, 'customsTax': 0},
+      },
+    };
+
+Map<String, Object?> _usersBody() => {
+      'users': [
+        {'id': 'u1', 'name': 'Rafiq', 'email': 'rafiq@sbx.test', 'role': 'admin', 'active': true},
+        {'id': 'u2', 'name': 'Hub desk', 'email': 'hub@sbx.test', 'role': 'hub', 'active': true},
+      ],
+    };
+
+Map<String, Object?> _statementLinks() => {
+      'links': [
+        {
+          'id': 'link-1',
+          'url': 'https://track.example/s/demo',
+          'status': 'active',
+          'expiresAt': '2026-10-28T00:00:00.000Z',
+        },
+      ],
+      'balance': {'billed': 4800, 'paid': 1000, 'due': 3800},
+    };
+
+Map<String, Object?> _statementReceipts() => {
+      'receipts': [
+        {
+          'reference': 'rcpt-1',
+          'amount': 500,
+          'method': 'bKash',
+          'status': 'pending',
+          'reason': '',
+          'month': '2026-10',
+        },
+      ],
+    };
+
+Map<String, Object?> _flightDetail() {
+  final flight = Map<String, Object?>.from((_flightsBody()['flights'] as List).first as Map);
+  flight['ticketDue'] = 1200;
+  flight['ticketRefundDue'] = 0;
+  flight['unallocatedFlyerPaid'] = 500;
+  flight['flyerDetails'] = [
+    {'name': 'Arif Rahman', 'bdPhone': '01800000000', 'initial': 'A'},
+  ];
+  flight['bookings'] = <Map<String, Object?>>[];
+  return {'flight': flight};
+}

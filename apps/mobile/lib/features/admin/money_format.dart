@@ -1,3 +1,12 @@
+String formatMoney(double value, String currency) {
+  if (currency == 'CNY') {
+    final negative = value < 0;
+    final text = '¥${value.abs().toStringAsFixed(2)}';
+    return negative ? '-$text' : text;
+  }
+  return formatBdt(value);
+}
+
 String formatBdt(double value) {
   final negative = value < 0;
   final fixed = value.abs().toStringAsFixed(2);

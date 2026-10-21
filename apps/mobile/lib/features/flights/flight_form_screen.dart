@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/account_picker.dart';
+import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
+import '../admin/money_format.dart';
 
 class FlightFormScreen extends StatefulWidget {
   const FlightFormScreen({super.key});
@@ -23,6 +27,8 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
   final _laptops = TextEditingController(text: '1');
   DateTime? _date;
   List<FlyerSummary> _flyers = const [];
+  List<FinanceAccount> _accounts = const [];
+  String? _account;
   final _picked = <String>{};
   String? _error;
   var _loading = true;
@@ -49,9 +55,14 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
 
   Future<void> _load() async {
     try {
-      final flyers = await AppScope.of(context).flyers.list();
+      final scope = AppScope.of(context);
+      final flyers = await scope.flyers.list();
+      final finance = await scope.finance.snapshot();
       if (!mounted) return;
-      setState(() => _flyers = flyers);
+      setState(() {
+        _flyers = flyers;
+        _accounts = finance.accounts;
+      });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
@@ -92,6 +103,14 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       setState(() => _error = 'এজেন্সি শেয়ার আসল খরচের বেশি হতে পারে না। খালি রাখলে ০।');
       return;
     }
+    FinanceAccount? paying;
+    for (final account in _accounts) {
+      if (account.name == _account) paying = account;
+    }
+    if (actual > 0 && paying != null) {
+      final ok = await confirmMoney(context, title: 'টিকিট ক্যাশ', body: '${formatMoney(actual, paying.currency)} ${paying.name} থেকে টিকিটের জন্য যাবে।');
+      if (!ok || !mounted) return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -106,6 +125,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
             laptops: int.tryParse(_laptops.text.trim()) ?? 1,
             actualCost: actual,
             agencyShare: agency,
+            accountName: actual > 0 ? paying?.name : null,
           ));
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -127,7 +147,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
         children: [
           const PageHeader(
             title: 'নতুন ফ্লাইট',
-            subtitle: 'ফ্লাইট নম্বর প্রতিদিন আবার আসে। বুকিং রেফারেন্স সার্ভার বানাবে। টাকার অঙ্ক না দিলে ০ সেভ হয় এবং কোনো অ্যাকাউন্ট থেকে কাটা হয় না।',
+            subtitle: 'ফ্লাইট নম্বর প্রতিদিন আবার আসে। বুকিং রেফারেন্স সার্ভার বানাবে। টাকা না দিলে কিছু কাটে না। অ্যাকাউন্ট বাছলে টিকিটের টাকা সেখান থেকে যায়।',
           ),
           if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           TextField(controller: _code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'এয়ারলাইন ফ্লাইট নম্বর')),
@@ -162,9 +182,19 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          TextField(controller: _cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'আসল টিকিট খরচ (BDT)', helperText: 'জানা না থাকলে খালি রাখুন')),
+          TextField(
+            controller: _cost,
+            onChanged: (_) => setState(() {}),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'আসল টিকিট খরচ (BDT)', helperText: 'জানা না থাকলে খালি রাখুন'),
+          ),
           const SizedBox(height: 8),
           TextField(controller: _agency, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'এজেন্সি শেয়ার (BDT)')),
+          if ((double.tryParse(_cost.text.trim()) ?? 0) > 0) ...[
+            const SizedBox(height: 12),
+            const SectionTitle(title: 'যে অ্যাকাউন্ট থেকে যাবে', subtitle: 'না বাছলে এখন কোনো ক্যাশ নড়ে না। পরে ফ্লাইট থেকে সেটল করা যায়।'),
+            AccountPicker(accounts: _accounts, selected: _account, onSelected: (account) => setState(() => _account = account.name)),
+          ],
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),

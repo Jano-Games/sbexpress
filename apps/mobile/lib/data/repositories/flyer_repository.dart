@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/flyer.dart';
@@ -32,6 +34,45 @@ class FlyerRepository {
   Future<FlyerDocumentList> documents(String name) async {
     final json = await api.getJson('${_path(name)}/documents');
     return FlyerDocumentList.fromJson(json);
+  }
+
+  Future<String> documentUrl(String name, String reference) async {
+    final json = await api.getJson('${_path(name)}/documents/${Uri.encodeComponent(reference)}/url');
+    return requiredString(json, 'url');
+  }
+
+  Future<String> uploadPdf({
+    required String name,
+    required String kind,
+    required String filename,
+    required Uint8List bytes,
+    required void Function(double progress) onProgress,
+  }) {
+    if (bytes.isEmpty) throw const FormatException('খালি ফাইল নেওয়া যায় না।');
+    if (bytes.length > imageUploadMaxBytes) throw const FormatException('PDF ১০ MB-এর বেশি। আরও ছোট ফাইল দিন।');
+    final safe = filename.toLowerCase().endsWith('.pdf') ? filename : '$filename.pdf';
+    final file = PreparedImage(bytes: bytes, filename: safe, contentType: 'application/pdf');
+    return transferPreparedUpload(
+      file: file,
+      onProgress: onProgress,
+      reserve: (file) async {
+        final json = await api.postJson('${_path(name)}/documents/upload', body: {
+          'kind': kind,
+          'name': file.filename,
+          'contentType': file.contentType,
+          'size': file.size,
+        });
+        return UploadReservation(
+          reference: requiredString(json, 'reference'),
+          uploadUrl: requiredString(json, 'uploadUrl'),
+          expiresAt: requiredString(json, 'expiresAt'),
+        );
+      },
+      put: (reservation, file, progress) => api.putBytes(reservation.uploadUrl, file.bytes, file.contentType, progress),
+      complete: (reference) async {
+        await api.postJson('${_path(name)}/documents/${Uri.encodeComponent(reference)}/complete');
+      },
+    );
   }
 
   Future<void> setVerified(String name, String reference, {required bool verified}) async {

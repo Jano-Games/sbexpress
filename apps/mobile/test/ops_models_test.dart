@@ -1,8 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:sbexpress/data/models/customer.dart';
 import 'package:sbexpress/data/models/finance_snapshot.dart';
 import 'package:sbexpress/data/models/flight.dart';
+import 'package:sbexpress/data/models/ledger_actions.dart';
 import 'package:sbexpress/data/models/workspace.dart';
+import 'package:sbexpress/data/pay_method_body.dart';
+import 'package:sbexpress/data/repositories/finance_repository.dart';
+import 'package:sbexpress/data/repositories/flight_repository.dart';
+import 'package:sbexpress/data/repositories/shipment_repository.dart';
 import 'package:sbexpress/features/more/destinations.dart';
 import 'package:sbexpress/data/models/session_user.dart';
 
@@ -73,6 +81,98 @@ void main() {
     ]);
     expect(body.containsKey('amount'), isFalse);
     expect(body['state'], 'issued');
+    expect(body['pricingMode'], 'automatic');
+  });
+
+  test('edited invoice keeps the discount, cost id, and manual mode', () {
+    const document = InvoiceDocument(
+      saved: true,
+      state: 'issued',
+      needsReview: false,
+      pricingMode: 'manual',
+      number: 'INV-1',
+      lines: [InvoiceLine(label: 'Freight', amount: 1000, costId: 'cost-1'), InvoiceLine(label: 'Packing', amount: 50)],
+      discount: 25,
+      note: 'revised',
+      total: 1025,
+      paidAmount: 0,
+      dueAmount: 1025,
+    );
+    final body = invoiceIssueBody(document, revisionReason: 'weight changed', state: 'issued', pricingMode: 'manual');
+    final lines = body['lines'] as List<Map<String, Object?>>;
+    expect(lines.first['costId'], 'cost-1');
+    expect(lines.last.containsKey('costId'), isFalse);
+    expect(body['discount'], 25);
+    expect(body['pricingMode'], 'manual');
+    expect(body['revisionReason'], 'weight changed');
+  });
+
+  test('flight draft posts a paying account only when one is chosen', () {
+    final body = const FlightDraft(
+      airlineCode: 'BG305',
+      date: '2026-10-21',
+      flyerNames: ['Arif'],
+      spaceKg: 44,
+      mobiles: 2,
+      laptops: 1,
+      actualCost: 42000,
+      agencyShare: 8000,
+      accountName: 'Dhaka cash',
+    ).toJson();
+    expect(body['accountName'], 'Dhaka cash');
+  });
+
+  test('pay method, transfer, and cost bodies match the ledger rules', () {
+    final mobile = mobilePayMethodBody(provider: 'bKash', number: '01700000000', currency: 'BDT');
+    expect(mobile['kind'], 'mobile_banking');
+    expect(mobile.containsKey('qrImage'), isFalse);
+    final bank = bankPayMethodBody(bankName: 'City', accountNumber: '123', accountName: 'SBX', currency: 'CNY');
+    expect(bank['kind'], 'bank_account');
+    expect(bank['currency'], 'CNY');
+    final transfer = transferBody(from: 'Dhaka cash', to: 'Chengdu cash', amount: 10.005, note: ' float ', reference: '11111111-1111-4111-8111-111111111111', receivedAmount: 170);
+    expect(transfer['amount'], 10.01);
+    expect(transfer['note'], 'float');
+    expect(transfer['receivedAmount'], 170);
+    final later = shipmentExpenseBody(category: 'courier', amount: 12.345, currency: 'BDT', reason: 'gate', paymentTiming: 'later');
+    expect(later.containsKey('accountName'), isFalse);
+    expect(later['paymentTiming'], 'later');
+    expect(
+      () => shipmentExpenseBody(category: 'courier', amount: 10, currency: 'BDT', reason: 'pay', paymentTiming: 'later', costField: 'bdFare'),
+      throwsFormatException,
+    );
+    final rows = contributionBody([(name: 'Arif', contribution: 10.005, legacyPaid: 0)]);
+    final allocations = rows['allocations'] as List<Map<String, Object?>>;
+    expect(allocations.single['contribution'], 10.01);
+  });
+
+  test('statement receipt reason and legacy cost fields parse', () {
+    final receipt = StatementReceiptInfo.fromJson({
+      'reference': 'r1',
+      'amount': 10,
+      'method': 'bKash',
+      'status': 'pending',
+      'reason': null,
+      'month': '2026-10',
+    });
+    expect(receipt.reason, isEmpty);
+    final item = ShipmentCostItem.fromJson({
+      'id': 'bdFare',
+      'name': 'BD fare',
+      'category': 'courier',
+      'amount': 100,
+      'paidAmount': 0,
+      'dueAmount': 100,
+      'costField': 'bdFare',
+      'voidedAt': null,
+    });
+    expect(item.legacyField, isTrue);
+    expect(item.voided, isFalse);
+  });
+
+  test('qr data url is a jpeg payload', () {
+    final bytes = Uint8List.fromList(img.encodeJpg(img.Image(width: 8, height: 8)));
+    final url = jpegQrDataUrl(bytes);
+    expect(url, startsWith('data:image/jpeg;base64,'));
   });
 
   test('finance snapshot reads ledger figures and rejects a missing cash field', () {

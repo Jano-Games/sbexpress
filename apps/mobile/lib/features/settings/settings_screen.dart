@@ -6,6 +6,8 @@ import '../../data/models/workspace.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
+import 'pay_method_form_screen.dart';
+import 'staff_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -68,6 +70,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _toggle(PayMethodInfo method) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await AppScope.of(context).settings.setPayMethodEnabled(method.id, enabled: !method.enabled);
+      await _load();
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _saveRate() async {
     final rate = double.tryParse(_rate.text.trim());
     if (rate == null || rate <= 0) {
@@ -101,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
           children: [
-            const PageHeader(title: 'সেটিংস', subtitle: 'রেট নিশ্চিত করা যায়। ব্যাংক অ্যাকাউন্ট ও পাসওয়ার্ড ওয়েবে থাকে, যাতে ভুল নম্বর না লেখা হয়।'),
+            const PageHeader(title: 'সেটিংস', subtitle: 'CNY রেট, বিকাশ বা ব্যাংক, এবং স্টাফের রোল ও পাসওয়ার্ড।'),
             if (_loading && setup == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
             if (_error != null) ...[
               ErrorNote(message: _error!, onRetry: _load),
@@ -126,8 +144,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 8),
               Text('ওজন অ্যালার্ট ${settings.threshold} kg-এর বেশি হলে।', style: const TextStyle(color: AppColors.muted)),
               const SizedBox(height: 16),
-              const SectionTitle(title: 'পেমেন্ট মেথড', subtitle: 'ট্র্যাকিং পেজে যা দেখায়। এখানে নতুন মেথড যোগ হয় না।'),
-              if (_methods.isEmpty) const EmptyNote(title: 'মেথড নেই', body: 'ওয়েবের সেটিংস থেকে আসল বিকাশ বা ব্যাংক যোগ করুন।'),
+              const SectionTitle(title: 'পেমেন্ট মেথড', subtitle: 'ট্র্যাকিং পেজে যা দেখায়। নম্বর আন্দাজ করবেন না।'),
+              if (_methods.isEmpty) const EmptyNote(title: 'মেথড নেই', body: 'আসল বিকাশ বা ব্যাংক নম্বর দিয়ে যোগ করুন।'),
               for (final method in _methods) ...[
                 PaperCard(
                   child: Column(
@@ -140,12 +158,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                       Text('${method.currency} · ${method.detail}', style: const TextStyle(color: AppColors.muted)),
+                      const SizedBox(height: 8),
+                      AppButton(
+                        label: method.enabled ? 'বন্ধ করুন' : 'চালু করুন',
+                        kind: AppButtonKind.quiet,
+                        busy: _busy,
+                        onPressed: () => _toggle(method),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
               ],
               const SizedBox(height: 8),
+              AppButton(
+                label: 'নতুন মেথড',
+                kind: AppButtonKind.current,
+                onPressed: () async {
+                  final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const PayMethodFormScreen()));
+                  if (saved == true && mounted) await _load();
+                },
+              ),
+              const SizedBox(height: 16),
               const SectionTitle(title: 'স্টাফ'),
               for (final person in _staff) ...[
                 PaperCard(
@@ -161,7 +195,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 8),
               ],
-              const Text('পাসওয়ার্ড বদল ওয়েবে। নিজের পাসওয়ার্ড বদলালে সেশন কেটে যায়।', style: TextStyle(color: AppColors.muted, height: 1.35)),
+              AppButton(
+                label: 'স্টাফ ব্যবস্থাপনা',
+                kind: AppButtonKind.teal,
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const StaffScreen())),
+              ),
+              const SizedBox(height: 8),
+              const Text('নিজের পাসওয়ার্ড বদলালে সব সেশন কেটে যায়।', style: TextStyle(color: AppColors.muted, height: 1.35)),
             ],
           ],
         ),

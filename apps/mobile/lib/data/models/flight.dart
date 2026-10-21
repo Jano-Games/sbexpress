@@ -37,6 +37,8 @@ class FlightSummary {
     required this.flyerDue,
     required this.ticketPaid,
     required this.ticketDue,
+    required this.ticketRefundDue,
+    required this.unallocatedFlyerPaid,
     required this.spaceKg,
     required this.mobiles,
     required this.laptops,
@@ -62,6 +64,8 @@ class FlightSummary {
   final double flyerDue;
   final double ticketPaid;
   final double ticketDue;
+  final double ticketRefundDue;
+  final double unallocatedFlyerPaid;
   final int spaceKg;
   final int mobiles;
   final int laptops;
@@ -98,6 +102,8 @@ class FlightSummary {
       flyerDue: requiredDouble(json, 'flyerDue'),
       ticketPaid: requiredDouble(json, 'ticketPaid'),
       ticketDue: requiredDouble(json, 'ticketDue'),
+      ticketRefundDue: json.containsKey('ticketRefundDue') ? requiredDouble(json, 'ticketRefundDue') : 0,
+      unallocatedFlyerPaid: json.containsKey('unallocatedFlyerPaid') ? requiredDouble(json, 'unallocatedFlyerPaid') : 0,
       spaceKg: requiredInt(json, 'spaceKg'),
       mobiles: requiredInt(json, 'mobiles'),
       laptops: requiredInt(json, 'laptops'),
@@ -156,6 +162,7 @@ class FlightDraft {
     required this.laptops,
     required this.actualCost,
     required this.agencyShare,
+    this.accountName,
   });
 
   final String airlineCode;
@@ -167,8 +174,9 @@ class FlightDraft {
   final double actualCost;
   final double agencyShare;
 
-  /// Ticket cash is not posted here. A paying account is chosen on the web
-  /// when money actually leaves a fund.
+  /// When set, ticket cash leaves this ledger account. Omitted means no cash movement.
+  final String? accountName;
+
   Map<String, Object?> toJson() => {
         'code': airlineCode,
         'date': date,
@@ -178,5 +186,6 @@ class FlightDraft {
         'laptops': laptops,
         'actualCost': actualCost,
         'agencyShare': agencyShare,
+        if (accountName != null && accountName!.trim().isNotEmpty) 'accountName': accountName!.trim(),
       };
 }

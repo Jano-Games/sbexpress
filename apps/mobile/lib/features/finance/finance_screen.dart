@@ -7,6 +7,10 @@ import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
 import '../admin/payment_review_screen.dart';
+import 'fund_account_screen.dart';
+import 'ledger_screen.dart';
+import 'office_entry_screen.dart';
+import 'transfer_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -60,7 +64,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
           children: [
-            const PageHeader(title: 'ফাইন্যান্স', subtitle: 'ক্যাশ, বকেয়া ও বুকড ফল। ট্রান্সফার ও খরচ ওয়েবে এন্ট্রি হয়, যাতে ভুল অ্যাকাউন্ট না বাছে।'),
+            const PageHeader(title: 'ফাইন্যান্স', subtitle: 'ক্যাশ, বকেয়া ও বুকড ফল। টাকা সরানোর আগে নিশ্চিত করতে হয়।'),
             ChoiceChips(
               options: const [
                 (value: 'week', label: 'সপ্তাহ'),
@@ -122,7 +126,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const SectionTitle(title: 'অ্যাকাউন্ট', subtitle: 'নাম ও ব্যালেন্স লেজারের। নতুন অ্যাকাউন্ট ওয়েবে যোগ করুন।'),
+              const SectionTitle(title: 'অ্যাকাউন্ট', subtitle: 'নাম ও ব্যালেন্স লেজারের। ব্যাংক ও বিকাশ সেটিংস থেকে যোগ হয়।'),
               if (data.accounts.isEmpty)
                 const EmptyNote(title: 'অ্যাকাউন্ট নেই', body: 'রিসিভিং অ্যাকাউন্ট সেটআপ না হলে পেমেন্ট পোস্ট হবে না।')
               else
@@ -140,7 +144,36 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
-              AppButton(label: 'পেমেন্ট রিভিউ', kind: AppButtonKind.current, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PaymentReviewScreen()))),
+              AppButton(
+                label: 'ট্রান্সফার',
+                kind: AppButtonKind.current,
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const TransferScreen()));
+                  if (mounted) await _load();
+                },
+              ),
+              const SizedBox(height: 8),
+              AppButton(
+                label: 'জমা বা খরচ',
+                kind: AppButtonKind.teal,
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const OfficeEntryScreen()));
+                  if (mounted) await _load();
+                },
+              ),
+              const SizedBox(height: 8),
+              AppButton(label: 'লেজার', kind: AppButtonKind.quiet, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const LedgerScreen()))),
+              const SizedBox(height: 8),
+              AppButton(
+                label: 'নতুন ফান্ড',
+                kind: AppButtonKind.quiet,
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const FundAccountScreen()));
+                  if (mounted) await _load();
+                },
+              ),
+              const SizedBox(height: 8),
+              AppButton(label: 'পেমেন্ট রিভিউ', kind: AppButtonKind.teal, onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PaymentReviewScreen()))),
             ],
           ],
         ),

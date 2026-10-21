@@ -40,4 +40,34 @@ class SettingsRepository {
     final json = await api.getJson('/api/settings/users');
     return [for (final row in requiredMapList(json, 'users')) StaffAccount.fromJson(row)];
   }
+
+  Future<void> createPayMethod(Map<String, Object?> body) async {
+    await api.postJson('/api/settings/pay-methods', body: body);
+  }
+
+  Future<void> setPayMethodEnabled(String id, {required bool enabled}) async {
+    await api.patchJson('/api/settings/pay-methods/${Uri.encodeComponent(id)}', body: {'enabled': enabled});
+  }
+
+  Future<StaffAccount> createStaff({required String name, required String email, required String role, required String password}) async {
+    final json = await api.postJson('/api/settings/users', body: {
+      'name': name,
+      'email': email,
+      'role': role,
+      'password': password,
+    });
+    return StaffAccount.fromJson(asJsonMap(json['user'], 'user'));
+  }
+
+  Future<StaffAccount> updateStaff(String id, Map<String, Object?> body) async {
+    final json = await api.patchJson('/api/settings/users/${Uri.encodeComponent(id)}', body: body);
+    return StaffAccount.fromJson(asJsonMap(json['user'], 'user'));
+  }
+
+  Future<void> setPassword(String id, {required String password, String? currentPassword}) async {
+    await api.postJson('/api/settings/users/${Uri.encodeComponent(id)}/password', body: {
+      'password': password,
+      if (currentPassword != null && currentPassword.isNotEmpty) 'currentPassword': currentPassword,
+    });
+  }
 }

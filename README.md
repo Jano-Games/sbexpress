@@ -12,6 +12,7 @@ pnpm monorepo:
 | ---------------- | ------------------------------------------------------------ |
 | `apps/frontend/` | Vite · React 19 · Tailwind v4 · shared static UI components       |
 | `apps/backend/`  | Hono · Prisma 7 · Postgres · Redis (sessions, cache, limits) |
+| `apps/mobile/`   | Flutter · Android only (Admin and Hub Manager)               |
 
 ## Accounts & roles
 
@@ -50,6 +51,17 @@ pnpm db:deploy      # apply tracked migrations (back up an existing database fir
 pnpm db:seed        # initialize missing settings; preserve all existing data
 pnpm dev            # turbo TUI: backend on :3002, frontend on :5178
 ```
+
+The Android app lives in `apps/mobile`. It is not part of the pnpm scripts. Hub staff still never see money or customer names. Admin can record payments, confirm the CNY rate, edit invoices, settle costs and flight cash, share PDFs, manage statement links and staff, and add bKash or bank methods. A debug build points at the emulator host:
+
+```bash
+cd apps/mobile
+flutter pub get
+flutter test
+flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3002
+```
+
+Release builds require HTTPS and a signing key (`android/key.properties` or `ANDROID_KEYSTORE_*`). There is no in-app PDF viewer: invoices and flyer files open through the Android share sheet. Customers still upload statement receipts on the public web link. Finance reconciliation stays on the web.
 
 `apps/backend/.env` is gitignored. Copy `.env.example` on first setup; its defaults
 use Docker PostgreSQL at `localhost:5435/mamun_local` and Redis at `localhost:6382`.

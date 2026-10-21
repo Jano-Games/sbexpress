@@ -5,9 +5,15 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/workspace.dart';
+import '../../data/money_payload.dart';
+import '../../data/share_bytes.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
+import 'credit_note_screen.dart';
+import 'invoice_editor_screen.dart';
 import 'money_format.dart';
+import 'shipment_costs_screen.dart';
 
 class ShipmentMoneyPanel extends StatefulWidget {
   const ShipmentMoneyPanel({super.key, required this.code, required this.dueAmount});
@@ -76,7 +82,7 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
     final invoice = _invoice;
     if (invoice == null) return;
     if (invoice.lines.isEmpty) {
-      setState(() => _error = 'বিলের লাইন নেই। ওয়েবে চার্জ বসিয়ে তারপর ইস্যু করুন।');
+      setState(() => _error = 'বিলের লাইন নেই। লাইন সম্পাদনা থেকে চার্জ বসান।');
       return;
     }
     if (invoice.total == 0 && !_confirmFree) {
@@ -98,6 +104,26 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pdf() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final bytes = await AppScope.of(context).shipments.invoicePdf(widget.code);
+      if (!mounted) return;
+      await shareBytes(bytes: bytes, filename: 'invoice-${widget.code}.pdf', mimeType: 'application/pdf');
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -125,17 +151,20 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
     for (final row in _accounts) {
       if (row.name == _account) account = row;
     }
-    final amount = double.tryParse(_amount.text.trim());
+    final amount = parseMoney(_amount.text);
     if (account == null || amount == null || amount <= 0) {
       setState(() => _error = 'অ্যাকাউন্ট বেছে নিন এবং যে টাকা এসেছে সেই অঙ্ক লিখুন।');
       return;
     }
+    final chosen = account;
+    final ok = await confirmMoney(context, title: 'টাকা জমা', body: '${formatMoney(amount, chosen.currency)} ${chosen.name}-এ এই শিপমেন্টের জমা হিসেবে ঢুকবে।');
+    if (!ok || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await AppScope.of(context).shipments.recordPayment(widget.code, amount: amount, accountName: account.name, currency: account.currency);
+      await AppScope.of(context).shipments.recordPayment(widget.code, amount: amount, accountName: chosen.name, currency: chosen.currency);
       _amount.clear();
       await _load();
     } on ApiException catch (error) {
@@ -159,7 +188,7 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
         ],
         if (invoice != null) ...[
           const SizedBox(height: 12),
-          const SectionTitle(title: 'ইনভয়েস', subtitle: 'লাইন হিসাব থেকে আসে। এখানে নতুন লাইন যোগ হয় না।'),
+          const SectionTitle(title: 'ইনভয়েস', subtitle: 'লাইন ও ছাড় সম্পাদনা থেকে বদলানো যায়। ইস্যুর আগে মোট দেখে নিন।'),
           PaperCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,8 +216,31 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
                 title: const Text('এই শিপমেন্ট ফ্রি অব চার্জ'),
               ),
             ],
-            AppButton(label: 'ইনভয়েস ইস্যু করুন', kind: AppButtonKind.current, busy: _busy, onPressed: invoice.lines.isEmpty ? null : _issue),
+            AppButton(label: 'হিসাবের লাইন ইস্যু', kind: AppButtonKind.current, busy: _busy, onPressed: invoice.lines.isEmpty ? null : _issue),
           ],
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'লাইন ও ছাড়',
+            kind: AppButtonKind.teal,
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => InvoiceEditorScreen(code: widget.code)));
+              if (mounted) await _load();
+            },
+          ),
+          const SizedBox(height: 8),
+          AppButton(label: 'PDF শেয়ার', kind: AppButtonKind.quiet, busy: _busy, onPressed: _pdf),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'খরচ',
+            kind: AppButtonKind.quiet,
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ShipmentCostsScreen(code: widget.code))),
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'ক্রেডিট নোট',
+            kind: AppButtonKind.quiet,
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CreditNoteScreen(code: widget.code))),
+          ),
           const SizedBox(height: 12),
           const SectionTitle(title: 'শেয়ার', subtitle: 'আলাদা রিকোয়েস্টেড অ্যামাউন্ট নেই। লিংক ১–৯০ দিন।'),
           ChoiceChips(
@@ -216,7 +268,7 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
           const SizedBox(height: 16),
           const SectionTitle(title: 'টাকা জমা', subtitle: 'যে অ্যাকাউন্টে টাকা ঢুকেছে এবং যে অঙ্ক এসেছে, সেটাই লিখুন।'),
           if (_accounts.isEmpty)
-            const EmptyNote(title: 'রিসিভিং অ্যাকাউন্ট নেই', body: 'ওয়েবের ফাইন্যান্সে আসল অ্যাকাউন্ট যোগ না করা পর্যন্ত এখান থেকে জমা দেওয়া যাবে না।')
+            const EmptyNote(title: 'রিসিভিং অ্যাকাউন্ট নেই', body: 'সেটিংসে বিকাশ বা ব্যাংক যোগ করলে ফান্ড তৈরি হয়। তারপর এখান থেকে জমা দেওয়া যাবে।')
           else if (widget.dueAmount <= 0 && invoice.dueAmount <= 0)
             const EmptyNote(title: 'বকেয়া নেই', body: 'এই শিপমেন্টে আর জমা দেওয়ার মতো বাকি নেই।')
           else ...[

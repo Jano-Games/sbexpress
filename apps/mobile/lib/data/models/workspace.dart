@@ -259,15 +259,24 @@ class StaffAccount {
 }
 
 class InvoiceLine {
-  const InvoiceLine({required this.label, required this.amount});
+  const InvoiceLine({required this.label, required this.amount, this.costId});
 
   final String label;
   final double amount;
+  final String? costId;
 
-  Map<String, Object?> toJson() => {'label': label, 'amount': amount};
+  Map<String, Object?> toJson() => {
+        'label': label,
+        'amount': amount,
+        if (costId != null) 'costId': costId,
+      };
 
   factory InvoiceLine.fromJson(Map<String, Object?> json) {
-    return InvoiceLine(label: requiredString(json, 'label'), amount: requiredDouble(json, 'amount'));
+    return InvoiceLine(
+      label: requiredString(json, 'label'),
+      amount: requiredDouble(json, 'amount'),
+      costId: json.containsKey('costId') ? requiredNullableString(json, 'costId') : null,
+    );
   }
 }
 
@@ -319,17 +328,24 @@ class InvoiceDocument {
   }
 }
 
-/// Issues the bill the API already calculated. No extra line is added here.
-Map<String, Object?> invoiceIssueBody(InvoiceDocument document, {String? revisionReason, bool confirmFree = false}) {
+/// Posts the lines and discount the operator confirmed. Draft saves do not issue.
+Map<String, Object?> invoiceIssueBody(
+  InvoiceDocument document, {
+  String? revisionReason,
+  bool confirmFree = false,
+  String state = 'issued',
+  String? pricingMode,
+}) {
   if (document.lines.isEmpty) {
     throw const FormatException('Invoice has no lines');
   }
+  final mode = pricingMode ?? document.pricingMode;
   return {
     'lines': [for (final line in document.lines) line.toJson()],
     'discount': document.discount,
     'note': document.note,
-    'state': 'issued',
-    'pricingMode': document.pricingMode == 'automatic' || document.pricingMode == 'manual' ? document.pricingMode : 'automatic',
+    'state': state == 'draft' ? 'draft' : 'issued',
+    'pricingMode': mode == 'manual' ? 'manual' : 'automatic',
     if (revisionReason != null && revisionReason.trim().isNotEmpty) 'revisionReason': revisionReason.trim(),
     if (confirmFree) 'confirmFree': true,
   };

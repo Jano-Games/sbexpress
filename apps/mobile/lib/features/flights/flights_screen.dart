@@ -63,7 +63,7 @@ class _FlightsScreenState extends State<FlightsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
           children: [
-            const PageHeader(title: 'ফ্লাইট', subtitle: 'ক্যাপাসিটি, ফ্লায়ার ও বুকিং। টিকিটের টাকা অ্যাকাউন্ট থেকে কাটতে ওয়েবের ফ্লাইট পেজ ব্যবহার করুন।'),
+            const PageHeader(title: 'ফ্লাইট', subtitle: 'ক্যাপাসিটি, ফ্লায়ার ও বুকিং। টিকিটের টাকা ফ্লাইট খুলে সেটল করুন।'),
             ChoiceChips(
               options: const [
                 (value: 'upcoming', label: 'আসছে'),

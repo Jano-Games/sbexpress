@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -5,7 +9,9 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
+import '../../data/share_bytes.dart';
 import '../../data/uploads/flutter_heic.dart';
+import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
 import '../../theme/app_colors.dart';
@@ -106,6 +112,50 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     }
   }
 
+  Future<void> _shareDocument(FlyerDocument document) async {
+    setState(() => _busy = true);
+    try {
+      final url = await AppScope.of(context).flyers.documentUrl(widget.name, document.reference);
+      final bytes = await downloadUrl(url);
+      if (!mounted) return;
+      final mime = document.contentType.isEmpty ? 'application/octet-stream' : document.contentType;
+      await shareBytes(bytes: bytes, filename: document.name, mimeType: mime);
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickPdf() async {
+    final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf'], withData: true);
+    final file = picked?.files.single;
+    if (file == null) return;
+    final Uint8List? bytes = file.bytes ?? (file.path == null ? null : await File(file.path!).readAsBytes());
+    if (!mounted || bytes == null) return;
+    if (bytes.length > imageUploadMaxBytes) {
+      setState(() => _error = 'PDF ১০ MB-এর বেশি। আরও ছোট ফাইল দিন।');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await AppScope.of(context).flyers.uploadPdf(name: widget.name, kind: _kind, filename: file.name, bytes: bytes, onProgress: (_) {});
+      await _load();
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _pick(ImageSource source) async {
     final file = await ImagePicker().pickImage(source: source);
     if (file == null) return;
@@ -180,7 +230,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                 const SizedBox(height: 8),
               ],
               const SizedBox(height: 8),
-              const SectionTitle(title: 'ডকুমেন্ট', subtitle: 'ছবি JPEG-এ যায়। PDF ওয়েব থেকে যোগ করা যায়। IMEI ছবি এখানে নয়।'),
+              const SectionTitle(title: 'ডকুমেন্ট', subtitle: 'ছবি JPEG-এ যায়। PDF আলাদা। ফাইল অন্য অ্যাপে খুলবে। IMEI ছবি এখানে নয়।'),
               if (documents != null && !documents.configured)
                 const ErrorNote(message: 'স্টোরেজ এখনো তৈরি হয়নি। সেটআপ শেষ না হওয়া পর্যন্ত আপলোড বন্ধ।'),
               DropdownButtonFormField<String>(
@@ -197,6 +247,8 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                   Expanded(child: AppButton(label: 'গ্যালারি', kind: AppButtonKind.quiet, onPressed: documents?.configured == false ? null : () => _pick(ImageSource.gallery))),
                 ],
               ),
+              const SizedBox(height: 8),
+              AppButton(label: 'PDF আপলোড', kind: AppButtonKind.teal, busy: _busy, onPressed: documents?.configured == false ? null : _pickPdf),
               if (upload != null && upload.busy)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -218,6 +270,8 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                       children: [
                         Text(document.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                         Text('${flyerDocumentKinds[document.kind] ?? document.kind} · ${document.uploadedByName}', style: const TextStyle(color: AppColors.muted)),
+                        const SizedBox(height: 8),
+                        AppButton(label: 'দেখুন / শেয়ার', kind: AppButtonKind.quiet, busy: _busy, onPressed: () => _shareDocument(document)),
                         const SizedBox(height: 8),
                         AppButton(
                           label: document.verified ? 'যাচাই তুলে নিন' : 'যাচাই করুন',

@@ -39,6 +39,29 @@ class ApiClient {
     return _send('PATCH', path, body: body ?? const <String, Object?>{});
   }
 
+  Future<Map<String, Object?>> deleteJson(String path) => _send('DELETE', path);
+
+  Future<List<int>> getBytes(String path) async {
+    final headers = <String, String>{'accept': '*/*'};
+    final token = await session.readToken();
+    if (token != null && token.isNotEmpty) headers['authorization'] = 'Bearer $token';
+    final uri = Uri.parse('$baseUrl$path');
+    try {
+      final response = await _http.get(uri, headers: headers);
+      if (response.statusCode >= 400) {
+        await _unauthorized(response.statusCode);
+        throw ApiException(status: response.statusCode, message: _errorMessage(response.statusCode, response.body), path: path);
+      }
+      return response.bodyBytes;
+    } on ApiException {
+      rethrow;
+    } on SocketException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: path);
+    } on http.ClientException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: path);
+    }
+  }
+
   Future<void> putBytes(
     String url,
     List<int> bytes,

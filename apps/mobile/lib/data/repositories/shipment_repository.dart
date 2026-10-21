@@ -1,7 +1,9 @@
 import '../api/api_client.dart';
+import '../models/ledger_actions.dart';
 import '../json_read.dart';
 import '../models/shipment.dart';
 import '../models/workspace.dart';
+import '../money_payload.dart';
 
 class ShipmentRepository {
   ShipmentRepository(this.api);
@@ -69,10 +71,17 @@ class ShipmentRepository {
     return InvoiceDocument.fromJson(json);
   }
 
-  Future<String> issueInvoice(String code, InvoiceDocument document, {String? revisionReason, bool confirmFree = false}) async {
+  Future<String> issueInvoice(
+    String code,
+    InvoiceDocument document, {
+    String? revisionReason,
+    bool confirmFree = false,
+    String state = 'issued',
+    String? pricingMode,
+  }) async {
     final json = await api.postJson(
       '${_path(code)}/invoice',
-      body: invoiceIssueBody(document, revisionReason: revisionReason, confirmFree: confirmFree),
+      body: invoiceIssueBody(document, revisionReason: revisionReason, confirmFree: confirmFree, state: state, pricingMode: pricingMode),
       idempotent: true,
     );
     return requiredString(json, 'number');
@@ -82,10 +91,35 @@ class ShipmentRepository {
   /// account name are chosen by the operator; nothing is filled in for them.
   Future<void> recordPayment(String code, {required double amount, required String accountName, String currency = 'BDT'}) {
     return api.postJson('${_path(code)}/payments', idempotent: true, body: {
-      'amount': amount,
+      ...moneyPayload(amount, currency: currency),
       'method': accountName,
-      if (currency != 'BDT') 'money': {'currency': currency},
     });
+  }
+
+  Future<List<int>> invoicePdf(String code) {
+    return api.getBytes('${_path(code)}/invoice.pdf');
+  }
+
+  Future<List<CreditNoteRecord>> creditNotes(String code) async {
+    final json = await api.getJson('${_path(code)}/invoice-history');
+    return [for (final row in requiredMapList(json, 'creditNotes')) CreditNoteRecord.fromJson(row)];
+  }
+
+  Future<void> createCreditNote(String code, {required double amount, required String reason}) {
+    return api.postJson('${_path(code)}/after-sales', idempotent: true, body: {'amount': roundMoney(amount), 'reason': reason});
+  }
+
+  Future<ShipmentCostSheet> costSheet(String code) async {
+    final json = await api.getJson(_path(code));
+    return ShipmentCostSheet.fromJson(asJsonMap(json['costs'], 'costs'));
+  }
+
+  Future<void> recordCost(String code, Map<String, Object?> body) {
+    return api.postJson('${_path(code)}/expenses', idempotent: true, body: body);
+  }
+
+  Future<void> voidCost(String code, String costId, String reason) {
+    return api.postJson('${_path(code)}/costs/${Uri.encodeComponent(costId)}/void', idempotent: true, body: {'reason': reason});
   }
 
   Future<TrackingLink> shareTracking(String code, {int days = 7, String scope = 'tracking_only'}) async {
@@ -104,4 +138,34 @@ class TrackingLink {
 
   final String url;
   final String expiresAt;
+}
+
+/// Shipment cost post. Settling an existing row always pays now from an account.
+Map<String, Object?> shipmentExpenseBody({
+  required String category,
+  required double amount,
+  required String currency,
+  required String reason,
+  String? label,
+  String? accountName,
+  String paymentTiming = 'now',
+  String? costId,
+  String? costField,
+}) {
+  if (paymentTiming == 'later' && (costId != null || costField != null)) {
+    throw const FormatException('বকেয়া খরচ মিটাতে অ্যাকাউন্ট বেছে নিন।');
+  }
+  if (paymentTiming == 'now' && (accountName == null || accountName.trim().isEmpty)) {
+    throw const FormatException('যে অ্যাকাউন্ট থেকে টাকা যাবে সেটা বেছে নিন।');
+  }
+  return {
+    'category': category,
+    ...moneyPayload(amount, currency: currency),
+    'reason': reason.trim(),
+    if (label != null && label.trim().isNotEmpty) 'label': label.trim(),
+    if (paymentTiming == 'now') 'accountName': accountName!.trim(),
+    'paymentTiming': paymentTiming == 'later' ? 'later' : 'now',
+    if (costId != null) 'costId': costId,
+    if (costField != null) 'costField': costField,
+  };
 }
