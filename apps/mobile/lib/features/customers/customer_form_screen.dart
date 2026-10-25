@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/customer.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
@@ -31,7 +32,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
 
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) {
-      setState(() => _error = 'কাস্টমারের নাম দিন।');
+      setState(() => _error = tr('Enter the customer name.'));
       return;
     }
     setState(() {
@@ -57,24 +58,44 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন কাস্টমার'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: tr('New customer'),
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'নতুন কাস্টমার', subtitle: 'কোড সার্ভার দেবে। পেমেন্ট অ্যাকাউন্ট এখানে যোগ করা হয় না।'),
-          TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'নাম')),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'The server assigns the code. Payment accounts are not added here.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(labelText: tr('Name'))),
           const SizedBox(height: 8),
-          TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'ফোন')),
+          TextField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(labelText: tr('Phone'))),
           const SizedBox(height: 8),
-          TextField(controller: _address, decoration: const InputDecoration(labelText: 'ঠিকানা')),
+          TextField(
+              controller: _address,
+              decoration: InputDecoration(labelText: tr('Address'))),
           const SizedBox(height: 12),
-          const Text('বিলিং টার্ম', style: TextStyle(fontWeight: FontWeight.w600)),
+          Text(tr('Billing terms'),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ChoiceChips(
-            options: const [
-              (value: 'instant', label: 'সাথে সাথে'),
-              (value: 'monthly', label: 'মাসিক'),
+            options: [
+              (value: 'instant', label: tr('Instant')),
+              (value: 'monthly', label: tr('Monthly')),
             ],
             selected: _terms,
             onSelected: (value) => setState(() => _terms = value),
@@ -83,10 +104,6 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: AppColors.danger)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }

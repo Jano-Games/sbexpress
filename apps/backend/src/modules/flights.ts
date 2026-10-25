@@ -13,6 +13,8 @@ import { effectiveBill, num, isoDate, shipmentRow, shipmentOperatingCosts } from
 import { getSettings } from '../shared/settings'
 import { creditPayment, debitCash } from '../shared/ledger'
 import { lookupFlight } from '../shared/flightLookup'
+import { HUB_FLIGHT_DETAIL_INCLUDE, HUB_FLIGHT_INCLUDE, hubFlightDetail, hubFlightRow } from '../shared/hubFlights'
+import { matchFlyers, parseTicketText, ticketText } from '../shared/ticketImport'
 
 const INCLUDE = {
   expenses: true,
@@ -58,7 +60,7 @@ interface LegInput {
 }
 
 const legSchema = z.object({
-  source:z.enum(["manual","schedule","legacy"]).default("legacy"),
+  source:z.enum(["manual","schedule","legacy","ticket"]).default("legacy"),
   code: z.string().min(2),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   fromIata: z.string().default(''),
@@ -159,6 +161,45 @@ export const flightRoutes = new Hono<AppEnv>()
       })
       .parse({ code: c.req.query('code'), date: c.req.query('date') })
     return c.json(await lookupFlight(code, date))
+  })
+
+  // Reads an e-ticket PDF into reviewable flight drafts. Nothing is stored:
+  // neither the file nor the passport number leaves this request.
+  .post('/ticket', requireRole('admin'), async (c) => {
+    const { file } = z.object({ file: z.string().min(1, 'Choose a ticket PDF') }).parse(await c.req.json())
+    const parsed = parseTicketText(await ticketText(file))
+    if (!parsed.journeys.length) throw badRequest('No flight segments found in this PDF. Enter the flight manually.')
+    const flyers = await prisma.flyer.findMany({ where: { archivedAt: null }, select: { name: true } })
+    return c.json({
+      ticket: {
+        agency: parsed.agency,
+        passenger: parsed.passenger,
+        pnr: parsed.pnr,
+        ticketNumber: parsed.ticketNumber,
+        issuedOn: parsed.issuedOn,
+      },
+      flyerMatches: matchFlyers(parsed.passenger, flyers),
+      journeys: parsed.journeys,
+    })
+  })
+
+  // Hub-safe schedule without ticket or booking money. Also registered before
+  // '/:code' so "hub" is never read as a flight code.
+  .get('/hub', requireRole('admin', 'hub'), async (c) => {
+    const [upcoming, arrived] = await Promise.all([
+      prisma.flight.findMany({ where: { status: { in: ['upcoming', 'departed'] } }, include: HUB_FLIGHT_INCLUDE, orderBy: { date: 'asc' } }),
+      prisma.flight.findMany({ where: { status: 'completed' }, include: HUB_FLIGHT_INCLUDE, orderBy: { date: 'desc' }, take: 10 }),
+    ])
+    return c.json({ upcoming: upcoming.map((f) => hubFlightRow(f)), arrived: arrived.map((f) => hubFlightRow(f)) })
+  })
+
+  .get('/hub/:code', requireRole('admin', 'hub'), async (c) => {
+    const [flight, settings] = await Promise.all([
+      prisma.flight.findUnique({ where: { code: c.req.param('code') }, include: HUB_FLIGHT_DETAIL_INCLUDE }),
+      getSettings(),
+    ])
+    if (!flight) throw notFound('Flight not found')
+    return c.json({ flight: hubFlightDetail(flight, settings.threshold) })
   })
 
   .post('/', requireRole('admin'), async (c) => {

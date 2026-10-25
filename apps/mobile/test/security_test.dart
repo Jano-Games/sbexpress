@@ -224,11 +224,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('আজকের বাকি কাজ'), findsOneWidget);
+    expect(find.text('আজকের কাজ'), findsOneWidget);
     expect(find.text('SH-SEC'), findsWidgets);
 
     arm401 = true;
-    Navigator.of(tester.element(find.text('আজকের বাকি কাজ'))).push(
+    Navigator.of(tester.element(find.text('আজকের কাজ'))).push(
       MaterialPageRoute<void>(builder: (_) => const ShipmentProcessScreen(code: 'SH-SEC')),
     );
     await tester.pump();
@@ -238,7 +238,7 @@ void main() {
     expect(find.text('Account changed — sign in again'), findsNothing);
     expect(find.text('আবার চেষ্টা'), findsNothing);
     expect(find.text('SH-SEC'), findsNothing);
-    expect(find.text('আজকের বাকি কাজ'), findsNothing);
+    expect(find.text('আজকের কাজ'), findsNothing);
     expect(find.byKey(const Key('login-email')), findsOneWidget);
     expect(store.token, isNull);
     expect(session.user, isNull);

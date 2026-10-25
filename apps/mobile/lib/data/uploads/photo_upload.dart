@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../l10n/l10n.dart';
 import 'image_prepare.dart';
 import 'upload_flow.dart';
 
@@ -17,7 +18,8 @@ class PhotoUploadController extends ChangeNotifier {
     Future<Uint8List> Function(Uint8List heic)? decodeHeic,
   }) : _decodeHeic = decodeHeic ?? _missingHeicDecoder;
 
-  final Future<void> Function(PreparedImage image, void Function(double progress) onProgress) upload;
+  final Future<void> Function(
+      PreparedImage image, void Function(double progress) onProgress) upload;
   final Future<Uint8List> Function(Uint8List heic) _decodeHeic;
 
   PickedPhoto? original;
@@ -56,7 +58,8 @@ class PhotoUploadController extends ChangeNotifier {
     busy = true;
     notifyListeners();
     try {
-      prepared = await prepareForUpload(photo.bytes, name: photo.name, mime: photo.mime, decodeHeic: _decodeHeic);
+      prepared = await prepareForUpload(photo.bytes,
+          name: photo.name, mime: photo.mime, decodeHeic: _decodeHeic);
       error = null;
     } catch (error) {
       this.error = describeUploadError(error);
@@ -92,5 +95,6 @@ class PhotoUploadController extends ChangeNotifier {
 }
 
 Future<Uint8List> _missingHeicDecoder(Uint8List bytes) async {
-  throw const FormatException('এই HEIC ছবি এই ডিভাইসে JPEG-এ রূপান্তর হয়নি। JPEG হিসেবে এক্সপোর্ট করে আবার দিন।');
+  throw FormatException(tr(
+      'This HEIC photo could not be converted to JPEG on this device. Export it as JPEG and try again.'));
 }

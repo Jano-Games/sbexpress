@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
+import '../../l10n/l10n.dart';
+
 Future<Uint8List> flutterDecodeHeic(Uint8List bytes) async {
   try {
     final converted = await FlutterImageCompress.compressWithList(
@@ -11,12 +13,14 @@ Future<Uint8List> flutterDecodeHeic(Uint8List bytes) async {
       keepExif: false,
     );
     if (converted.isEmpty) {
-      throw const FormatException('এই HEIC ছবি এই ডিভাইসে JPEG-এ রূপান্তর হয়নি। JPEG হিসেবে এক্সপোর্ট করে আবার দিন।');
+      throw FormatException(tr(
+          'This HEIC photo could not be converted to JPEG on this device. Export it as JPEG and try again.'));
     }
     return converted;
   } on FormatException {
     rethrow;
   } catch (_) {
-    throw const FormatException('এই HEIC ছবি এই ডিভাইসে JPEG-এ রূপান্তর হয়নি। JPEG হিসেবে এক্সপোর্ট করে আবার দিন।');
+    throw FormatException(tr(
+        'This HEIC photo could not be converted to JPEG on this device. Export it as JPEG and try again.'));
   }
 }

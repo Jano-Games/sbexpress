@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/workspace.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -50,45 +51,57 @@ class _StaffScreenState extends State<StaffScreen> {
   @override
   Widget build(BuildContext context) {
     final self = AppScope.of(context).session.user?.id;
-    return Scaffold(
-      appBar: const BackTitle(title: 'স্টাফ'),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    return WorkspaceScaffold(
+        title: tr('Staff'),
+        root: false,
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
-          children: [
-            const PageHeader(title: 'স্টাফ', subtitle: 'অ্যাডমিন সব দেখে। হাব ম্যানেজার টাকা ও কাস্টমারের নাম দেখে না।'),
-            if (_loading && _staff.isEmpty) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ...[
-              ErrorNote(message: _error!, onRetry: _load),
-              const SizedBox(height: 12),
-            ],
-            for (final person in _staff) ...[
-              DirectoryTile(
-                title: person.name,
-                subtitle: '${person.email}\n${person.role == 'hub' ? 'হাব' : 'অ্যাডমিন'}${person.id == self ? ' · আপনি' : ''}',
-                badge: person.active ? 'সক্রিয়' : 'বন্ধ',
-                onTap: () async {
-                  final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => StaffEditScreen(person: person, selfId: self)));
-                  if (changed == true && mounted) await _load();
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-            const SizedBox(height: 8),
-            AppButton(
-              label: 'নতুন স্টাফ',
-              kind: AppButtonKind.current,
-              onPressed: () async {
-                final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const StaffCreateScreen()));
+        footer: ActionFooter(
+            child: AppButton(
+          label: tr('New staff'),
+          kind: AppButtonKind.current,
+          onPressed: () async {
+            final changed = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => const StaffCreateScreen()));
+            if (changed == true && mounted) await _load();
+          },
+        )),
+        children: [
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'Admins see everything. Hub managers do not see money or customer names.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading && _staff.isEmpty)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ...[
+            ErrorNote(message: _error!, onRetry: _load),
+            const SizedBox(height: 12),
+          ],
+          for (final person in _staff) ...[
+            DirectoryTile(
+              title: person.name,
+              subtitle: [
+                person.email,
+                [
+                  person.role == 'hub' ? tr('Hub') : tr('Admin'),
+                  if (person.id == self) tr('You'),
+                ].join(' · '),
+              ].join('\n'),
+              badge: person.active ? tr('Active') : tr('Inactive'),
+              onTap: () async {
+                final changed = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            StaffEditScreen(person: person, selfId: self)));
                 if (changed == true && mounted) await _load();
               },
             ),
+            const SizedBox(height: 8),
           ],
-        ),
-      ),
-    );
+        ]);
   }
 }
 
@@ -119,8 +132,12 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
     final name = _name.text.trim();
     final email = _email.text.trim().toLowerCase();
     final password = _password.text;
-    if (name.isEmpty || !email.contains('@') || password.length < 8 || password.length > 128) {
-      setState(() => _error = 'নাম, ইমেইল ও ৮–১২৮ অক্ষরের পাসওয়ার্ড দিন।');
+    if (name.isEmpty ||
+        !email.contains('@') ||
+        password.length < 8 ||
+        password.length > 128) {
+      setState(() => _error =
+          tr('Enter a name, email and a password of 8–128 characters.'));
       return;
     }
     setState(() {
@@ -128,7 +145,8 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
       _error = null;
     });
     try {
-      await AppScope.of(context).settings.createStaff(name: name, email: email, role: _role, password: password);
+      await AppScope.of(context).settings.createStaff(
+          name: name, email: email, role: _role, password: password);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ApiException catch (error) {
@@ -141,37 +159,59 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন স্টাফ'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: tr('New staff'),
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Create staff'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'নতুন স্টাফ', subtitle: 'হাব ম্যানেজার শিপমেন্ট হ্যান্ডেল করে। টাকার কাজ অ্যাডমিনের।'),
-          TextField(controller: _name, decoration: const InputDecoration(labelText: 'নাম')),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'Hub managers handle shipments. Money is handled by admins.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _name,
+              decoration: InputDecoration(labelText: tr('Name'))),
           const SizedBox(height: 8),
-          TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'ইমেইল')),
+          TextField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(labelText: tr('Email'))),
           const SizedBox(height: 8),
-          TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'পাসওয়ার্ড', helperText: '৮–১২৮ অক্ষর')),
+          TextField(
+              controller: _password,
+              obscureText: true,
+              decoration: InputDecoration(
+                  labelText: tr('Password'),
+                  helperText: tr('8–128 characters'))),
           const SizedBox(height: 12),
           ChoiceChips(
-            options: const [(value: 'hub', label: 'হাব'), (value: 'admin', label: 'অ্যাডমিন')],
+            options: [
+              (value: 'hub', label: tr('Hub')),
+              (value: 'admin', label: tr('Admin'))
+            ],
             selected: _role,
             onSelected: (value) => setState(() => _role = value),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'স্টাফ তৈরি', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }
 
 class StaffEditScreen extends StatefulWidget {
-  const StaffEditScreen({super.key, required this.person, required this.selfId});
+  const StaffEditScreen(
+      {super.key, required this.person, required this.selfId});
 
   final StaffAccount person;
   final String? selfId;
@@ -181,8 +221,10 @@ class StaffEditScreen extends StatefulWidget {
 }
 
 class _StaffEditScreenState extends State<StaffEditScreen> {
-  late final TextEditingController _name = TextEditingController(text: widget.person.name);
-  late final TextEditingController _email = TextEditingController(text: widget.person.email);
+  late final TextEditingController _name =
+      TextEditingController(text: widget.person.name);
+  late final TextEditingController _email =
+      TextEditingController(text: widget.person.email);
   final _password = TextEditingController();
   final _current = TextEditingController();
   late var _role = widget.person.role;
@@ -205,15 +247,16 @@ class _StaffEditScreenState extends State<StaffEditScreen> {
     final name = _name.text.trim();
     final email = _email.text.trim().toLowerCase();
     if (name.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'নাম ও ইমেইল ঠিক করুন।');
+      setState(() => _error = tr('Check the name and email.'));
       return;
     }
     if (_self && _role != widget.person.role) {
-      setState(() => _error = 'নিজের রোল অন্য অ্যাডমিন বদলাবে।');
+      setState(() => _error = tr('Another admin must change your own role.'));
       return;
     }
     if (_self && !_active) {
-      setState(() => _error = 'নিজের অ্যাকাউন্ট অন্য অ্যাডমিন বন্ধ করবে।');
+      setState(
+          () => _error = tr('Another admin must deactivate your own account.'));
       return;
     }
     setState(() {
@@ -240,15 +283,19 @@ class _StaffEditScreenState extends State<StaffEditScreen> {
   Future<void> _savePassword() async {
     final password = _password.text;
     if (password.length < 8 || password.length > 128) {
-      setState(() => _error = 'নতুন পাসওয়ার্ড ৮–১২৮ অক্ষর।');
+      setState(() => _error = tr('The new password must be 8–128 characters.'));
       return;
     }
     if (_self && _current.text.isEmpty) {
-      setState(() => _error = 'নিজের পাসওয়ার্ড বদলাতে বর্তমান পাসওয়ার্ড দিন।');
+      setState(() => _error =
+          tr('Enter your current password to change your own password.'));
       return;
     }
     if (_self) {
-      final ok = await confirmMoney(context, title: 'নিজের পাসওয়ার্ড', body: 'সব সেশন কেটে যাবে এবং আবার লগইন করতে হবে।');
+      final ok = await confirmMoney(context,
+          title: tr('Your password'),
+          body:
+              tr('All sessions will end and you will need to sign in again.'));
       if (!ok || !mounted) return;
     }
     setState(() {
@@ -277,49 +324,81 @@ class _StaffEditScreenState extends State<StaffEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: BackTitle(title: widget.person.name),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: widget.person.name,
+        root: false,
+        subtitle: widget.person.name,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save password'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _savePassword)),
         children: [
-          PageHeader(title: widget.person.name, subtitle: _self ? 'নিজের রোল বদলানো যায় না। পাসওয়ার্ড বদলালে লগআউট হবে।' : 'রোল ও পাসওয়ার্ড আলাদা সেভ হয়।'),
-          TextField(controller: _name, decoration: const InputDecoration(labelText: 'নাম')),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  _self
+                      ? tr(
+                          'You cannot change your own role. Changing your password signs you out.')
+                      : tr('Role and password are saved separately.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _name,
+              decoration: InputDecoration(labelText: tr('Name'))),
           const SizedBox(height: 8),
-          TextField(controller: _email, decoration: const InputDecoration(labelText: 'ইমেইল')),
+          TextField(
+              controller: _email,
+              decoration: InputDecoration(labelText: tr('Email'))),
           const SizedBox(height: 12),
           if (_self)
-            const Text('রোল: অ্যাডমিন (নিজের রোল এখানে বদলায় না)', style: TextStyle(color: AppColors.muted, height: 1.35))
+            Text(tr('Role: Admin (your own role cannot be changed here)'),
+                style: const TextStyle(color: AppColors.muted, height: 1.35))
           else ...[
-            const SectionTitle(title: 'রোল'),
+            SectionTitle(title: tr('Role')),
             ChoiceChips(
-              options: const [(value: 'admin', label: 'অ্যাডমিন'), (value: 'hub', label: 'হাব')],
+              options: [
+                (value: 'admin', label: tr('Admin')),
+                (value: 'hub', label: tr('Hub'))
+              ],
               selected: _role,
               onSelected: (value) => setState(() => _role = value),
             ),
             const SizedBox(height: 8),
             ChoiceChips(
-              options: const [(value: 'on', label: 'সক্রিয়'), (value: 'off', label: 'বন্ধ')],
+              options: [
+                (value: 'on', label: tr('Active')),
+                (value: 'off', label: tr('Inactive'))
+              ],
               selected: _active ? 'on' : 'off',
               onSelected: (value) => setState(() => _active = value == 'on'),
             ),
           ],
           const SizedBox(height: 12),
-          AppButton(label: 'প্রোফাইল সেভ', kind: AppButtonKind.teal, busy: _busy, onPressed: _saveProfile),
+          AppButton(
+              label: tr('Save profile'),
+              kind: AppButtonKind.teal,
+              busy: _busy,
+              onPressed: _saveProfile),
           const SizedBox(height: 20),
-          const SectionTitle(title: 'পাসওয়ার্ড'),
+          SectionTitle(title: tr('Password')),
           if (_self) ...[
-            TextField(controller: _current, obscureText: true, decoration: const InputDecoration(labelText: 'বর্তমান পাসওয়ার্ড')),
+            TextField(
+                controller: _current,
+                obscureText: true,
+                decoration: InputDecoration(labelText: tr('Current password'))),
             const SizedBox(height: 8),
           ],
-          TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'নতুন পাসওয়ার্ড')),
+          TextField(
+              controller: _password,
+              obscureText: true,
+              decoration: InputDecoration(labelText: tr('New password'))),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 12),
-          AppButton(label: 'পাসওয়ার্ড সেভ', kind: AppButtonKind.current, busy: _busy, onPressed: _savePassword),
-        ],
-      ),
-    );
+        ]);
   }
 }

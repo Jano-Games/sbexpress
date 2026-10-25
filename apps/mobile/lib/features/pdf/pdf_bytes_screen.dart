@@ -5,18 +5,27 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../data/share_bytes.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
 /// In-app PDF. Share stays available from the same screen.
-Future<void> openPdf(BuildContext context, {required String title, required String filename, required List<int> bytes}) {
+Future<void> openPdf(BuildContext context,
+    {required String title,
+    required String filename,
+    required List<int> bytes}) {
   return Navigator.of(context).push(MaterialPageRoute<void>(
-    builder: (_) => PdfBytesScreen(title: title, filename: filename, bytes: bytes),
+    builder: (_) =>
+        PdfBytesScreen(title: title, filename: filename, bytes: bytes),
   ));
 }
 
 class PdfBytesScreen extends StatelessWidget {
-  const PdfBytesScreen({super.key, required this.title, required this.filename, required this.bytes});
+  const PdfBytesScreen(
+      {super.key,
+      required this.title,
+      required this.filename,
+      required this.bytes});
 
   final String title;
   final String filename;
@@ -31,14 +40,17 @@ class PdfBytesScreen extends StatelessWidget {
         children: [
           Expanded(child: _pages(data)),
           Padding(
-            padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 16),
+            padding: const EdgeInsets.fromLTRB(pageGutter, 12, pageGutter, 16),
             child: AppButton(
-              label: 'শেয়ার',
+              label: tr('Share'),
               kind: AppButtonKind.teal,
               onPressed: data.isEmpty
                   ? null
                   : () {
-                      shareBytes(bytes: data, filename: filename, mimeType: 'application/pdf');
+                      shareBytes(
+                          bytes: data,
+                          filename: filename,
+                          mimeType: 'application/pdf');
                     },
             ),
           ),
@@ -49,11 +61,15 @@ class PdfBytesScreen extends StatelessWidget {
 
   Widget _pages(Uint8List data) {
     if (data.isEmpty) {
-      return const Center(child: Text('এই PDF খালি।', style: TextStyle(color: AppColors.muted)));
+      return Center(
+          child: Text(tr('This PDF is empty.'),
+              style: const TextStyle(color: AppColors.muted)));
     }
     // Widget tests have no PDFium. The release and debug APKs use the viewer.
     if (Platform.environment['FLUTTER_TEST'] == 'true') {
-      return Center(child: Text('PDF ${data.length} বাইট', style: const TextStyle(color: AppColors.muted)));
+      return Center(
+          child: Text(trn(data.length, 'PDF {n} byte', 'PDF {n} bytes'),
+              style: const TextStyle(color: AppColors.muted)));
     }
     return PdfViewer.data(data, sourceName: filename);
   }

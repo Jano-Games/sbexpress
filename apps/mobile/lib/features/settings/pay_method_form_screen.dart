@@ -9,6 +9,7 @@ import '../../data/pay_method_body.dart';
 import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -63,7 +64,8 @@ class _PayMethodFormScreenState extends State<PayMethodFormScreen> {
       final url = jpegQrDataUrl(prepared.bytes);
       if (!mounted) return;
       if (url == null) {
-        setState(() => _error = 'QR ছবি ৩০০ KB-এর নিচে আসেনি। আরও ছোট ছবি দিন।');
+        setState(() => _error = tr(
+            'The QR image could not be brought under 300 KB. Choose a smaller image.'));
         return;
       }
       setState(() {
@@ -83,7 +85,8 @@ class _PayMethodFormScreenState extends State<PayMethodFormScreen> {
     final String fund;
     if (_kind == 'mobile_banking') {
       if (_provider.text.trim().isEmpty || _number.text.trim().isEmpty) {
-        setState(() => _error = 'প্রোভাইডার ও নম্বর লিখুন। নম্বর আন্দাজ করবেন না।');
+        setState(() => _error =
+            tr('Enter the provider and number. Do not guess the number.'));
         return;
       }
       body = mobilePayMethodBody(
@@ -96,8 +99,11 @@ class _PayMethodFormScreenState extends State<PayMethodFormScreen> {
       );
       fund = '${_provider.text.trim()} · ${_number.text.trim()}';
     } else {
-      if (_bank.text.trim().isEmpty || _accountNumber.text.trim().isEmpty || _holder.text.trim().isEmpty) {
-        setState(() => _error = 'ব্যাংক, অ্যাকাউন্ট নম্বর ও হোল্ডারের নাম লিখুন।');
+      if (_bank.text.trim().isEmpty ||
+          _accountNumber.text.trim().isEmpty ||
+          _holder.text.trim().isEmpty) {
+        setState(() => _error =
+            tr('Enter the bank, account number and account holder name.'));
         return;
       }
       body = bankPayMethodBody(
@@ -110,7 +116,11 @@ class _PayMethodFormScreenState extends State<PayMethodFormScreen> {
       );
       fund = '${_bank.text.trim()} · ${_accountNumber.text.trim()}';
     }
-    final ok = await confirmMoney(context, title: 'পেমেন্ট মেথড', body: 'ট্র্যাকিং পেজে দেখাবে এবং ফান্ড অ্যাকাউন্ট তৈরি হবে: $fund ($_currency)।');
+    final ok = await confirmMoney(context,
+        title: tr('Payment method'),
+        body: tr(
+            'It will show on the tracking page and a fund account will be created: {fund} ({currency}).',
+            {'fund': fund, 'currency': _currency}));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -131,21 +141,38 @@ class _PayMethodFormScreenState extends State<PayMethodFormScreen> {
   @override
   Widget build(BuildContext context) {
     final mobile = _kind == 'mobile_banking';
-    return Scaffold(
-      appBar: const BackTitle(title: 'পেমেন্ট মেথড'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: tr('New payment method'),
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save method'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'নতুন পেমেন্ট মেথড', subtitle: 'কাস্টমার ট্র্যাকিং পেজে এই নম্বর দেখে। একই নম্বরের ফান্ড আগে থাকলে সার্ভার আটকাবে।'),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'Customers see this number on the tracking page. The server blocks it if a fund with the same number already exists.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
           ChoiceChips(
-            options: const [(value: 'mobile_banking', label: 'বিকাশ / মোবাইল'), (value: 'bank_account', label: 'ব্যাংক')],
+            options: [
+              (value: 'mobile_banking', label: tr('bKash / mobile')),
+              (value: 'bank_account', label: tr('Bank'))
+            ],
             selected: _kind,
             onSelected: (value) => setState(() => _kind = value),
           ),
           const SizedBox(height: 12),
-          const SectionTitle(title: 'মুদ্রা'),
+          SectionTitle(title: tr('Currency')),
           ChoiceChips(
-            options: const [(value: 'BDT', label: 'BDT'), (value: 'CNY', label: 'CNY')],
+            options: const [
+              (value: 'BDT', label: 'BDT'),
+              (value: 'CNY', label: 'CNY')
+            ],
             selected: _currency,
             onSelected: (value) => setState(() => _currency = value),
           ),
@@ -157,40 +184,66 @@ class _PayMethodFormScreenState extends State<PayMethodFormScreen> {
                 (value: 'Nagad', label: 'Nagad'),
                 (value: 'Rocket', label: 'Rocket'),
               ],
-              selected: const {'bKash', 'Nagad', 'Rocket'}.contains(_provider.text) ? _provider.text : '',
+              selected:
+                  const {'bKash', 'Nagad', 'Rocket'}.contains(_provider.text)
+                      ? _provider.text
+                      : '',
               onSelected: (value) => setState(() => _provider.text = value),
             ),
             const SizedBox(height: 12),
-            TextField(controller: _provider, decoration: const InputDecoration(labelText: 'প্রোভাইডার')),
+            TextField(
+                controller: _provider,
+                decoration: InputDecoration(labelText: tr('Provider'))),
             const SizedBox(height: 8),
-            TextField(controller: _number, decoration: const InputDecoration(labelText: 'নম্বর')),
+            TextField(
+                controller: _number,
+                decoration: InputDecoration(labelText: tr('Number'))),
             const SizedBox(height: 8),
-            TextField(controller: _label, decoration: const InputDecoration(labelText: 'লেবেল (ঐচ্ছিক)')),
+            TextField(
+                controller: _label,
+                decoration: InputDecoration(labelText: tr('Label (optional)'))),
             const SizedBox(height: 8),
-            TextField(controller: _note, maxLength: 200, decoration: const InputDecoration(labelText: 'নোট (ঐচ্ছিক)')),
+            TextField(
+                controller: _note,
+                maxLength: 200,
+                decoration: InputDecoration(labelText: tr('Note (optional)'))),
             const SizedBox(height: 8),
-            AppButton(label: _qr == null ? 'QR ছবি (ঐচ্ছিক)' : 'QR যোগ হয়েছে', kind: AppButtonKind.quiet, onPressed: _qrPhoto),
+            AppButton(
+                label: _qr == null ? tr('QR image (optional)') : tr('QR added'),
+                kind: AppButtonKind.quiet,
+                onPressed: _qrPhoto),
             if (_qr != null)
-              TextButton(onPressed: () => setState(() => _qr = null), child: const Text('QR সরান')),
+              TextButton(
+                  onPressed: () => setState(() => _qr = null),
+                  child: Text(tr('Remove QR'))),
           ] else ...[
-            TextField(controller: _bank, decoration: const InputDecoration(labelText: 'ব্যাংকের নাম')),
+            TextField(
+                controller: _bank,
+                decoration: InputDecoration(labelText: tr('Bank name'))),
             const SizedBox(height: 8),
-            TextField(controller: _accountNumber, decoration: const InputDecoration(labelText: 'অ্যাকাউন্ট নম্বর')),
+            TextField(
+                controller: _accountNumber,
+                decoration: InputDecoration(labelText: tr('Account number'))),
             const SizedBox(height: 8),
-            TextField(controller: _holder, decoration: const InputDecoration(labelText: 'অ্যাকাউন্ট হোল্ডার')),
+            TextField(
+                controller: _holder,
+                decoration: InputDecoration(labelText: tr('Account holder'))),
             const SizedBox(height: 8),
-            TextField(controller: _branch, decoration: const InputDecoration(labelText: 'শাখা (ঐচ্ছিক)')),
+            TextField(
+                controller: _branch,
+                decoration:
+                    InputDecoration(labelText: tr('Branch (optional)'))),
             const SizedBox(height: 8),
-            TextField(controller: _district, decoration: const InputDecoration(labelText: 'জেলা (ঐচ্ছিক)')),
+            TextField(
+                controller: _district,
+                decoration:
+                    InputDecoration(labelText: tr('District (optional)'))),
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'মেথড সেভ', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }

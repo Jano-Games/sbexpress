@@ -7,9 +7,12 @@ import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import 'flight_detail_screen.dart';
 import 'flight_form_screen.dart';
+import 'ticket_import_screen.dart';
+import '../../l10n/l10n.dart';
 
 class FlightsScreen extends StatefulWidget {
-  const FlightsScreen({super.key});
+  const FlightsScreen({super.key, this.root = false});
+  final bool root;
 
   @override
   State<FlightsScreen> createState() => _FlightsScreenState();
@@ -49,104 +52,133 @@ class _FlightsScreenState extends State<FlightsScreen> {
     }
   }
 
+  Future<void> _create() async {
+    final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const FlightFormScreen()));
+    if (created == true && mounted) await _load();
+  }
+
+  Future<void> _importTicket() async {
+    final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const TicketImportScreen()));
+    if (created == true && mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visible = [
-      for (final row in _rows)
-        if (_filter == 'all' || row.status == _filter) row,
-    ];
-    return Scaffold(
-      appBar: const BackTitle(title: 'ফ্লাইট'),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    final visible = _rows
+        .where((row) => _filter == 'all' || row.status == _filter)
+        .toList();
+    return WorkspaceScaffold(
+        root: widget.root,
+        title: tr('Flights'),
+        subtitle: tr('Schedule and capacity'),
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
-          children: [
-            const PageHeader(title: 'ফ্লাইট', subtitle: 'ক্যাপাসিটি, ফ্লায়ার ও বুকিং। টিকিটের টাকা ফ্লাইট খুলে সেটল করুন।'),
-            ChoiceChips(
-              options: const [
-                (value: 'upcoming', label: 'আসছে'),
-                (value: 'departed', label: 'উড়েছে'),
-                (value: 'completed', label: 'শেষ'),
-                (value: 'all', label: 'সব'),
-              ],
-              selected: _filter,
-              onSelected: (value) => setState(() => _filter = value),
-            ),
-            const SizedBox(height: 12),
-            AppButton(
-              label: 'নতুন ফ্লাইট',
-              kind: AppButtonKind.current,
-              onPressed: () async {
-                final created = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const FlightFormScreen()));
-                if (created == true) await _load();
-              },
-            ),
-            const SizedBox(height: 12),
-            if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-            if (!_loading && _error == null && visible.isEmpty)
-              const EmptyNote(title: 'এই ফিল্টারে ফ্লাইট নেই', body: 'নতুন ফ্লাইট যোগ করলে এখানে দেখা যাবে।'),
-            for (final row in visible) ...[
-              _FlightCard(
-                row: row,
-                onOpen: () async {
-                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FlightDetailScreen(code: row.code)));
-                  await _load();
-                },
-              ),
-              const SizedBox(height: 8),
+        actions: [
+          IconButton(
+              key: const Key('flights-import-ticket'),
+              tooltip: tr('Import ticket'),
+              onPressed: _importTicket,
+              icon: const Icon(Icons.upload_file_rounded)),
+          TextButton.icon(
+              onPressed: _create,
+              icon: const Icon(Icons.add_rounded, size: 19),
+              label: Text(tr('New'))),
+          const SizedBox(width: 8)
+        ],
+        toolbar: ScreenTabs(
+            labels: [
+              tr('Upcoming'),
+              tr('Departed'),
+              tr('Completed'),
+              tr('All')
             ],
+            index: const ['upcoming', 'departed', 'completed', 'all']
+                .indexOf(_filter),
+            onChanged: (i) => setState(() => _filter =
+                const ['upcoming', 'departed', 'completed', 'all'][i])),
+        children: [
+          if (_loading) const LinearProgressIndicator(),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (!_loading && _error == null && visible.isEmpty)
+            EmptyNote(
+                title: tr('No flights in this filter'),
+                body: tr('New flights will appear here.')),
+          if (visible.isNotEmpty) ...[
+            SectionTitle(
+                title: trn(visible.length, '{n} flight', '{n} flights')),
+            SurfaceGroup(children: [
+              for (final row in visible)
+                _FlightCard(
+                    row: row,
+                    onOpen: () async {
+                      await Navigator.of(context).push(MaterialPageRoute<void>(
+                          builder: (_) => FlightDetailScreen(code: row.code)));
+                      if (mounted) await _load();
+                    })
+            ]),
           ],
-        ),
-      ),
-    );
+        ]);
   }
 }
 
 class _FlightCard extends StatelessWidget {
   const _FlightCard({required this.row, required this.onOpen});
-
   final FlightSummary row;
   final VoidCallback onOpen;
-
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(cardRadius),
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(cardRadius),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(cardRadius), border: Border.all(color: AppColors.line)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(row.displayCode, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.teal))),
-                  StatusPill(label: row.statusLabel, tone: flightStatusTone(row.status)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text('${row.date} · ${row.depTime}–${row.arrTime} · ${row.via}', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 8),
-              Text(row.flyers.isEmpty ? 'ফ্লায়ার নেই' : row.flyers.join(', ')),
-              const SizedBox(height: 8),
-              CapacityBar(booked: row.bookedKg, space: row.spaceKg.toDouble()),
-              const SizedBox(height: 4),
-              Text('${row.shipmentCount} শিপমেন্ট · মোবাইল ${row.mobiles} · ল্যাপটপ ${row.laptops}', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-              if (row.scheduleNeedsConfirmation) ...[
-                const SizedBox(height: 6),
-                const Text('তারিখ পেরিয়ে গেছে, স্ট্যাটাস আপডেট করুন', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => InkWell(
+      onTap: onOpen,
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(
+                  child: Text(row.displayCode,
+                      style: const TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w600))),
+              Flexible(
+                  child: StatusPill(
+                      label: row.statusLabel,
+                      tone: flightStatusTone(row.status))),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 18, color: AppColors.muted)
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              const Icon(Icons.flight_takeoff_rounded,
+                  size: 18, color: AppColors.teal),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Text('${row.depTime}  —  ${row.arrTime}',
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w500)))
+            ]),
+            const SizedBox(height: 3),
+            Text('${row.date} · ${row.via}',
+                style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            const SizedBox(height: 14),
+            CapacityBar(booked: row.bookedKg, space: row.spaceKg.toDouble()),
+            const SizedBox(height: 10),
+            Text(
+                row.flyers.isEmpty
+                    ? tr('No flyer assigned')
+                    : row.flyers.join(', '),
+                style: const TextStyle(fontSize: 13)),
+            Text(
+                trn(
+                    row.shipmentCount,
+                    '{n} shipment · Mobiles {mobiles} · Laptops {laptops}',
+                    '{n} shipments · Mobiles {mobiles} · Laptops {laptops}',
+                    {'mobiles': row.mobiles, 'laptops': row.laptops}),
+                style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            if (row.scheduleNeedsConfirmation)
+              Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(tr('Date has passed · Confirm the status'),
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 12))),
+          ])));
 }

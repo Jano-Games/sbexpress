@@ -1,7 +1,9 @@
 import '../../data/models/session_user.dart';
+import '../../l10n/l10n.dart';
 
 class MoreDestination {
-  const MoreDestination({required this.id, required this.title, required this.body});
+  const MoreDestination(
+      {required this.id, required this.title, required this.body});
 
   final String id;
   final String title;
@@ -11,64 +13,72 @@ class MoreDestination {
 List<MoreDestination> moreDestinations(UserRole role) {
   switch (role) {
     case UserRole.hub:
-      return const [
+      return [
         MoreDestination(
           id: 'imei',
-          title: 'IMEI ছবি',
-          body: 'ডিভাইস বেছে নিয়ে গাইড ফ্রেমে সিরিয়ালের ছবি নিন। কাস্টমারের সাথে শেয়ার হয় না।',
+          title: tr('IMEI photos'),
+          body: tr('Save device serials and photos'),
         ),
         MoreDestination(
           id: 'media',
-          title: 'ছবি / মিডিয়া',
-          body: 'শিপমেন্ট খুলে সাধারণ ছবি দেখুন ও যোগ করুন। শেয়ার টগল অ্যাডমিনের।',
+          title: tr('Photos / media'),
+          body: tr('View and add shipment photos'),
         ),
       ];
     case UserRole.admin:
-      return const [
+      return [
+        MoreDestination(
+            id: 'tasks',
+            title: tr('Tasks & notes'),
+            body: tr('Team tasks and daily notes')),
+        MoreDestination(
+            id: 'review',
+            title: tr('Payment review'),
+            body: tr('Receipts and payment screenshots')),
         MoreDestination(
           id: 'intake',
-          title: 'শিপমেন্ট ইনটেক',
-          body: 'কাস্টমার, ক্যাটাগরি, ওজন ও চাইলে ফ্লাইট।',
+          title: tr('Shipment intake'),
+          body: tr('Book a new parcel'),
         ),
         MoreDestination(
           id: 'invoice-share',
-          title: 'ইনভয়েস ইস্যু ও শেয়ার',
-          body: 'লাইন, ছাড়, PDF দেখা ও শেয়ার, ট্র্যাকিং বা ইনভয়েস লিংক।',
+          title: tr('Issue & share invoices'),
+          body: tr('Prepare bills and customer links'),
         ),
         MoreDestination(
           id: 'flights',
-          title: 'ফ্লাইট',
-          body: 'ক্যাপাসিটি, ফ্লায়ার অ্যাসাইন ও বুকিং।',
+          title: tr('Flights'),
+          body: tr('Schedules and baggage capacity'),
         ),
         MoreDestination(
           id: 'flyers',
-          title: 'ফ্লায়ার',
-          body: 'প্রোফাইল, ফোন ও ডকুমেন্ট যাচাই।',
+          title: tr('Flyers'),
+          body: tr('Profiles and travel documents'),
         ),
         MoreDestination(
           id: 'customers',
-          title: 'কাস্টমার',
-          body: 'নাম, বকেয়া, অ্যাকাউন্ট হিসাব ও শিপমেন্ট।',
+          title: tr('Customers'),
+          body: tr('Dues and shipment accounts'),
         ),
         MoreDestination(
           id: 'finance',
-          title: 'ফাইন্যান্স',
-          body: 'ক্যাশ, ট্রান্সফার, শুরুর ব্যালেন্স, মিল, জমা, খরচ ও লেজার।',
+          title: tr('Finance overview'),
+          body: tr('Accounts, transactions and reports'),
         ),
         MoreDestination(
           id: 'assign',
-          title: 'কাজ অ্যাসাইন',
-          body: 'হাব ম্যানেজারকে নোট কাজ দিন।',
+          title: tr('Assign tasks'),
+          body: tr('Share out team tasks'),
         ),
         MoreDestination(
           id: 'settings',
-          title: 'সেটিংস',
-          body: 'CNY রেট, পেমেন্ট মেথড, স্টোরেজ ও স্টাফ।',
+          title: tr('Settings'),
+          body: tr('Business setup and team'),
         ),
         MoreDestination(
           id: 'media',
-          title: 'ছবি / মিডিয়া',
-          body: 'শিপমেন্টের ছবি দেখুন, যোগ করুন ও শেয়ার করুন।',
+          title: tr('Photos / media'),
+          body: tr('Shipment photos and attachments'),
         ),
       ];
   }
@@ -84,13 +94,17 @@ class MoreGroup {
 List<MoreGroup> moreGroups(UserRole role) {
   switch (role) {
     case UserRole.hub:
-      return const [
-        MoreGroup('হাবের কাজ', ['imei', 'media']),
+      return [
+        MoreGroup(tr('Hub tasks'), const ['imei', 'media']),
       ];
     case UserRole.admin:
-      return const [
-        MoreGroup('অপারেশন', ['intake', 'flights', 'flyers', 'customers', 'invoice-share', 'media']),
-        MoreGroup('টাকা ও সেটআপ', ['finance', 'assign', 'settings']),
+      return [
+        MoreGroup(tr('Partners'), const ['customers', 'flyers']),
+        MoreGroup(
+            tr('Shipment tools'), const ['intake', 'invoice-share', 'media']),
+        MoreGroup(tr('Tasks & finance'),
+            const ['tasks', 'assign', 'review', 'finance']),
+        MoreGroup(tr('Management'), const ['flights', 'settings']),
       ];
   }
 }

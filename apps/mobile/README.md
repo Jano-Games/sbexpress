@@ -10,7 +10,40 @@ flutter test
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3002
 ```
 
-Android emulator reaches the host API at `http://10.0.2.2:3002`. A device on the same network needs the computer's LAN address. Debug Android allows cleartext so a local API works. `flutter run` without a device id targets the connected Android emulator or phone.
+Android emulator reaches the host API at `http://10.0.2.2:3002`. Physical phones use ADB reverse as described below. Debug HTTP is limited to loopback/emulator hosts; a plain HTTP LAN address is rejected by the app. `flutter run` without a device id targets the connected Android emulator or phone.
+
+## Physical Android phone on Windows
+
+Keep the main backend running on the PC at `127.0.0.1:3002`, with the project's Docker PostgreSQL and Redis services running. The Vite website port is not the mobile API.
+
+On Android 11+, connect the phone and PC to the same network, enable Developer options and Wireless debugging, then open Pair device with pairing code. In PowerShell, set the ADB path for your Android SDK and replace the example placeholders with the phone's actual values:
+
+```powershell
+$adb = Join-Path $env:ANDROID_HOME 'platform-tools\adb.exe'
+& $adb pair 'PHONE_IP:PAIR_PORT'
+# Enter the code while the phone's pairing dialog remains open.
+# CONNECT_PORT comes from the main Wireless debugging screen, not the pairing dialog.
+& $adb connect 'PHONE_IP:CONNECT_PORT'
+& $adb devices -l
+```
+
+USB debugging with an authorized USB cable can be used instead of wireless pairing. Copy the phone's exact device ID from `adb devices -l` or `flutter devices`:
+
+```powershell
+cd N:\CCD\Mamun\apps\mobile
+flutter pub get
+$phoneId = 'DEVICE_ID'
+& $adb -s $phoneId reverse tcp:3002 tcp:3002
+flutter run -d $phoneId --dart-define=API_BASE_URL=http://127.0.0.1:3002
+```
+
+Reapply the reverse mapping after reconnecting. This local debug build needs the PC backend and the ADB connection; a standalone release uses the deployed HTTPS API.
+
+### Windows Kotlin cross-drive cache failure
+
+If the project is on `N:` and Pub cache is on `C:`, Kotlin incremental compilation can fail with `this and base files have different roots` / `Could not close incremental caches`. The project's `android/gradle.properties` disables Kotlin incremental compilation with `kotlin.incremental=false`. This affects Kotlin recompilation speed, not app behavior or Dart hot reload. Gradle's task up-to-date checks remain available.
+
+After an already failed build, run `flutter clean` once, then rebuild. Do not delete the global Pub cache, move the project, or downgrade dependencies to fix this cache-path failure. The `flutter_image_compress_common` legacy KGP warning is a separate plugin migration warning and can remain on a successful build. See [Kotlin's incremental compilation documentation](https://kotlinlang.org/docs/gradle-compilation-and-caches.html#incremental-compilation).
 
 A debug APK (signed with the debug key):
 
@@ -101,3 +134,19 @@ Before upload, photos are converted to JPEG, longest edge 2000px, quality 80. Fi
 ## Screenshots
 
 `docs/screenshots/` shows the login screen, the hub “আজকের বাকি কাজ” hero, the shipment list, and admin payment review. Later captures of the admin home, flights, customers and finance snapshot are widget renders of the same UI against fixture JSON with the real DTO shapes. They are not from an Android emulator when the environment has no emulator. Hub fixtures may still contain money keys; the hub screens do not render them.
+
+### Mobile interface and visual checks
+
+The mobile UI uses one navy, white and blue theme, Hind Siliguri typography, outline icons and 48dp minimum touch targets. Home prioritizes balances and pending work; lists use tappable rows; shipment intake uses searchable customer and flight pickers; receipt review opens one receipt at a time. The bottom tabs load on their first visit and retain their state.
+
+Generate current widget screenshots with real fonts, fixture data, and compact 320dp / 130% text-size checks:
+
+```powershell
+$env:CAPTURE_SCREENSHOTS = '1'
+$env:MOBILE_SCREENSHOT_DIR = 'docs/screenshots'
+flutter test test/capture_screenshots_test.dart
+Remove-Item Env:CAPTURE_SCREENSHOTS
+flutter test
+```
+
+The capture test checks rendering errors and writes PNG files directly; golden-file update mode is not required. The regular test suite also checks lazy tab loading, draft preservation and the receipt selection/approval flow.

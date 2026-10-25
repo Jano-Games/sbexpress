@@ -258,7 +258,7 @@ export function FlightDetail() {
                   <tbody className="divide-y divide-border">
                     {f.legs.map((leg, index) => (
                       <tr key={`${leg.code}-${index}`}>
-                        <td className="py-4 pr-4 font-medium">{leg.code}{leg.source === "manual" ? " · Manual" : ""}</td>
+                        <td className="py-4 pr-4 font-medium">{leg.code}{leg.source === "manual" ? " · Manual" : leg.source === "ticket" ? " · From ticket" : ""}</td>
                         <td className="py-4 pr-4 whitespace-nowrap">
                           {fmtDate(leg.date ?? f.date)}
                         </td>

@@ -6,6 +6,7 @@ import '../../data/models/finance_snapshot.dart';
 import '../../data/models/ledger_actions.dart';
 import '../../data/money_payload.dart';
 import '../../data/repositories/shipment_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
@@ -55,16 +56,24 @@ class _ShipmentCostsScreenState extends State<ShipmentCostsScreen> {
   }
 
   Future<void> _void(ShipmentCostItem item) async {
-    final reason = await askReason(context, title: '${item.name} বাতিল');
+    final reason = await askReason(context,
+        title: tr('Cancel {name}', {'name': item.name}));
     if (reason == null || !mounted) return;
     if (reason.length < 3) {
-      setState(() => _error = 'বাতিলের কারণ কমপক্ষে ৩ অক্ষর।');
+      setState(() => _error =
+          tr('The reason for cancelling needs at least 3 characters.'));
       return;
     }
-    final ok = await confirmMoney(context, title: 'খরচ বাতিল', body: '${item.name} (${formatBdt(item.amount)}) বাতিল হবে। কোনো পেমেন্ট থাকলে সার্ভার আটকাবে।');
+    final ok = await confirmMoney(context,
+        title: tr('Cancel cost'),
+        body: tr(
+            '{name} ({amount}) will be cancelled. The server blocks this if the cost has any payment.',
+            {'name': item.name, 'amount': formatBdt(item.amount)}));
     if (!ok || !mounted) return;
     try {
-      await AppScope.of(context).shipments.voidCost(widget.code, item.id, reason);
+      await AppScope.of(context)
+          .shipments
+          .voidCost(widget.code, item.id, reason);
       await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -75,70 +84,97 @@ class _ShipmentCostsScreenState extends State<ShipmentCostsScreen> {
   @override
   Widget build(BuildContext context) {
     final sheet = _sheet;
-    return Scaffold(
-      appBar: BackTitle(title: widget.code),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    return WorkspaceScaffold(
+        title: tr('Costs'),
+        root: false,
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
-          children: [
-            const PageHeader(title: 'খরচ', subtitle: 'নতুন খরচ বিলে যোগ হতে পারে। আগের খরচ মিটালে আবার বিল হয় না।'),
-            if (_loading && sheet == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ...[
-              ErrorNote(message: _error!, onRetry: _load),
-              const SizedBox(height: 12),
-            ],
-            if (sheet != null) ...[
-              PaperCard(child: KvRow(label: 'মোট খরচ', value: formatBdt(sheet.total))),
-              const SizedBox(height: 12),
-              if (sheet.items.isEmpty) const EmptyNote(title: 'খরচ নেই', body: 'কুরিয়ার, প্যাকেজিং বা অন্য খরচ যোগ করুন।'),
-              for (final item in sheet.items) ...[
-                PaperCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(costCategories[item.category] ?? item.category, style: const TextStyle(color: AppColors.muted)),
-                      const SizedBox(height: 8),
-                      KvRow(label: 'অঙ্ক', value: formatBdt(item.amount)),
-                      KvRow(label: 'পেইড', value: formatBdt(item.paidAmount)),
-                      KvRow(label: 'বাকি', value: formatBdt(item.dueAmount), valueColor: item.dueAmount > 0 ? AppColors.danger : AppColors.ok),
-                      if (item.voided) const Text('বাতিল', style: TextStyle(color: AppColors.muted)),
-                      if (!item.voided && item.dueAmount > 0) ...[
-                        const SizedBox(height: 8),
-                        AppButton(
-                          label: 'পরিশোধ',
-                          kind: AppButtonKind.current,
-                          onPressed: () async {
-                            final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => CostSettleScreen(code: widget.code, item: item)));
-                            if (saved == true) await _load();
-                          },
-                        ),
-                      ],
-                      if (!item.voided && !item.legacyField && item.paidAmount == 0) ...[
-                        const SizedBox(height: 8),
-                        AppButton(label: 'বাতিল', kind: AppButtonKind.danger, onPressed: () => _void(item)),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              const SizedBox(height: 8),
-              AppButton(
-                label: 'নতুন খরচ',
-                kind: AppButtonKind.teal,
-                onPressed: () async {
-                  final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => CostEntryScreen(code: widget.code)));
-                  if (saved == true) await _load();
-                },
-              ),
-            ],
+        subtitle: widget.code,
+        children: [
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'New costs can be added to the invoice. Paying an earlier cost does not bill it again.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading && sheet == null)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ...[
+            ErrorNote(message: _error!, onRetry: _load),
+            const SizedBox(height: 12),
           ],
-        ),
-      ),
-    );
+          if (sheet != null) ...[
+            PaperCard(
+                child: KvRow(
+                    label: tr('Total cost'), value: formatBdt(sheet.total))),
+            const SizedBox(height: 12),
+            if (sheet.items.isEmpty)
+              EmptyNote(
+                  title: tr('No costs added'),
+                  body: tr('Add courier, packaging or any other cost.')),
+            for (final item in sheet.items) ...[
+              PaperCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(costCategories[item.category] ?? item.category,
+                        style: const TextStyle(color: AppColors.muted)),
+                    const SizedBox(height: 8),
+                    KvRow(label: tr('Amount'), value: formatBdt(item.amount)),
+                    KvRow(label: tr('Paid'), value: formatBdt(item.paidAmount)),
+                    KvRow(
+                        label: tr('Due'),
+                        value: formatBdt(item.dueAmount),
+                        valueColor: item.dueAmount > 0
+                            ? AppColors.danger
+                            : AppColors.ok),
+                    if (item.voided)
+                      Text(tr('Cancelled'),
+                          style: const TextStyle(color: AppColors.muted)),
+                    if (!item.voided && item.dueAmount > 0) ...[
+                      const SizedBox(height: 8),
+                      AppButton(
+                        label: tr('Pay'),
+                        kind: AppButtonKind.current,
+                        onPressed: () async {
+                          final saved = await Navigator.of(context).push<bool>(
+                              MaterialPageRoute(
+                                  builder: (_) => CostSettleScreen(
+                                      code: widget.code, item: item)));
+                          if (saved == true) await _load();
+                        },
+                      ),
+                    ],
+                    if (!item.voided &&
+                        !item.legacyField &&
+                        item.paidAmount == 0) ...[
+                      const SizedBox(height: 8),
+                      AppButton(
+                          label: tr('Cancel'),
+                          kind: AppButtonKind.danger,
+                          onPressed: () => _void(item)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 8),
+            AppButton(
+              label: tr('Add cost'),
+              kind: AppButtonKind.teal,
+              onPressed: () async {
+                final saved = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                        builder: (_) => CostEntryScreen(code: widget.code)));
+                if (saved == true) await _load();
+              },
+            ),
+          ],
+        ]);
   }
 }
 
@@ -190,11 +226,11 @@ class _CostEntryScreenState extends State<CostEntryScreen> {
     final amount = parseMoney(_amount.text);
     final reason = _reason.text.trim();
     if (amount == null || amount <= 0 || reason.isEmpty) {
-      setState(() => _error = 'অঙ্ক ও কারণ দিন।');
+      setState(() => _error = tr('Enter an amount and a reason.'));
       return;
     }
     if (_timing == 'now' && _account == null) {
-      setState(() => _error = 'এখন পরিশোধ করতে অ্যাকাউন্ট বেছে নিন।');
+      setState(() => _error = tr('Choose an account to pay now.'));
       return;
     }
     FinanceAccount? account;
@@ -204,8 +240,11 @@ class _CostEntryScreenState extends State<CostEntryScreen> {
     if (_timing == 'now') {
       final ok = await confirmMoney(
         context,
-        title: 'খরচ পরিশোধ',
-        body: '${formatMoney(amount, account?.currency ?? 'BDT')} ${account?.name} থেকে যাবে এবং খরচ রেকর্ড হবে।',
+        title: tr('Pay cost'),
+        body: tr('{amount} goes out of {account} and the cost is recorded.', {
+          'amount': formatMoney(amount, account?.currency ?? 'BDT'),
+          'account': account?.name
+        }),
       );
       if (!ok || !mounted) return;
     }
@@ -241,27 +280,52 @@ class _CostEntryScreenState extends State<CostEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন খরচ'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: tr('Add cost'),
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save cost'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'নতুন খরচ', subtitle: 'পরে রাখলে শুধু বকেয়া হয়। এখন মানে টাকা এই মুহূর্তে অ্যাকাউন্ট থেকে গেছে।'),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'Later only records the cost as unpaid. Now means the money has just left an account.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
           ChoiceChips(
-            options: [for (final entry in costCategories.entries) (value: entry.key, label: entry.value)],
+            options: [
+              for (final entry in costCategories.entries)
+                (value: entry.key, label: entry.value)
+            ],
             selected: _category,
             onSelected: (value) => setState(() => _category = value),
           ),
           const SizedBox(height: 12),
-          TextField(controller: _label, decoration: const InputDecoration(labelText: 'নাম (ঐচ্ছিক)')),
+          TextField(
+              controller: _label,
+              decoration: InputDecoration(labelText: tr('Name (optional)'))),
           const SizedBox(height: 8),
-          TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'অঙ্ক')),
+          TextField(
+              controller: _amount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: tr('Amount'))),
           const SizedBox(height: 8),
-          TextField(controller: _reason, decoration: const InputDecoration(labelText: 'কারণ')),
+          TextField(
+              controller: _reason,
+              decoration: InputDecoration(labelText: tr('Reason'))),
           const SizedBox(height: 12),
-          const SectionTitle(title: 'কখন পরিশোধ'),
+          SectionTitle(title: tr('Payment timing')),
           ChoiceChips(
-            options: const [(value: 'later', label: 'পরে'), (value: 'now', label: 'এখন')],
+            options: [
+              (value: 'later', label: tr('Later')),
+              (value: 'now', label: tr('Now'))
+            ],
             selected: _timing,
             onSelected: (value) => setState(() => _timing = value),
           ),
@@ -275,17 +339,16 @@ class _CostEntryScreenState extends State<CostEntryScreen> {
                 _currency = account.currency;
               }),
             ),
-            if (_currency != null) Text('মুদ্রা $_currency', style: const TextStyle(color: AppColors.muted)),
+            if (_currency != null)
+              Text(tr('Currency: {currency}', {'currency': _currency}),
+                  style: const TextStyle(color: AppColors.muted)),
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'খরচ সেভ', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }
 
@@ -300,7 +363,8 @@ class CostSettleScreen extends StatefulWidget {
 }
 
 class _CostSettleScreenState extends State<CostSettleScreen> {
-  late final TextEditingController _amount = TextEditingController(text: widget.item.dueAmount.toString());
+  late final TextEditingController _amount =
+      TextEditingController(text: widget.item.dueAmount.toString());
   final _reason = TextEditingController();
   List<FinanceAccount> _accounts = const [];
   String? _account;
@@ -336,12 +400,23 @@ class _CostSettleScreenState extends State<CostSettleScreen> {
     for (final row in _accounts) {
       if (row.name == _account) account = row;
     }
-    if (amount == null || amount <= 0 || amount > widget.item.dueAmount + 0.001 || account == null || reason.isEmpty) {
-      setState(() => _error = 'অ্যাকাউন্ট, কারণ ও বকেয়ার মধ্যে অঙ্ক দিন।');
+    if (amount == null ||
+        amount <= 0 ||
+        amount > widget.item.dueAmount + 0.001 ||
+        account == null ||
+        reason.isEmpty) {
+      setState(() => _error = tr(
+          'Choose an account, enter a reason and an amount no more than the amount due.'));
       return;
     }
     final chosen = account;
-    final ok = await confirmMoney(context, title: 'খরচ পরিশোধ', body: '${formatMoney(amount, chosen.currency)} ${chosen.name} থেকে ${widget.item.name}-এর জন্য যাবে।');
+    final ok = await confirmMoney(context,
+        title: tr('Pay cost'),
+        body: tr('{amount} goes out of {account} for {cost}.', {
+          'amount': formatMoney(amount, chosen.currency),
+          'account': chosen.name,
+          'cost': widget.item.name
+        }));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -351,7 +426,9 @@ class _CostSettleScreenState extends State<CostSettleScreen> {
       await AppScope.of(context).shipments.recordCost(
             widget.code,
             shipmentExpenseBody(
-              category: costCategories.containsKey(widget.item.category) ? widget.item.category : 'others',
+              category: costCategories.containsKey(widget.item.category)
+                  ? widget.item.category
+                  : 'others',
               amount: amount,
               currency: chosen.currency,
               reason: reason,
@@ -375,25 +452,42 @@ class _CostSettleScreenState extends State<CostSettleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'খরচ পরিশোধ'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: widget.item.name,
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save cost payment'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          PageHeader(title: widget.item.name, subtitle: 'বাকি ${formatBdt(widget.item.dueAmount)}। আংশিক পরিশোধ করা যায়।'),
-          AccountPicker(accounts: _accounts, selected: _account, onSelected: (account) => setState(() => _account = account.name)),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr('{amount} due. You can pay part of it.',
+                      {'amount': formatBdt(widget.item.dueAmount)}),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          AccountPicker(
+              accounts: _accounts,
+              selected: _account,
+              onSelected: (account) => setState(() => _account = account.name)),
           const SizedBox(height: 8),
-          TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'অঙ্ক')),
+          TextField(
+              controller: _amount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: tr('Amount'))),
           const SizedBox(height: 8),
-          TextField(controller: _reason, decoration: const InputDecoration(labelText: 'কারণ')),
+          TextField(
+              controller: _reason,
+              decoration: InputDecoration(labelText: tr('Reason'))),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'পরিশোধ সেভ', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }

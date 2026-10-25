@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../data/money_payload.dart';
 import '../../widgets/account_picker.dart';
@@ -87,21 +88,22 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
     final code = _code.text.trim().toUpperCase();
     final date = _date;
     if (code.length < 2) {
-      setState(() => _error = 'এয়ারলাইন ফ্লাইট নম্বর দিন।');
+      setState(() => _error = tr('Enter the airline flight number.'));
       return;
     }
     if (date == null) {
-      setState(() => _error = 'তারিখ বেছে নিন।');
+      setState(() => _error = tr('Choose a date.'));
       return;
     }
     if (_picked.isEmpty) {
-      setState(() => _error = 'অন্তত একজন ফ্লায়ার বেছে নিন।');
+      setState(() => _error = tr('Choose at least one flyer.'));
       return;
     }
     final actual = readOptionalMoney(_cost.text);
     final agency = readOptionalMoney(_agency.text);
     if (actual == null || agency == null || agency > actual) {
-      setState(() => _error = 'টিকিট ও এজেন্সি শেয়ার ০ বা তার বেশি, দুই দশমিক পর্যন্ত। খালি রাখলে ০। এজেন্সি শেয়ার আসল খরচের বেশি হতে পারে না।');
+      setState(() => _error = tr(
+          'Ticket cost and agency share must be 0 or more, with up to two decimals. Blank counts as 0. Agency share cannot exceed the actual cost.'));
       return;
     }
     FinanceAccount? paying;
@@ -112,8 +114,12 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       final chosen = paying;
       final ok = await confirmMoney(
         context,
-        title: 'টিকিট ক্যাশ',
-        body: bdtFundMovement(amountBdt: actual, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: false),
+        title: tr('Ticket payment'),
+        body: bdtFundMovement(
+            amountBdt: actual,
+            accountName: chosen.name,
+            accountCurrency: chosen.currency,
+            intoAccount: false),
       );
       if (!ok || !mounted) return;
     }
@@ -145,23 +151,45 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = _date == null ? 'তারিখ বেছে নিন' : _iso(_date!);
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন ফ্লাইট'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    final dateLabel = _date == null ? tr('Choose date') : _iso(_date!);
+    return WorkspaceScaffold(
+        title: tr('New flight'),
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save flight'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(
-            title: 'নতুন ফ্লাইট',
-            subtitle: 'ফ্লাইট নম্বর প্রতিদিন আবার আসে। বুকিং রেফারেন্স সার্ভার বানাবে। টাকা না দিলে কিছু কাটে না। অ্যাকাউন্ট বাছলে টিকিটের টাকা সেখান থেকে যায়।',
-          ),
-          if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-          TextField(controller: _code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'এয়ারলাইন ফ্লাইট নম্বর')),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'Flight numbers repeat every day; the server creates the booking reference. Nothing is deducted unless you pay. If you choose an account, the ticket money is paid from it.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          TextField(
+              controller: _code,
+              textCapitalization: TextCapitalization.characters,
+              decoration:
+                  InputDecoration(labelText: tr('Airline flight number'))),
           const SizedBox(height: 12),
-          AppButton(label: dateLabel, kind: AppButtonKind.quiet, onPressed: _pickDate),
+          AppButton(
+              label: dateLabel,
+              kind: AppButtonKind.quiet,
+              onPressed: _pickDate),
           const SizedBox(height: 16),
-          const SectionTitle(title: 'ফ্লায়ার', subtitle: 'যারা এই টিকিটে উড়বেন।'),
-          if (_flyers.isEmpty && !_loading) const EmptyNote(title: 'ফ্লায়ার নেই', body: 'আগে ফ্লায়ার প্রোফাইল খুলুন।'),
+          SectionTitle(
+              title: tr('Flyers'),
+              subtitle: tr('Who will fly on this ticket.')),
+          if (_flyers.isEmpty && !_loading)
+            EmptyNote(
+                title: tr('No flyers'),
+                body: tr('Create a flyer profile first.')),
           for (final flyer in _flyers)
             CheckboxListTile(
               value: _picked.contains(flyer.name),
@@ -178,13 +206,26 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
               controlAffinity: ListTileControlAffinity.leading,
             ),
           const SizedBox(height: 8),
-          TextField(controller: _space, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'ক্যাপাসিটি kg', helperText: 'সাধারণত ৪৪ বা ৫২')),
+          TextField(
+              controller: _space,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                  labelText: tr('Capacity kg'),
+                  helperText: tr('Usually 44 or 52'))),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: TextField(controller: _mobiles, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'মোবাইল'))),
+              Expanded(
+                  child: TextField(
+                      controller: _mobiles,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: tr('Mobiles')))),
               const SizedBox(width: 8),
-              Expanded(child: TextField(controller: _laptops, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'ল্যাপটপ'))),
+              Expanded(
+                  child: TextField(
+                      controller: _laptops,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: tr('Laptops')))),
             ],
           ),
           const SizedBox(height: 8),
@@ -192,24 +233,34 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
             controller: _cost,
             onChanged: (_) => setState(() {}),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'আসল টিকিট খরচ (BDT)', helperText: 'জানা না থাকলে খালি রাখুন'),
+            decoration: InputDecoration(
+                labelText: tr('Actual ticket cost (BDT)'),
+                helperText: tr('Leave blank if unknown')),
           ),
           const SizedBox(height: 8),
-          TextField(controller: _agency, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'এজেন্সি শেয়ার (BDT)')),
+          TextField(
+              controller: _agency,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: tr('Agency share (BDT)'))),
           if ((double.tryParse(_cost.text.trim()) ?? 0) > 0) ...[
             const SizedBox(height: 12),
-            const SectionTitle(title: 'যে অ্যাকাউন্ট থেকে যাবে', subtitle: 'না বাছলে এখন কোনো ক্যাশ নড়ে না। পরে ফ্লাইট থেকে সেটল করা যায়।'),
-            AccountPicker(accounts: _accounts, selected: _account, onSelected: (account) => setState(() => _account = account.name)),
+            SectionTitle(
+                title: tr('Pay from account'),
+                subtitle: tr(
+                    'If none is chosen, no cash moves now. You can settle it from the flight later.')),
+            AccountPicker(
+                accounts: _accounts,
+                selected: _account,
+                onSelected: (account) =>
+                    setState(() => _account = account.name)),
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'ফ্লাইট সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }
 

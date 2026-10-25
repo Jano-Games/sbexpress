@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/session_user.dart';
 import '../../data/models/task_item.dart';
 import '../../data/repositories/task_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
@@ -28,6 +29,7 @@ class _TasksScreenState extends State<TasksScreen> {
   var _loading = true;
   var _busy = false;
   var _assignTo = 'admin';
+  var _composing = false;
 
   @override
   void initState() {
@@ -66,8 +68,11 @@ class _TasksScreenState extends State<TasksScreen> {
     if (text.isEmpty) return;
     setState(() => _busy = true);
     try {
-      await widget.tasks.addNote(text, assignTo: widget.role == UserRole.admin ? _assignTo : null);
+      await widget.tasks.addNote(text,
+          assignTo: widget.role == UserRole.admin ? _assignTo : null);
+      if (!mounted) return;
       _note.clear();
+      _composing = false;
       await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -79,60 +84,100 @@ class _TasksScreenState extends State<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final open = [for (final item in _items) if (!item.done) item];
-    final done = [for (final item in _items) if (item.done) item];
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.teal,
-          onRefresh: _load,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            children: [
-              Text(widget.role == UserRole.hub ? 'হাবের কাজ' : 'কাজ', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              const Text('অটো কাজ শিপমেন্টের ধাপ শেষ হলে নিজে বন্ধ হয়।', style: TextStyle(color: AppColors.muted, height: 1.35)),
-              const SizedBox(height: 12),
-              TextField(controller: _note, decoration: const InputDecoration(labelText: 'নিজের নোট')),
-              if (widget.role == UserRole.admin) ...[
-                const SizedBox(height: 8),
-                ChoiceChips(
-                  options: const [
-                    (value: 'admin', label: 'নিজের নোট'),
-                    (value: 'hub', label: 'হাবকে দিন'),
+    final open = [
+      for (final item in _items)
+        if (!item.done) item
+    ];
+    final done = [
+      for (final item in _items)
+        if (item.done) item
+    ];
+    return WorkspaceScaffold(
+        title: widget.role == UserRole.hub ? tr('Hub tasks') : tr('Tasks'),
+        root: widget.role == UserRole.hub,
+        onRefresh: _load,
+        actions: [
+          Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Tooltip(
+                  message: _composing ? tr('Close note') : tr('New note'),
+                  child: AppButton(
+                      label: _composing ? tr('Hide') : tr('Note'),
+                      expand: false,
+                      kind:
+                          _composing ? AppButtonKind.quiet : AppButtonKind.teal,
+                      onPressed: () => setState(() => _composing = !_composing),
+                      icon: _composing
+                          ? Icons.close_rounded
+                          : Icons.add_rounded)))
+        ],
+        children: [
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr('{open} pending · {done} done',
+                      {'open': open.length, 'done': done.length}),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_composing) ...[
+            PaperCard(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  SectionTitle(title: tr('New note')),
+                  TextField(
+                      controller: _note,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration:
+                          InputDecoration(labelText: tr('Task description'))),
+                  if (widget.role == UserRole.admin) ...[
+                    const SizedBox(height: 12),
+                    ChoiceChips(
+                        options: [
+                          (value: 'admin', label: tr('For myself')),
+                          (value: 'hub', label: tr('Assign to hub'))
+                        ],
+                        selected: _assignTo,
+                        onSelected: (value) =>
+                            setState(() => _assignTo = value)),
                   ],
-                  selected: _assignTo,
-                  onSelected: (value) => setState(() => _assignTo = value),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  AppButton(
+                      label: tr('Add note'),
+                      kind: AppButtonKind.teal,
+                      busy: _busy,
+                      onPressed: _add),
+                ])),
+            const SizedBox(height: 20),
+          ],
+          if (_loading)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (!_loading && open.isEmpty)
+            EmptyNote(
+                title: tr('No open tasks'),
+                body: tr('New automatic tasks appear here.')),
+          for (final item in open) ...[
+            _TaskCard(item: item, onChanged: _load, onOpen: () => _open(item)),
+            const SizedBox(height: 8),
+          ],
+          if (done.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SectionTitle(title: tr('Completed tasks')),
+            for (final item in done) ...[
+              Opacity(opacity: 0.7, child: PaperCard(child: Text(item.text))),
               const SizedBox(height: 8),
-              AppButton(label: 'নোট যোগ করুন', kind: AppButtonKind.teal, busy: _busy, onPressed: _add),
-              const SizedBox(height: 16),
-              if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-              if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-              if (!_loading && open.isEmpty) const EmptyNote(title: 'খোলা কাজ নেই', body: 'নতুন অটো কাজ এলে এখানে দেখা যাবে।'),
-              for (final item in open) ...[
-                _TaskCard(item: item, onChanged: _load, onOpen: () => _open(item)),
-                const SizedBox(height: 8),
-              ],
-              if (done.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const SectionTitle(title: 'শেষ হওয়া'),
-                for (final item in done) ...[
-                  Opacity(opacity: 0.7, child: PaperCard(child: Text(item.text))),
-                  const SizedBox(height: 8),
-                ],
-              ],
             ],
-          ),
-        ),
-      ),
-    );
+          ],
+        ]);
   }
 
   void _open(TaskItem item) {
     if (item.opensReview) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentReviewScreen()));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const PaymentReviewScreen()));
       return;
     }
     final code = item.shipmentCode;
@@ -146,7 +191,8 @@ class _TasksScreenState extends State<TasksScreen> {
 }
 
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({required this.item, required this.onChanged, required this.onOpen});
+  const _TaskCard(
+      {required this.item, required this.onChanged, required this.onOpen});
 
   final TaskItem item;
   final Future<void> Function() onChanged;
@@ -155,37 +201,54 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hint = item.opensReview
-        ? 'পেমেন্ট রিভিউতে শেষ হবে'
+        ? tr('Completes when the payment is reviewed')
         : item.auto
-            ? 'হাবের ধাপ শেষ হলে বন্ধ হবে'
+            ? tr('Closes when the hub step is done')
             : null;
+    final linked = item.opensReview || item.shipmentCode != null;
     return PaperCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(item.text, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.35)),
-          if (item.auto) const Padding(padding: EdgeInsets.only(top: 6), child: StatusPill(label: 'অটো')),
-          if (hint != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(hint, style: const TextStyle(color: AppColors.muted))),
-          const SizedBox(height: 12),
-          if (item.opensReview || item.shipmentCode != null)
-            AppButton(label: item.opensReview ? 'রিভিউ খুলুন' : 'শিপমেন্ট খুলুন', kind: AppButtonKind.current, onPressed: onOpen)
-          else if (item.canToggle)
-            AppButton(
-              label: 'নোট শেষ',
-              kind: AppButtonKind.teal,
+      onTap: linked ? onOpen : null,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        IconBadge(item.opensReview
+            ? Icons.receipt_long_outlined
+            : item.auto
+                ? Icons.inventory_2_outlined
+                : Icons.notes_rounded),
+        const SizedBox(width: 12),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(item.text,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w500, height: 1.45)),
+          if (hint != null) ...[
+            const SizedBox(height: 5),
+            Text(hint,
+                style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          ],
+        ])),
+        if (linked)
+          const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(Icons.chevron_right_rounded,
+                  size: 20, color: AppColors.muted))
+        else if (item.canToggle)
+          IconButton(
+              tooltip: tr('Mark note done'),
+              icon: const Icon(Icons.check_circle_outline_rounded,
+                  color: AppColors.teal),
               onPressed: () async {
                 try {
                   await AppScope.of(context).tasks.toggle(item.id);
                 } on ApiException catch (error) {
                   if (context.mounted && error.status != 401) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(error.message)));
                   }
                 }
                 await onChanged();
-              },
-            ),
-        ],
-      ),
+              }),
+      ]),
     );
   }
 }
@@ -256,30 +319,47 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final open = [for (final item in _hubTasks) if (!item.done) item];
-    return Scaffold(
-      appBar: const BackTitle(title: 'কাজ অ্যাসাইন'),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    final open = [
+      for (final item in _hubTasks)
+        if (!item.done) item
+    ];
+    return WorkspaceScaffold(
+        title: tr('Assign a task to the hub'),
+        root: false,
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
-          children: [
-            const PageHeader(title: 'হাবকে কাজ দিন', subtitle: 'ম্যানুয়াল নোট। ওজন, প্যাক ও কুরিয়ারের অটো কাজ নিজে বন্ধ হয়।'),
-            TextField(controller: _note, decoration: const InputDecoration(labelText: 'কাজের কথা')),
+        children: [
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'Manual notes. Automatic weigh, pack and courier tasks close on their own.'),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _note,
+              decoration: InputDecoration(labelText: tr('What needs doing'))),
+          const SizedBox(height: 8),
+          AppButton(
+              label: tr('Assign to hub'),
+              kind: AppButtonKind.current,
+              busy: _busy,
+              onPressed: _add),
+          const SizedBox(height: 16),
+          if (_loading)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (!_loading && open.isEmpty)
+            EmptyNote(
+                title: tr('No open hub notes'),
+                body: tr('Tasks you assign appear here.')),
+          for (final item in open) ...[
+            PaperCard(
+                child: Text(item.text,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, height: 1.35))),
             const SizedBox(height: 8),
-            AppButton(label: 'হাবকে দিন', kind: AppButtonKind.current, busy: _busy, onPressed: _add),
-            const SizedBox(height: 16),
-            if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-            if (!_loading && open.isEmpty) const EmptyNote(title: 'হাবের খোলা নোট নেই', body: 'নতুন কাজ দিলে এখানে দেখা যাবে।'),
-            for (final item in open) ...[
-              PaperCard(child: Text(item.text, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.35))),
-              const SizedBox(height: 8),
-            ],
           ],
-        ),
-      ),
-    );
+        ]);
   }
 }

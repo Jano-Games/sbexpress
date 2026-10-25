@@ -5,14 +5,17 @@ import 'data/api/api_client.dart';
 import 'data/session/session_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/main_shell.dart';
+import 'l10n/l10n.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 
 class SbExpressApp extends StatefulWidget {
-  const SbExpressApp({super.key, required this.session, required this.api});
+  const SbExpressApp(
+      {super.key, required this.session, required this.api, this.language});
 
   final SessionController session;
   final ApiClient api;
+  final LanguageStore? language;
 
   @override
   State<SbExpressApp> createState() => _SbExpressAppState();
@@ -56,12 +59,17 @@ class _SbExpressAppState extends State<SbExpressApp> {
     return AppScope.wired(
       session: widget.session,
       api: widget.api,
-      child: MaterialApp(
-        key: ValueKey(_navigatorGeneration),
-        title: 'SBExpress',
-        theme: buildAppTheme(),
-        debugShowCheckedModeBanner: false,
-        home: AuthGate(session: widget.session),
+      language: widget.language,
+      // A language change remounts the app so every screen re-reads its text.
+      child: ValueListenableBuilder<AppLanguage>(
+        valueListenable: appLanguage,
+        builder: (context, language, _) => MaterialApp(
+          key: ValueKey('$_navigatorGeneration-${language.name}'),
+          title: 'SBExpress',
+          theme: buildAppTheme(),
+          debugShowCheckedModeBanner: false,
+          home: AuthGate(session: widget.session),
+        ),
       ),
     );
   }
@@ -91,7 +99,9 @@ class _AuthGateState extends State<AuthGate> {
       listenable: widget.session,
       builder: (context, _) {
         if (!widget.session.ready) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.teal)));
+          return const Scaffold(
+              body: Center(
+                  child: CircularProgressIndicator(color: AppColors.teal)));
         }
         final banner = widget.session.banner;
         if (widget.session.user == null) {
@@ -106,7 +116,8 @@ class _AuthGateState extends State<AuthGate> {
                   bottom: false,
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Text(banner, style: const TextStyle(color: AppColors.amberInk)),
+                    child: Text(banner,
+                        style: const TextStyle(color: AppColors.amberInk)),
                   ),
                 ),
               ),

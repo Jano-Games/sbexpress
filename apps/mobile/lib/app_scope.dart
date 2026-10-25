@@ -12,6 +12,7 @@ import 'data/repositories/settings_repository.dart';
 import 'data/repositories/shipment_repository.dart';
 import 'data/repositories/task_repository.dart';
 import 'data/session/session_controller.dart';
+import 'l10n/l10n.dart';
 
 class AppScope extends InheritedWidget {
   const AppScope({
@@ -28,6 +29,7 @@ class AppScope extends InheritedWidget {
     required this.finance,
     required this.settings,
     required super.child,
+    this.language,
   });
 
   final SessionController session;
@@ -42,6 +44,10 @@ class AppScope extends InheritedWidget {
   final FinanceRepository finance;
   final SettingsRepository settings;
 
+  /// Saves the language choice; absent in tests, where it only changes for
+  /// the running app.
+  final LanguageStore? language;
+
   static AppScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     if (scope == null) throw StateError('AppScope missing');
@@ -52,8 +58,10 @@ class AppScope extends InheritedWidget {
     required SessionController session,
     required ApiClient api,
     required Widget child,
+    LanguageStore? language,
   }) {
     return AppScope(
+      language: language,
       session: session,
       shipments: ShipmentRepository(api),
       dashboard: DashboardRepository(api),

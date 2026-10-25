@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../json_read.dart';
 
 class CustomerActivityEntry {
@@ -68,7 +69,10 @@ class CustomerActivityPage {
 
   factory CustomerActivityPage.fromJson(Map<String, Object?> json) {
     return CustomerActivityPage(
-      entries: [for (final row in requiredMapList(json, 'entries')) CustomerActivityEntry.fromJson(row)],
+      entries: [
+        for (final row in requiredMapList(json, 'entries'))
+          CustomerActivityEntry.fromJson(row)
+      ],
       page: requiredInt(json, 'page'),
       total: requiredInt(json, 'total'),
       limit: requiredInt(json, 'limit'),
@@ -79,15 +83,15 @@ class CustomerActivityPage {
 String activityLabel(String label) {
   switch (label) {
     case 'Payment':
-      return 'পেমেন্ট';
+      return tr('Payment');
     case 'Customer advance':
-      return 'অগ্রিম';
+      return tr('Advance');
     case 'Refund':
-      return 'রিফান্ড';
+      return tr('Refund');
     case 'Credit applied':
-      return 'ক্রেডিট প্রয়োগ';
+      return tr('Credit applied');
     case 'Credit adjustment':
-      return 'ক্রেডিট সমন্বয়';
+      return tr('Credit adjustment');
     default:
       return label;
   }

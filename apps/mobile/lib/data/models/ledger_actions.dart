@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../json_read.dart';
 
 class ShipmentCostItem {
@@ -22,7 +23,10 @@ class ShipmentCostItem {
   final String? voidedAt;
 
   bool get voided => voidedAt != null;
-  bool get legacyField => costField == 'cnFare' || costField == 'bdFare' || costField == 'customsTax';
+  bool get legacyField =>
+      costField == 'cnFare' ||
+      costField == 'bdFare' ||
+      costField == 'customsTax';
 
   factory ShipmentCostItem.fromJson(Map<String, Object?> json) {
     return ShipmentCostItem(
@@ -32,14 +36,19 @@ class ShipmentCostItem {
       amount: requiredDouble(json, 'amount'),
       paidAmount: requiredDouble(json, 'paidAmount'),
       dueAmount: requiredDouble(json, 'dueAmount'),
-      costField: json.containsKey('costField') ? requiredNullableString(json, 'costField') : null,
-      voidedAt: json.containsKey('voidedAt') ? requiredNullableString(json, 'voidedAt') : null,
+      costField: json.containsKey('costField')
+          ? requiredNullableString(json, 'costField')
+          : null,
+      voidedAt: json.containsKey('voidedAt')
+          ? requiredNullableString(json, 'voidedAt')
+          : null,
     );
   }
 }
 
 class ShipmentCostSheet {
-  const ShipmentCostSheet({required this.items, required this.total, required this.unpaid});
+  const ShipmentCostSheet(
+      {required this.items, required this.total, required this.unpaid});
 
   final List<ShipmentCostItem> items;
   final double total;
@@ -48,9 +57,15 @@ class ShipmentCostSheet {
   factory ShipmentCostSheet.fromJson(Map<String, Object?> json) {
     final unpaidRaw = asJsonMap(json['unpaidCosts'], 'unpaidCosts');
     return ShipmentCostSheet(
-      items: [for (final row in requiredMapList(json, 'items')) ShipmentCostItem.fromJson(row)],
+      items: [
+        for (final row in requiredMapList(json, 'items'))
+          ShipmentCostItem.fromJson(row)
+      ],
       total: requiredDouble(json, 'total'),
-      unpaid: {for (final entry in unpaidRaw.entries) entry.key: asDouble(entry.value, entry.key)},
+      unpaid: {
+        for (final entry in unpaidRaw.entries)
+          entry.key: asDouble(entry.value, entry.key)
+      },
     );
   }
 }
@@ -85,7 +100,11 @@ class CreditNoteRecord {
 }
 
 class StatementLinkInfo {
-  const StatementLinkInfo({required this.id, required this.url, required this.status, required this.expiresAt});
+  const StatementLinkInfo(
+      {required this.id,
+      required this.url,
+      required this.status,
+      required this.expiresAt});
 
   final String id;
   final String? url;
@@ -103,7 +122,8 @@ class StatementLinkInfo {
 }
 
 class StatementBalance {
-  const StatementBalance({required this.billed, required this.paid, required this.due});
+  const StatementBalance(
+      {required this.billed, required this.paid, required this.due});
 
   final double billed;
   final double paid;
@@ -192,12 +212,12 @@ class LedgerEntry {
   }
 }
 
-const costCategories = <String, String>{
-  'ticket': 'টিকিট',
-  'packaging': 'প্যাকেজিং',
-  'courier': 'কুরিয়ার',
-  'salary': 'সার্ভিস',
-  'transport': 'ট্রান্সপোর্ট',
-  'customs': 'কাস্টমস',
-  'others': 'অন্যান্য',
-};
+Map<String, String> get costCategories => <String, String>{
+      'ticket': tr('Ticket'),
+      'packaging': tr('Packaging'),
+      'courier': tr('Courier'),
+      'salary': tr('Service'),
+      'transport': tr('Transport'),
+      'customs': tr('Customs'),
+      'others': tr('Other'),
+    };

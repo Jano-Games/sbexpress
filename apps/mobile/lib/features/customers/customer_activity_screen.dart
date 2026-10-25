@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/customer_activity.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -10,7 +11,8 @@ import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
 
 class CustomerActivityScreen extends StatefulWidget {
-  const CustomerActivityScreen({super.key, required this.code, required this.name});
+  const CustomerActivityScreen(
+      {super.key, required this.code, required this.name});
 
   final String code;
   final String name;
@@ -40,7 +42,9 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
       _error = null;
     });
     try {
-      final page = await AppScope.of(context).customers.activity(widget.code, page: _pageNumber);
+      final page = await AppScope.of(context)
+          .customers
+          .activity(widget.code, page: _pageNumber);
       if (!mounted) return;
       setState(() => _page = page);
     } on ApiException catch (error) {
@@ -55,21 +59,26 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
   }
 
   Future<void> _reverse(CustomerActivityEntry entry) async {
-    final reason = await askReason(context, title: 'এন্ট্রি বাতিল');
+    final reason = await askReason(context, title: tr('Reverse entry'));
     if (reason == null || !mounted) return;
     if (reason.length < 3) {
-      setState(() => _error = 'বাতিলের কারণ কমপক্ষে ৩ অক্ষর।');
+      setState(() => _error = tr('The reason must be at least 3 characters.'));
       return;
     }
     final ok = await confirmMoney(
       context,
-      title: 'হিসাব বাতিল',
-      body: '${activityLabel(entry.label)} ${formatBdt(entry.amount)} উল্টে দেওয়া হবে।',
+      title: tr('Reverse transaction'),
+      body: tr('{label} {amount} will be reversed.', {
+        'label': activityLabel(entry.label),
+        'amount': formatBdt(entry.amount)
+      }),
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
-      await AppScope.of(context).finance.reverse(kind: entry.reversalKind, id: entry.id, reason: reason);
+      await AppScope.of(context)
+          .finance
+          .reverse(kind: entry.reversalKind, id: entry.id, reason: reason);
       await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -83,93 +92,124 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
   Widget build(BuildContext context) {
     final page = _page;
     final hasNext = page != null && page.page * page.limit < page.total;
-    return Scaffold(
-      appBar: BackTitle(title: widget.code),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    return WorkspaceScaffold(
+        title: tr('Account activity'),
+        root: false,
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
-          children: [
-            PageHeader(title: 'অ্যাকাউন্ট হিসাব', subtitle: '${widget.name} · পেমেন্ট, অগ্রিম, ক্রেডিট ও রিফান্ড। মূল মুদ্রা আর BDT একসাথে।'),
-            if (_loading && page == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ...[
-              ErrorNote(message: _error!, onRetry: _load),
-              const SizedBox(height: 12),
-            ],
-            if (page != null && page.entries.isEmpty) const EmptyNote(title: 'হিসাব নেই', body: 'টাকা নড়লে এখানে আসবে।'),
-            if (page != null)
-              for (final entry in page.entries) ...[
-                PaperCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(activityLabel(entry.label), style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(_when(entry.at), style: const TextStyle(color: AppColors.muted)),
-                      if (entry.reference.isNotEmpty) Text(entry.reference, style: const TextStyle(height: 1.35)),
-                      if (entry.reason.isNotEmpty) Text(entry.reason, style: const TextStyle(color: AppColors.muted, height: 1.35)),
+        subtitle: widget.code,
+        children: [
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr('{name} · payments, advances, credit and refunds, in the original currency and BDT.',
+                      {'name': widget.name}),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading && page == null)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ...[
+            ErrorNote(message: _error!, onRetry: _load),
+            const SizedBox(height: 12),
+          ],
+          if (page != null && page.entries.isEmpty)
+            EmptyNote(
+                title: tr('No activity'),
+                body:
+                    tr('Money movements appear here when they are recorded.')),
+          if (page != null)
+            for (final entry in page.entries) ...[
+              PaperCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(activityLabel(entry.label),
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(_when(entry.at),
+                        style: const TextStyle(color: AppColors.muted)),
+                    if (entry.reference.isNotEmpty)
+                      Text(entry.reference,
+                          style: const TextStyle(height: 1.35)),
+                    if (entry.reason.isNotEmpty)
+                      Text(entry.reason,
+                          style: const TextStyle(
+                              color: AppColors.muted, height: 1.35)),
+                    const SizedBox(height: 8),
+                    KvRow(
+                        label: tr('Original'),
+                        value: formatMoney(
+                            _signedSource(entry), entry.sourceCurrency)),
+                    KvRow(label: 'BDT', value: formatBdt(entry.amount)),
+                    if (entry.sourceCurrency == 'CNY')
+                      KvRow(
+                          label: tr('Rate'),
+                          value: '1 CNY = ${entry.sourceFxRate}'),
+                    KvRow(
+                        label: tr('Account'),
+                        value: entry.accountName ?? tr('Credit balance')),
+                    if (entry.shipmentCode != null) ...[
                       const SizedBox(height: 8),
-                      KvRow(label: 'মূল', value: formatMoney(_signedSource(entry), entry.sourceCurrency)),
-                      KvRow(label: 'BDT', value: formatBdt(entry.amount)),
-                      if (entry.sourceCurrency == 'CNY') KvRow(label: 'রেট', value: '1 CNY = ${entry.sourceFxRate}'),
-                      KvRow(label: 'অ্যাকাউন্ট', value: entry.accountName ?? 'ক্রেডিট ব্যালেন্স'),
-                      if (entry.shipmentCode != null) ...[
-                        const SizedBox(height: 8),
-                        AppButton(
-                          label: entry.shipmentCode!,
-                          kind: AppButtonKind.quiet,
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(builder: (_) => AdminShipmentScreen(code: entry.shipmentCode!)),
-                          ),
+                      AppButton(
+                        label: entry.shipmentCode!,
+                        kind: AppButtonKind.quiet,
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                              builder: (_) => AdminShipmentScreen(
+                                  code: entry.shipmentCode!)),
                         ),
-                      ],
-                      if (entry.canReverse) ...[
-                        const SizedBox(height: 8),
-                        AppButton(label: 'বাতিল', kind: AppButtonKind.danger, busy: _busy, onPressed: () => _reverse(entry)),
-                      ],
+                      ),
                     ],
+                    if (entry.canReverse) ...[
+                      const SizedBox(height: 8),
+                      AppButton(
+                          label: tr('Reverse'),
+                          kind: AppButtonKind.danger,
+                          busy: _busy,
+                          onPressed: () => _reverse(entry)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          if (page != null && page.total > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+                trn(page.total, '{n} line · page {page}',
+                    '{n} lines · page {page}', {'page': page.page}),
+                style: const TextStyle(color: AppColors.muted)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: tr('Previous page'),
+                    kind: AppButtonKind.quiet,
+                    onPressed: page.page <= 1
+                        ? null
+                        : () {
+                            setState(() => _pageNumber = page.page - 1);
+                            _load();
+                          },
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppButton(
+                    label: tr('Next page'),
+                    kind: AppButtonKind.quiet,
+                    onPressed: hasNext
+                        ? () {
+                            setState(() => _pageNumber = page.page + 1);
+                            _load();
+                          }
+                        : null,
+                  ),
+                ),
               ],
-            if (page != null && page.total > 0) ...[
-              const SizedBox(height: 8),
-              Text('${page.total} লাইন · পৃষ্ঠা ${page.page}', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      label: 'আগের',
-                      kind: AppButtonKind.quiet,
-                      onPressed: page.page <= 1
-                          ? null
-                          : () {
-                              setState(() => _pageNumber = page.page - 1);
-                              _load();
-                            },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AppButton(
-                      label: 'পরের',
-                      kind: AppButtonKind.quiet,
-                      onPressed: hasNext
-                          ? () {
-                              setState(() => _pageNumber = page.page + 1);
-                              _load();
-                            }
-                          : null,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ],
-        ),
-      ),
-    );
+        ]);
   }
 
   double _signedSource(CustomerActivityEntry entry) {

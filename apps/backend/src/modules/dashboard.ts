@@ -7,6 +7,7 @@ import { requireRole, type AppEnv } from './auth'
 import { effectiveKg, weightDelta } from '../shared/compute'
 import { effectiveBill, num, numOrNull, isoDate, shipmentRow } from '../shared/serialize'
 import { syncHubTodos } from '../shared/hubTodos'
+import { HUB_FLIGHT_INCLUDE, hubFlightRow } from '../shared/hubFlights'
 import { getSettings, type AppSettings } from '../shared/settings'
 import { STATUS_ORDER } from '../shared/status'
 
@@ -175,11 +176,12 @@ export const dashboardRoutes = new Hono<AppEnv>()
     if (cached) return c.json(cached)
 
     await syncHubTodos()
-    const [settings, ships, todos, flights] = await Promise.all([
+    const [settings, ships, todos, flights, arriving] = await Promise.all([
       getSettings(),
       prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } }),
       prisma.todo.findMany({ where: { role: 'hub', done: false } }),
       prisma.flight.findMany({ where: { status: 'upcoming' }, include: FLIGHT_INCLUDE, orderBy: { date: 'asc' } }),
+      prisma.flight.findMany({ where: { status: { in: ['upcoming', 'departed'] } }, include: HUB_FLIGHT_INCLUDE, orderBy: { date: 'asc' }, take: 5 }),
     ])
 
     const statusIdx = (s: (typeof ships)[number]) =>
@@ -201,6 +203,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
       openTodoCount: todos.length,
       notices: buildNotices('hub', settings, ships, flights),
       toProcess: atHub.map((s) => shipmentRow(s, 'hub', settings.threshold)),
+      upcomingFlights: arriving.map((f) => hubFlightRow(f)),
     }
     await cacheSetJson('dashboard:hub', payload, CACHE_TTL_SECONDS)
     return c.json(payload)

@@ -1,23 +1,38 @@
 import 'package:flutter/material.dart';
 
 import '../../data/api/api_exception.dart';
+import '../../app_scope.dart';
+import '../../data/models/hub_flight.dart';
+import '../../data/models/session_user.dart';
+import '../tasks/tasks_screen.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/shipment.dart';
 import '../../data/models/workspace.dart';
 import '../../data/repositories/dashboard_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../finance/finance_screen.dart';
 import '../flights/flights_screen.dart';
+import '../flights/flight_detail_screen.dart';
 import '../intake/intake_screen.dart';
+import '../shipments/shipments_screen.dart';
 import 'admin_shipment_screen.dart';
 import 'money_format.dart';
 import 'payment_review_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
-  const AdminHomeScreen({super.key, required this.dashboard});
+  const AdminHomeScreen(
+      {super.key,
+      required this.dashboard,
+      this.onOpenShipments,
+      this.onOpenFinance});
 
   final DashboardRepository dashboard;
+
+  /// Switch the shell to its tab; without them the screen is pushed.
+  final VoidCallback? onOpenShipments;
+  final VoidCallback? onOpenFinance;
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -57,190 +72,384 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.teal,
-          onRefresh: _load,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(pageGutter, 18, pageGutter, 28),
-            children: [
-              const BrandLockup(subtitle: 'অ্যাডমিন'),
-              const SizedBox(height: 16),
-              if (_loading && data == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-              if (_error != null) ...[
-                ErrorNote(message: _error!, onRetry: _load),
-                const SizedBox(height: 12),
-              ],
-              if (data != null) ...[
-                _ReviewHero(data: data, onReview: _openReview),
-                const SizedBox(height: 12),
-                Text('${data.todayLabel} · ${data.weekLabel}', style: const TextStyle(color: AppColors.muted, height: 1.3)),
-                Text('¥1 = ${formatBdt(data.rate)}', style: const TextStyle(color: AppColors.muted)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(child: MetricTile(label: 'ক্যাশ', value: formatBdt(data.cashBdt), hint: 'CNY ${data.cashCny.toStringAsFixed(2)} · ${formatBdt(data.cashWorth)}')),
-                    const SizedBox(width: 8),
-                    Expanded(child: MetricTile(label: 'বকেয়া বিল', value: formatBdt(data.unpaid), tone: data.unpaid > 0 ? ChipTone.red : ChipTone.green)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: MetricTile(label: 'এই সপ্তাহে আয়', value: formatBdt(data.received), tone: ChipTone.green)),
-                    const SizedBox(width: 8),
-                    Expanded(child: MetricTile(label: 'সপ্তাহের নেট', value: formatBdt(data.net), hint: 'ব্যয় ${formatBdt(data.expenses)}', tone: data.net < 0 ? ChipTone.red : ChipTone.teal)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _NextFlight(flight: data.nextFlight, onOpen: () => _push(const FlightsScreen())),
-                if (data.notices.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const SectionTitle(title: 'নজর দিন'),
-                  for (final notice in data.notices) ...[
-                    PaperCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        children: [
-                          StatusPill(label: notice.tag, tone: noticeTone(notice.tag)),
-                          const SizedBox(width: 10),
-                          Expanded(child: Text(notice.text, style: const TextStyle(height: 1.35))),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-                const SizedBox(height: 8),
-                SectionTitle(title: 'চলমান শিপমেন্ট', subtitle: '${data.activeShipmentCount}টি এখনো ডেলিভারি হয়নি'),
-                if (data.activeShipments.isEmpty)
-                  const EmptyNote(title: 'চলমান শিপমেন্ট নেই', body: 'নতুন ইনটেক করলে এখানে দেখা যাবে।')
-                else
-                  for (final row in data.activeShipments.take(6)) ...[
-                    _ActiveRow(row: row, onOpen: () => _push(AdminShipmentScreen(code: row.code))),
-                    const SizedBox(height: 8),
-                  ],
-                const SizedBox(height: 8),
-                AppButton(label: 'নতুন শিপমেন্ট', kind: AppButtonKind.current, onPressed: () => _push(const IntakeScreen())),
-                const SizedBox(height: 8),
-                AppButton(label: 'ফাইন্যান্স স্ন্যাপশট', kind: AppButtonKind.quiet, onPressed: () => _push(const FinanceScreen())),
-              ],
+    final today = FlightDay.parse(DateTime.now().toIso8601String());
+    return WorkspaceScaffold(
+        root: true,
+        title: tr('Overview'),
+        subtitle: today == null
+            ? 'SBExpress'
+            : '${today.weekdayName} · ${today.day} ${today.month}',
+        onRefresh: _load,
+        actions: [
+          FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primarySoft,
+                  foregroundColor: AppColors.primaryInk,
+                  minimumSize: const Size(48, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: const StadiumBorder()),
+              onPressed: () => _push(const IntakeScreen()),
+              icon: const Icon(Icons.add_rounded, size: 19),
+              label: Text(tr('Shipment'))),
+        ],
+        children: [
+          if (_loading && data == null) const LinearProgressIndicator(),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (data != null) ...[
+            SectionTitle(title: tr('Work to do')),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  child: _TodoTile(
+                      icon: Icons.receipt_long_outlined,
+                      value: '${data.reviewCount}',
+                      label: tr('Receipts to review'),
+                      hot: data.reviewCount > 0,
+                      onTap: _openReview)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _TodoTile(
+                      icon: Icons.checklist_rounded,
+                      value: '${data.openTodoCount}',
+                      label: tr('Open tasks'),
+                      onTap: () => _push(TasksScreen(
+                          role: UserRole.admin,
+                          tasks: AppScope.of(context).tasks)))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _TodoTile(
+                      icon: Icons.inventory_2_outlined,
+                      value: '${data.activeShipmentCount}',
+                      label: tr('Active shipments'),
+                      onTap: _openShipments)),
+            ]),
+            const SizedBox(height: 16),
+            _MoneyCard(data: data, onOpen: _openFinance),
+            const SizedBox(height: 22),
+            SectionTitle(
+                title: tr('Next flight'),
+                action: TextButton(
+                    onPressed: () => _push(const FlightsScreen()),
+                    child: Text(tr('Schedule')))),
+            _NextFlight(
+                flight: data.nextFlight,
+                flyers: _flyersFor(data),
+                onOpen: () => _push(data.nextFlight == null
+                    ? const FlightsScreen()
+                    : FlightDetailScreen(code: data.nextFlight!.code))),
+            const SizedBox(height: 22),
+            SectionTitle(
+                title: tr('Active shipments'),
+                subtitle: tr(
+                    '{n} awaiting delivery', {'n': data.activeShipmentCount}),
+                action: TextButton(
+                    onPressed: _openShipments, child: Text(tr('View all')))),
+            if (data.activeShipments.isEmpty)
+              EmptyNote(
+                  icon: Icons.inventory_2_outlined,
+                  title: tr('No active shipments'),
+                  body: tr(
+                      'Use the Shipment button above to make a new booking.'))
+            else
+              SurfaceGroup(children: [
+                for (final row in data.activeShipments.take(5))
+                  _ShipmentRow(
+                      row: row,
+                      onTap: () => _push(AdminShipmentScreen(code: row.code))),
+              ]),
+            if (data.notices.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              SectionTitle(title: tr('Needs attention')),
+              SurfaceGroup(children: [
+                for (final notice in data.notices)
+                  Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(children: [
+                        IconBadge(
+                            switch (notice.tag) {
+                              'WEIGHT' => Icons.warning_amber_rounded,
+                              'FLIGHT' => Icons.flight_rounded,
+                              _ => Icons.event_note_outlined,
+                            },
+                            tone: noticeTone(notice.tag),
+                            round: true),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Text(notice.text,
+                                style: const TextStyle(
+                                    fontSize: 14, height: 1.45))),
+                      ])),
+              ]),
             ],
-          ),
-        ),
-      ),
-    );
+          ],
+        ]);
+  }
+
+  List<String> _flyersFor(AdminOverview data) {
+    final next = data.nextFlight;
+    if (next == null) return const [];
+    for (final flight in data.flights) {
+      if (flight.code == next.code) return flight.flyers;
+    }
+    return const [];
   }
 
   void _openReview() => _push(const PaymentReviewScreen());
 
-  void _push(Widget screen) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  void _openShipments() {
+    final open = widget.onOpenShipments;
+    if (open != null) return open();
+    _push(ShipmentsScreen(
+        role: UserRole.admin, shipments: AppScope.of(context).shipments));
+  }
+
+  void _openFinance() {
+    final open = widget.onOpenFinance;
+    if (open != null) return open();
+    _push(const FinanceScreen());
+  }
+
+  Future<void> _push(Widget screen) async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => screen));
+    if (mounted) await _load();
   }
 }
 
-class _ReviewHero extends StatelessWidget {
-  const _ReviewHero({required this.data, required this.onReview});
+class _TodoTile extends StatelessWidget {
+  const _TodoTile(
+      {required this.icon,
+      required this.value,
+      required this.label,
+      required this.onTap,
+      this.hot = false});
+  final IconData icon;
+  final String value, label;
+  final VoidCallback onTap;
+  final bool hot;
 
+  @override
+  Widget build(BuildContext context) => PaperCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(12),
+      border: hot
+          ? const BorderSide(color: AppColors.accentLine, width: 1.5)
+          : null,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        IconBadge(icon, tone: hot ? ChipTone.amber : ChipTone.blue, size: 36),
+        const SizedBox(height: 8),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 24, fontWeight: FontWeight.w700, height: 1.1)),
+        const SizedBox(height: 4),
+        WordFitText(label,
+            maxLines: 3,
+            style: TextStyle(
+                fontSize: 13,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+                color: hot ? AppColors.accentInk : AppColors.inkSoft)),
+      ]));
+}
+
+class _MoneyCard extends StatelessWidget {
+  const _MoneyCard({required this.data, required this.onOpen});
   final AdminOverview data;
-  final VoidCallback onReview;
+  final VoidCallback onOpen;
+
+  static const _soft = Color(0xB8FFFFFF);
 
   @override
   Widget build(BuildContext context) {
-    final waiting = data.reviewCount;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-      decoration: BoxDecoration(color: AppColors.teal, borderRadius: BorderRadius.circular(cardRadius)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('আজ যাচাই', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text('$waiting', style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w700, height: 1)),
-          const SizedBox(height: 4),
-          Text(
-            waiting == 0 ? 'রিভিউ বাকি নেই' : 'টি রসিদ যাচাই বাকি',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.88), fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Text('খোলা কাজ ${data.openTodoCount} · বুকড প্রফিট ${formatBdt(data.profit)}', style: TextStyle(color: Colors.white.withValues(alpha: 0.78))),
-          const SizedBox(height: 14),
-          AppButton(label: 'পেমেন্ট রিভিউ', kind: AppButtonKind.current, onPressed: onReview),
-        ],
-      ),
-    );
+    Widget figure(String label, String value, {Color color = Colors.white}) =>
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: _soft)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
+        ]);
+    return Material(
+        color: AppColors.navy,
+        borderRadius: BorderRadius.circular(heroRadius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+            onTap: onOpen,
+            child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(tr('Finance this week'),
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white)),
+                              Text(data.weekLabel,
+                                  style: const TextStyle(
+                                      fontSize: 12, color: _soft)),
+                            ])),
+                        Text(tr('Details'),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white)),
+                        const Icon(Icons.chevron_right_rounded,
+                            size: 18, color: Colors.white),
+                      ]),
+                      const SizedBox(height: 14),
+                      Text(tr('Net cash'),
+                          style: const TextStyle(fontSize: 13, color: _soft)),
+                      Text(formatBdt(data.net),
+                          style: const TextStyle(
+                              fontSize: 30,
+                              height: 1.2,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              fontFeatures: [FontFeature.tabularFigures()])),
+                      const SizedBox(height: 14),
+                      const Divider(height: 1, color: Color(0x24FFFFFF)),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(
+                            child: figure(
+                                tr('Received'), formatBdt(data.received))),
+                        Expanded(
+                            child: figure(
+                                tr('Expenses'), formatBdt(data.expenses))),
+                      ]),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(
+                            child: figure(
+                                tr('Booking profit'), formatBdt(data.profit))),
+                        Expanded(
+                            child: figure(tr('Customer balance due'),
+                                formatBdt(data.unpaid),
+                                color: data.unpaid > 0
+                                    ? const Color(0xFFFFB3B0)
+                                    : Colors.white)),
+                      ]),
+                      const SizedBox(height: 14),
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        _BalanceChip(
+                            label: tr('Taka'), value: formatBdt(data.cashBdt)),
+                        _BalanceChip(
+                            label: tr('Yuan'),
+                            value: '¥${data.cashCny.toStringAsFixed(2)}'),
+                      ]),
+                    ]))));
   }
 }
 
-class _NextFlight extends StatelessWidget {
-  const _NextFlight({required this.flight, required this.onOpen});
+class _BalanceChip extends StatelessWidget {
+  const _BalanceChip({required this.label, required this.value});
+  final String label, value;
 
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+          color: const Color(0x1AFFFFFF),
+          borderRadius: BorderRadius.circular(8)),
+      child: Text('$label $value',
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)));
+}
+
+class _NextFlight extends StatelessWidget {
+  const _NextFlight(
+      {required this.flight, required this.flyers, required this.onOpen});
   final NextFlightCard? flight;
+  final List<String> flyers;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final next = flight;
+    final day = next == null ? null : FlightDay.parse(next.date);
     return PaperCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('পরের ফ্লাইট', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          if (next == null)
-            const Text('আপকামিং ফ্লাইট নেই')
-          else ...[
-            Text(displayFlightCode(next.code), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.teal)),
-            Text(next.date, style: const TextStyle(color: AppColors.muted)),
-            const SizedBox(height: 10),
-            CapacityBar(booked: next.bookedKg, space: next.spaceKg),
+        onTap: onOpen,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const IconBadge(Icons.flight_rounded, size: 44),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(
+                      next == null
+                          ? tr('No upcoming flight')
+                          : [
+                              displayFlightCode(next.code),
+                              if (day != null) '${day.day} ${day.month}'
+                            ].join(' · '),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(
+                      next == null
+                          ? tr('Open the flight list to add a schedule')
+                          : flyers.isEmpty
+                              ? tr('Flyer not assigned')
+                              : trn(
+                                  flyers.length,
+                                  'Flyer {names}',
+                                  'Flyers {names}',
+                                  {'names': flyers.join(', ')}),
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.muted)),
+                ])),
+            if (day != null)
+              StatusPill(label: day.relativeLabel, tone: ChipTone.blue),
+          ]),
+          if (next != null) ...[
+            const SizedBox(height: 14),
+            CapacityBar(booked: next.bookedKg, space: next.spaceKg)
           ],
-          const SizedBox(height: 12),
-          AppButton(label: 'সব ফ্লাইট', kind: AppButtonKind.quiet, onPressed: onOpen),
-        ],
-      ),
-    );
+        ]));
   }
 }
 
-class _ActiveRow extends StatelessWidget {
-  const _ActiveRow({required this.row, required this.onOpen});
-
+class _ShipmentRow extends StatelessWidget {
+  const _ShipmentRow({required this.row, required this.onTap});
   final AdminShipment row;
-  final VoidCallback onOpen;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final name = row.supplierName;
-    return Material(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(cardRadius),
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(cardRadius),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: minTouchTarget),
+  Widget build(BuildContext context) => InkWell(
+      onTap: onTap,
+      child: Padding(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(cardRadius), border: Border.all(color: AppColors.line)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(row.code, style: const TextStyle(fontWeight: FontWeight.w700))),
-                  StatusPill(label: banglaStatus(row.status, row.statusLabel), tone: shipmentStatusTone(row.statusIndex)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(name == null || name.isEmpty ? row.supplierCode : '$name · ${row.supplierCode}', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 4),
-              Text('${row.description} · ${formatKg(row.effectiveKg)} · বাকি ${formatBdt(row.dueAmount)}'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+          child: Row(children: [
+            const IconBadge(Icons.inventory_2_outlined, tone: ChipTone.neutral),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(row.code,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(
+                      '${row.supplierName ?? row.supplierCode} · ${formatKg(row.effectiveKg)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.muted)),
+                ])),
+            const SizedBox(width: 8),
+            Flexible(
+                child: Align(
+                    alignment: Alignment.centerRight,
+                    child: StatusPill(
+                        label: banglaStatus(row.status, row.statusLabel),
+                        tone: shipmentStatusTone(row.statusIndex)))),
+          ])));
 }

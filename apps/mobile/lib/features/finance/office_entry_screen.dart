@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/ledger_actions.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
@@ -61,18 +62,32 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
     final account = _picked;
     final amount = parseMoney(_amount.text);
     final note = _note.text.trim();
-    if (account == null || amount == null || amount <= 0 || note.isEmpty || (_kind != 'expense' && note.length > 160)) {
-      setState(() => _error = 'অ্যাকাউন্ট, অঙ্ক ও নোট দিন। আয়ের নোট ১৬০ অক্ষরের মধ্যে।');
+    if (account == null ||
+        amount == null ||
+        amount <= 0 ||
+        note.isEmpty ||
+        (_kind != 'expense' && note.length > 160)) {
+      setState(() => _error = tr(
+          'Enter an account, amount and note. Income notes are up to 160 characters.'));
       return;
     }
     final chosen = account;
     final label = switch (_kind) {
-      'capital' => 'মালিকের মূলধন',
-      'expense' => 'অফিস খরচ',
-      _ => 'আয়',
+      'capital' => tr('Owner capital'),
+      'expense' => tr('Office expense'),
+      _ => tr('Income'),
     };
-    final direction = _kind == 'expense' ? '${chosen.name} থেকে যাবে' : '${chosen.name}-এ ঢুকবে';
-    final ok = await confirmMoney(context, title: label, body: '${formatMoney(amount, chosen.currency)} $direction। ${_kind == 'capital' ? 'ক্যাশ বাড়বে, প্রফিট নয়।' : ''}');
+    final money = {
+      'amount': formatMoney(amount, chosen.currency),
+      'account': chosen.name
+    };
+    final direction = _kind == 'expense'
+        ? tr('{amount} leaves {account}.', money)
+        : tr('{amount} goes into {account}.', money);
+    final ok = await confirmMoney(context,
+        title: label,
+        body:
+            '$direction ${_kind == 'capital' ? tr('Cash goes up, profit does not.') : ''}');
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -81,9 +96,19 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
     try {
       final finance = AppScope.of(context).finance;
       if (_kind == 'expense') {
-        await finance.recordOfficeExpense(category: _category, amount: amount, reason: note, accountName: chosen.name, currency: chosen.currency);
+        await finance.recordOfficeExpense(
+            category: _category,
+            amount: amount,
+            reason: note,
+            accountName: chosen.name,
+            currency: chosen.currency);
       } else {
-        await finance.recordIncome(amount: amount, accountName: chosen.name, currency: chosen.currency, note: note, kind: _kind);
+        await finance.recordIncome(
+            amount: amount,
+            accountName: chosen.name,
+            currency: chosen.currency,
+            note: note,
+            kind: _kind);
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -97,17 +122,28 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'জমা বা খরচ'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: tr('Deposit or expense'),
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: tr('Save'),
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'জমা বা খরচ', subtitle: 'শিপমেন্ট ছাড়া অফিসের আয়, মূলধন বা খরচ। শিপমেন্ট খরচ শিপমেন্টের খরচ পেজে।'),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      "Office income, capital or expenses outside shipments. Shipment costs go on the shipment's costs page."),
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
           ChoiceChips(
-            options: const [
-              (value: 'income', label: 'আয়'),
-              (value: 'capital', label: 'মূলধন'),
-              (value: 'expense', label: 'খরচ'),
+            options: [
+              (value: 'income', label: tr('Income')),
+              (value: 'capital', label: tr('Capital')),
+              (value: 'expense', label: tr('Expense')),
             ],
             selected: _kind,
             onSelected: (value) => setState(() => _kind = value),
@@ -115,28 +151,36 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
           const SizedBox(height: 12),
           if (_kind == 'expense') ...[
             ChoiceChips(
-              options: [for (final entry in costCategories.entries) (value: entry.key, label: entry.value)],
+              options: [
+                for (final entry in costCategories.entries)
+                  (value: entry.key, label: entry.value)
+              ],
               selected: _category,
               onSelected: (value) => setState(() => _category = value),
             ),
             const SizedBox(height: 12),
           ],
-          AccountPicker(accounts: _accounts, selected: _account, onSelected: (account) => setState(() => _account = account.name)),
-          TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'অঙ্ক')),
+          AccountPicker(
+              accounts: _accounts,
+              selected: _account,
+              onSelected: (account) => setState(() => _account = account.name)),
+          TextField(
+              controller: _amount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: tr('Amount'))),
           const SizedBox(height: 8),
           TextField(
             controller: _note,
             maxLength: _kind == 'expense' ? 500 : 160,
-            decoration: InputDecoration(labelText: _kind == 'expense' ? 'কারণ' : 'নোট'),
+            decoration: InputDecoration(
+                labelText: _kind == 'expense' ? tr('Reason') : tr('Note')),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }
