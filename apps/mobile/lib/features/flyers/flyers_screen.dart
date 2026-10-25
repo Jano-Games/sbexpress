@@ -60,50 +60,67 @@ class _FlyersScreenState extends State<FlyersScreen> {
     final query = _query.text.trim().toLowerCase();
     final visible = [
       for (final row in _rows)
-        if (query.isEmpty || row.name.toLowerCase().contains(query) || row.bdPhone.toLowerCase().contains(query) || row.university.toLowerCase().contains(query)) row,
+        if (query.isEmpty ||
+            row.name.toLowerCase().contains(query) ||
+            row.bdPhone.toLowerCase().contains(query) ||
+            row.university.toLowerCase().contains(query))
+          row,
     ];
-    return Scaffold(
-      appBar: const BackTitle(title: 'ফ্লায়ার'),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    return WorkspaceScaffold(
+        title: 'ফ্লায়ার',
+        root: false,
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
-          children: [
-            const PageHeader(title: 'ফ্লায়ার', subtitle: 'প্রোফাইল, ফোন ও যাচাই করা ডকুমেন্ট।'),
-            TextField(
-              controller: _query,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(labelText: 'নাম, ফোন বা বিশ্ববিদ্যালয়'),
-            ),
-            const SizedBox(height: 12),
-            AppButton(
-              label: 'নতুন ফ্লায়ার',
-              kind: AppButtonKind.current,
-              onPressed: () async {
-                final created = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const FlyerFormScreen()));
-                if (created == true) await _load();
+        actions: [
+          Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: AppButton(
+                  label: 'নতুন',
+                  icon: Icons.add_rounded,
+                  expand: false,
+                  onPressed: () async {
+                    final created = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                            builder: (_) => const FlyerFormScreen()));
+                    if (created == true && mounted) await _load();
+                  }))
+        ],
+        toolbar: TextField(
+          controller: _query,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+              hintText: 'নাম বা ফোন খুঁজুন',
+              prefixIcon: Icon(Icons.search_rounded)),
+        ),
+        children: [
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text('প্রোফাইল ও ট্রাভেল ডকুমেন্ট',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          const SizedBox(height: 12),
+          if (_loading)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (!_loading && _error == null && visible.isEmpty)
+            const EmptyNote(
+                title: 'ফ্লায়ার নেই',
+                body: 'নতুন প্রোফাইল যোগ করলে এখানে দেখা যাবে।'),
+          for (final row in visible) ...[
+            DirectoryTile(
+              title: row.name,
+              icon: Icons.badge_outlined,
+              subtitle:
+                  '${row.bdPhone} · ${row.university}\nডকুমেন্ট ${row.verifiedDocumentCount}/${row.documentCount} যাচাই',
+              badge: row.docStudentId && row.docVisa ? 'যাচাই' : 'বাকি',
+              onTap: () async {
+                await Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => FlyerDetailScreen(name: row.name)));
+                await _load();
               },
             ),
-            const SizedBox(height: 12),
-            if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-            if (!_loading && _error == null && visible.isEmpty) const EmptyNote(title: 'ফ্লায়ার নেই', body: 'নতুন প্রোফাইল যোগ করলে এখানে দেখা যাবে।'),
-            for (final row in visible) ...[
-              DirectoryTile(
-                title: row.name,
-                subtitle: '${row.bdPhone} · ${row.university}\nডকুমেন্ট ${row.verifiedDocumentCount}/${row.documentCount} যাচাই',
-                badge: row.docStudentId && row.docVisa ? 'যাচাই' : 'বাকি',
-                onTap: () async {
-                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => FlyerDetailScreen(name: row.name)));
-                  await _load();
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+            const SizedBox(height: 8),
           ],
-        ),
-      ),
-    );
+        ]);
   }
 }

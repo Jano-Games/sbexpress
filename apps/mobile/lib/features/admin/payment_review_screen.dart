@@ -53,7 +53,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
       if (!mounted) return;
       setState(() {
         _queue = queue;
-        _selected ??= queue.all.isEmpty ? null : _key(queue.all.first);
+        if (!queue.all.any((item) => _key(item) == _selected)) _selected = null;
       });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -66,7 +66,8 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
     }
   }
 
-  String _key(PaymentReviewItem item) => '${item.kind.name}:${item.recordLabel}:${item.txnRef}';
+  String _key(PaymentReviewItem item) =>
+      '${item.kind.name}:${item.recordLabel}:${item.txnRef}';
 
   PaymentReviewItem? get _current {
     final queue = _queue;
@@ -74,7 +75,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
     for (final item in queue.all) {
       if (_key(item) == _selected) return item;
     }
-    return queue.all.isEmpty ? null : queue.all.first;
+    return null;
   }
 
   Future<void> _approve(PaymentReviewItem item) async {
@@ -82,9 +83,12 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
     setState(() => _busy = true);
     try {
       await AppScope.of(context).review.approve(item);
+      if (!mounted) return;
+      _selected = null;
+      _shotError = null;
+      _shotUrl = null;
       _reason.clear();
       _rejecting = false;
-      _shotUrl = null;
       await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -100,6 +104,10 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
     setState(() => _busy = true);
     try {
       await AppScope.of(context).review.reject(item, reason);
+      if (!mounted) return;
+      _selected = null;
+      _shotError = null;
+      _shotUrl = null;
       _reason.clear();
       _rejecting = false;
       await _load();
@@ -116,169 +124,410 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
     if (shot == null) return;
     setState(() => _shotError = null);
     try {
-      final url = await AppScope.of(context).review.screenshotUrl(shot.reference);
-      if (!mounted) return;
+      final url =
+          await AppScope.of(context).review.screenshotUrl(shot.reference);
+      if (!mounted || _selected != _key(item)) return;
       setState(() => _shotUrl = url);
     } on ApiException catch (error) {
-      if (!mounted) return;
-      if (error.status == 401) return;
+      if (!mounted || _selected != _key(item) || error.status == 401) return;
       setState(() => _shotError = error.message);
     }
+  }
+
+  void _backToQueue() {
+    if (_busy) return;
+    setState(() {
+      _selected = null;
+      _shotUrl = null;
+      _shotError = null;
+      _error = null;
+      _rejecting = false;
+      _reason.clear();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final queue = _queue;
     final current = _current;
-    return Scaffold(
-      appBar: const BackTitle(title: 'পেমেন্ট রিভিউ'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          const Text('স্ক্রিনশট ঐচ্ছিক। না থাকলেও ট্রান্সফার মিলিয়ে অ্যাপ্রুভ করা যায়।', style: TextStyle(color: AppColors.muted, height: 1.35)),
-          const SizedBox(height: 12),
-          if (_loading && queue == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-          if (queue != null && queue.all.isEmpty) const EmptyNote(title: 'রিভিউ বাকি নেই', body: 'নতুন রসিদ এলে এখানে দেখা যাবে।'),
-          if (queue != null)
-            for (final item in queue.all) ...[
-              _ReviewCard(
-                item: item,
-                selected: current != null && _key(current) == _key(item),
-                onTap: () => setState(() {
-                  _selected = _key(item);
-                  _shotUrl = null;
-                  _shotError = null;
-                  _rejecting = false;
-                }),
-              ),
-              const SizedBox(height: 8),
+    final pending = queue?.all.length ?? 0;
+    return PopScope(
+      canPop: current == null && !_busy,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _backToQueue();
+      },
+      child: Scaffold(
+        appBar: BackTitle(
+            title: current == null ? 'পেমেন্ট যাচাই' : 'রসিদ যাচাই',
+            subtitle: current == null
+                ? null
+                : '${current.recordLabel} · ${current.kind == ReviewKind.shipment ? 'শিপমেন্ট' : 'মাসিক স্টেটমেন্ট'}',
+            actions: [
+              if (current == null && pending > 0)
+                Center(
+                    child: Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: StatusPill(
+                            label: '$pendingটি বাকি', tone: ChipTone.amber))),
             ],
-          if (current != null) ...[
-            const SizedBox(height: 8),
-            _Detail(
-              item: current,
-              shotUrl: _shotUrl,
-              shotError: _shotError,
-              rejecting: _rejecting,
-              reason: _reason,
-              busy: _busy,
-              onShot: () => _loadShot(current),
-              onApprove: () => _approve(current),
-              onReject: () => _reject(current),
-              onStartReject: () => setState(() => _rejecting = true),
-            ),
-          ],
-        ],
+            onBack: current == null ? null : _backToQueue),
+        body: RefreshIndicator(
+          onRefresh: _busy ? () async {} : _load,
+          child: ListView(
+            key: ValueKey(_selected ?? 'review-queue'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(pageGutter, 16, pageGutter, 32),
+            children: [
+              if (_loading) const LinearProgressIndicator(),
+              if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+              if (current == null) ...[
+                PageHeader(
+                    title: 'যাচাইয়ের অপেক্ষায়',
+                    subtitle: queue == null
+                        ? 'রসিদগুলো লোড হচ্ছে'
+                        : '${queue.all.length}টি রসিদ · খুলে লেনদেন মিলিয়ে নিন'),
+                if (queue != null && queue.all.isEmpty)
+                  const EmptyNote(
+                      icon: Icons.fact_check_outlined,
+                      title: 'রিভিউ বাকি নেই',
+                      body: 'নতুন রসিদ এলে এখানে দেখা যাবে।'),
+                if (queue != null)
+                  for (final item in queue.all) ...[
+                    _ReviewCard(
+                        item: item,
+                        onTap: () => setState(() {
+                              _selected = _key(item);
+                              _shotUrl = null;
+                              _shotError = null;
+                              _rejecting = false;
+                              _reason.clear();
+                            })),
+                    const SizedBox(height: 10),
+                  ],
+              ] else
+                _Detail(
+                    item: current,
+                    position: queue!.all.indexOf(current) + 1,
+                    total: queue.all.length,
+                    shotUrl: _shotUrl,
+                    shotError: _shotError,
+                    rejecting: _rejecting,
+                    reason: _reason,
+                    busy: _busy,
+                    onShot: () => _loadShot(current),
+                    onReject: () => _reject(current),
+                    onCancelReject: () => setState(() => _rejecting = false)),
+            ],
+          ),
+        ),
+        bottomNavigationBar: current == null || _rejecting
+            ? null
+            : ActionFooter(
+                child: Row(children: [
+                Expanded(
+                    flex: 2,
+                    child: AppButton(
+                        label: 'ফেরত দিন',
+                        kind: AppButtonKind.danger,
+                        onPressed: _busy
+                            ? null
+                            : () => setState(() => _rejecting = true))),
+                const SizedBox(width: 10),
+                Expanded(
+                    flex: 3,
+                    child: AppButton(
+                        key: const Key('review-approve'),
+                        label: 'অ্যাপ্রুভ করুন',
+                        icon: Icons.check_rounded,
+                        busy: _busy,
+                        onPressed: canApprovePayment(current)
+                            ? () => _approve(current)
+                            : null)),
+              ])),
       ),
     );
   }
 }
 
 class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.item, required this.selected, required this.onTap});
-
+  const _ReviewCard({required this.item, required this.onTap});
   final PaymentReviewItem item;
-  final bool selected;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.tealSoft : AppColors.card,
-      borderRadius: BorderRadius.circular(cardRadius),
-      child: InkWell(
+  Widget build(BuildContext context) => PaperCard(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(cardRadius),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: minTouchTarget),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(cardRadius), border: Border.all(color: AppColors.line)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item.recordLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text('${item.kind == ReviewKind.shipment ? 'শিপমেন্ট' : 'মাসিক স্টেটমেন্ট'} · ${item.supplierName}'),
-              Text('${item.method} · ${formatBdt(item.amount)}'),
-              Text(item.hasScreenshot ? 'স্ক্রিনশট আছে' : 'স্ক্রিনশট নেই', style: const TextStyle(color: AppColors.muted)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+        padding: const EdgeInsets.all(14),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const IconBadge(Icons.receipt_long_outlined, tone: ChipTone.amber),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(item.supplierName,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+                Text('${item.recordLabel} · ${item.method}',
+                    style:
+                        const TextStyle(fontSize: 13, color: AppColors.muted)),
+                const SizedBox(height: 8),
+                Text(formatBdt(item.amount),
+                    style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+                const SizedBox(height: 6),
+                InfoChip(
+                    icon: item.hasScreenshot
+                        ? Icons.image_outlined
+                        : Icons.tag_rounded,
+                    label: item.hasScreenshot
+                        ? 'স্ক্রিনশট আছে'
+                        : 'শুধু ট্রানজ্যাকশন আইডি'),
+              ])),
+          const Icon(Icons.chevron_right_rounded,
+              color: AppColors.faint, size: 22),
+        ]),
+      );
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({
-    required this.item,
-    required this.shotUrl,
-    required this.shotError,
-    required this.rejecting,
-    required this.reason,
-    required this.busy,
-    required this.onShot,
-    required this.onApprove,
-    required this.onReject,
-    required this.onStartReject,
-  });
-
+  const _Detail(
+      {required this.item,
+      required this.position,
+      required this.total,
+      required this.shotUrl,
+      required this.shotError,
+      required this.rejecting,
+      required this.reason,
+      required this.busy,
+      required this.onShot,
+      required this.onReject,
+      required this.onCancelReject});
   final PaymentReviewItem item;
+  final int position, total;
   final String? shotUrl;
   final String? shotError;
   final bool rejecting;
   final TextEditingController reason;
   final bool busy;
-  final VoidCallback onShot;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
-  final VoidCallback onStartReject;
+  final VoidCallback onShot, onReject, onCancelReject;
 
   @override
-  Widget build(BuildContext context) {
-    final source = item.sourceCurrency == 'BDT' ? null : '${item.sourceCurrency} ${item.sourceAmount.toStringAsFixed(2)}';
-    return PaperCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(formatBdt(item.amount), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-          if (source != null) Text(source, style: const TextStyle(color: AppColors.muted)),
-          const SizedBox(height: 6),
-          Text(item.method),
-          Text(item.txnRef),
-          Text(item.date, style: const TextStyle(color: AppColors.muted)),
-          const SizedBox(height: 8),
-          AppButton(
-            label: 'ট্রানজ্যাকশন কপি',
-            kind: AppButtonKind.quiet,
-            onPressed: () => Clipboard.setData(ClipboardData(text: item.txnRef)),
-          ),
+  Widget build(BuildContext context) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (total > 1)
+          Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+              child: Text('রসিদ $position / $total',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.inkSoft))),
+        PaperCard(
+            radius: heroRadius,
+            padding: const EdgeInsets.all(18),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                    child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: InfoChip(
+                            icon: Icons.account_balance_wallet_outlined,
+                            label: item.method))),
+                const SizedBox(width: 8),
+                const Icon(Icons.schedule_rounded,
+                    size: 15, color: AppColors.muted),
+                const SizedBox(width: 4),
+                Text(item.date,
+                    style:
+                        const TextStyle(fontSize: 13, color: AppColors.muted)),
+              ]),
+              const SizedBox(height: 14),
+              const Text('জমা হবে · BDT',
+                  style: TextStyle(fontSize: 13, color: AppColors.muted)),
+              Text(formatBdt(item.amount),
+                  style: const TextStyle(
+                      fontSize: 34,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: [FontFeature.tabularFigures()])),
+              if (item.sourceCurrency != 'BDT')
+                Text(
+                    'কাস্টমার পাঠিয়েছেন ${item.sourceCurrency} ${item.sourceAmount.toStringAsFixed(2)}',
+                    style: const TextStyle(color: AppColors.muted)),
+              const SizedBox(height: 10),
+              const Divider(height: 1),
+              _Line(
+                  label: item.kind == ReviewKind.shipment
+                      ? 'শিপমেন্ট'
+                      : 'স্টেটমেন্ট',
+                  value: item.recordLabel),
+              _Line(label: 'কাস্টমার', value: item.supplierName),
+              _Line(
+                  label: 'ট্রানজ্যাকশন আইডি',
+                  value: item.txnRef,
+                  trailing: IconButton(
+                      tooltip: 'ট্রানজ্যাকশন কপি',
+                      color: AppColors.primary,
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      onPressed: () async {
+                        await Clipboard.setData(
+                            ClipboardData(text: item.txnRef));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('ট্রানজ্যাকশন কপি হয়েছে')));
+                        }
+                      })),
+              _Line(label: 'জমার তারিখ', value: item.date, last: true),
+            ])),
+        const SizedBox(height: 14),
+        if (!item.hasScreenshot)
+          Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.field, width: 1.5)),
+              child: const Row(children: [
+                IconBadge(Icons.hide_image_outlined,
+                    tone: ChipTone.neutral, round: true),
+                SizedBox(width: 12),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('স্ক্রিনশট দেওয়া হয়নি',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                          'ঐচ্ছিক — ট্রানজ্যাকশন আইডি মিলিয়েও অ্যাপ্রুভ করা যায়',
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.muted,
+                              height: 1.45)),
+                    ])),
+              ]))
+        else
+          PaperCard(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                const Text('পেমেন্টের প্রমাণ',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                if (shotUrl == null)
+                  AppButton(
+                      label: 'স্ক্রিনশট দেখুন',
+                      icon: Icons.image_outlined,
+                      kind: AppButtonKind.tonal,
+                      onPressed: onShot),
+                if (shotError != null)
+                  ErrorNote(message: shotError!, onRetry: onShot),
+                if (shotUrl != null) ...[
+                  InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => showDialog<void>(
+                          context: context,
+                          builder: (context) => Dialog.fullscreen(
+                                backgroundColor: AppColors.ink,
+                                child: SafeArea(
+                                    child: Column(children: [
+                                  Align(
+                                      alignment: Alignment.centerRight,
+                                      child: IconButton(
+                                          tooltip: 'বন্ধ করুন',
+                                          icon: const Icon(Icons.close,
+                                              color: Colors.white),
+                                          onPressed: () =>
+                                              Navigator.pop(context))),
+                                  Expanded(
+                                      child: InteractiveViewer(
+                                          minScale: 0.5,
+                                          maxScale: 5,
+                                          child: Center(
+                                              child: Image.network(shotUrl!,
+                                                  fit: BoxFit.contain,
+                                                  errorBuilder: (_, error,
+                                                          stack) =>
+                                                      const Text('ছবি লোড হয়নি',
+                                                          style: TextStyle(
+                                                              color: Colors
+                                                                  .white)))))),
+                                ])),
+                              )),
+                      child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(shotUrl!,
+                              height: 220,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, error, stack) => ErrorNote(
+                                  message: 'ছবি লোড হয়নি', onRetry: onShot)))),
+                  const SizedBox(height: 8),
+                  const Text('বড় করে দেখতে ছবিতে চাপুন',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                ],
+              ])),
+        const SizedBox(height: 14),
+        HintNote(
+            text: item.method.isEmpty
+                ? 'অ্যাকাউন্টে টাকা এসেছে নিশ্চিত হয়ে অনুমোদন দিন।'
+                : '${item.method} স্টেটমেন্টে আইডি ও টাকার পরিমাণ মিলিয়ে তারপর অ্যাপ্রুভ করুন।'),
+        if (rejecting) ...[
+          const SizedBox(height: 18),
+          const SectionTitle(title: 'রসিদ ফেরত দিন'),
+          TextField(
+              controller: reason,
+              minLines: 2,
+              maxLines: 4,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  labelText: 'ফেরত দেওয়ার কারণ',
+                  hintText: 'লেনদেনের কোন তথ্য মেলেনি লিখুন')),
           const SizedBox(height: 12),
-          if (!item.hasScreenshot)
-            const Text('স্ক্রিনশট নেই। পেমেন্ট আটকে থাকবে না।', style: TextStyle(height: 1.35))
-          else ...[
-            AppButton(label: 'স্ক্রিনশট দেখুন', kind: AppButtonKind.quiet, onPressed: onShot),
-            if (shotError != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(shotError!, style: const TextStyle(color: AppColors.danger))),
-            if (shotUrl != null) Padding(padding: const EdgeInsets.only(top: 8), child: Image.network(shotUrl!, height: 180, fit: BoxFit.contain)),
-          ],
-          const SizedBox(height: 12),
           AppButton(
-            key: const Key('review-approve'),
-            label: 'অ্যাপ্রুভ',
-            kind: AppButtonKind.current,
-            busy: busy,
-            onPressed: canApprovePayment(item) ? onApprove : null,
-          ),
-          const SizedBox(height: 8),
-          if (!rejecting)
-            AppButton(label: 'ফেরত দিন', kind: AppButtonKind.danger, onPressed: onStartReject)
-          else ...[
-            TextField(controller: reason, decoration: const InputDecoration(labelText: 'কেন মিলল না')),
-            const SizedBox(height: 8),
-            AppButton(label: 'রিজেক্ট', kind: AppButtonKind.danger, busy: busy, onPressed: reason.text.trim().length < 3 ? null : onReject),
-          ],
+              label: 'ফেরত দেওয়া নিশ্চিত করুন',
+              kind: AppButtonKind.danger,
+              busy: busy,
+              onPressed: reason.text.trim().length < 3 ? null : onReject),
+          const SizedBox(height: 4),
+          TextButton(
+              onPressed: busy ? null : onCancelReject,
+              child: const Text('বাতিল')),
         ],
-      ),
-    );
-  }
+      ]);
+}
+
+class _Line extends StatelessWidget {
+  const _Line(
+      {required this.label,
+      required this.value,
+      this.trailing,
+      this.last = false});
+  final String label, value;
+  final Widget? trailing;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) => Container(
+      constraints: const BoxConstraints(minHeight: 50),
+      decoration: BoxDecoration(
+          border: last
+              ? null
+              : const Border(bottom: BorderSide(color: AppColors.lineSoft))),
+      child: Row(children: [
+        Text(label,
+            style: const TextStyle(fontSize: 14, color: AppColors.muted)),
+        const SizedBox(width: 12),
+        Expanded(
+            child: Text(value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600))),
+        if (trailing != null) trailing!,
+      ]));
 }

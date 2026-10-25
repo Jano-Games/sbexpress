@@ -11,7 +11,13 @@ import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
 class DeviceUnitRef {
-  const DeviceUnitRef({required this.itemIndex, required this.unitIndex, required this.category, required this.model, required this.serial, required this.hasPhoto});
+  const DeviceUnitRef(
+      {required this.itemIndex,
+      required this.unitIndex,
+      required this.category,
+      required this.model,
+      required this.serial,
+      required this.hasPhoto});
 
   final int itemIndex;
   final int unitIndex;
@@ -58,7 +64,13 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
           final line = detail.devices[item];
           for (var unit = 0; unit < line.units.length; unit++) {
             final row = line.units[unit];
-            units.add(DeviceUnitRef(itemIndex: item, unitIndex: unit, category: line.category, model: row.model, serial: row.serial, hasPhoto: row.hasPhoto));
+            units.add(DeviceUnitRef(
+                itemIndex: item,
+                unitIndex: unit,
+                category: line.category,
+                model: row.model,
+                serial: row.serial,
+                hasPhoto: row.hasPhoto));
           }
         }
       } else {
@@ -67,7 +79,14 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
           final line = detail.devices[item];
           for (var unit = 0; unit < line.units.length; unit++) {
             final row = line.units[unit];
-            units.add(DeviceUnitRef(itemIndex: item, unitIndex: unit, category: line.category, model: row.model, serial: row.serial, hasPhoto: row.serialPhotoRef != null && row.serialPhotoRef!.isNotEmpty));
+            units.add(DeviceUnitRef(
+                itemIndex: item,
+                unitIndex: unit,
+                category: line.category,
+                model: row.model,
+                serial: row.serial,
+                hasPhoto: row.serialPhotoRef != null &&
+                    row.serialPhotoRef!.isNotEmpty));
           }
         }
       }
@@ -86,34 +105,41 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: BackTitle(title: widget.code),
-      body: RefreshIndicator(
-        color: AppColors.teal,
+    return WorkspaceScaffold(
+        title: 'IMEI ছবি',
+        root: false,
         onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 28),
-          children: [
-            const PageHeader(title: 'IMEI ছবি', subtitle: 'প্রতিটি ডিভাইসের সিরিয়াল ছবি আলাদা। কাস্টমারের সাথে শেয়ার হয় না।'),
-            if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-            if (!_loading && _units.isEmpty) const EmptyNote(title: 'ডিভাইস নেই', body: 'ইনটেকে মোবাইল, ল্যাপটপ বা ড্রোন দিলে এখানে ইউনিট আসবে।'),
-            for (final unit in _units) ...[
-              DirectoryTile(
-                title: unit.model.isEmpty ? unit.category : unit.model,
-                subtitle: unit.serial.isEmpty ? 'সিরিয়াল লেখা নেই' : unit.serial,
-                badge: unit.hasPhoto ? 'ছবি আছে' : 'ছবি নেই',
-                onTap: () async {
-                  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ImeiGuideScreen(code: widget.code, unit: unit)));
-                  await _load();
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+        subtitle: widget.code,
+        children: [
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text(
+                  'প্রতিটি ডিভাইসের সিরিয়াল ছবি আলাদা। কাস্টমারের সাথে শেয়ার হয় না।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (!_loading && _units.isEmpty)
+            const EmptyNote(
+                title: 'ডিভাইস নেই',
+                body: 'ইনটেকে মোবাইল, ল্যাপটপ বা ড্রোন দিলে এখানে ইউনিট আসবে।'),
+          for (final unit in _units) ...[
+            DirectoryTile(
+              title: unit.model.isEmpty ? unit.category : unit.model,
+              subtitle: unit.serial.isEmpty ? 'সিরিয়াল লেখা নেই' : unit.serial,
+              badge: unit.hasPhoto ? 'ছবি আছে' : 'ছবি নেই',
+              onTap: () async {
+                await Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) =>
+                        ImeiGuideScreen(code: widget.code, unit: unit)));
+                await _load();
+              },
+            ),
+            const SizedBox(height: 8),
           ],
-        ),
-      ),
-    );
+        ]);
   }
 }
 
@@ -148,7 +174,9 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
     )..addListener(() {
         if (!mounted) return;
         setState(() {
-          if (_photos?.done == true) _saved = 'ছবি সেভ হয়েছে। কাস্টমার এটি দেখতে পাবে না।';
+          if (_photos?.done == true) {
+            _saved = 'ছবি সেভ হয়েছে। কাস্টমার এটি দেখতে পাবে না।';
+          }
         });
       });
   }
@@ -163,7 +191,10 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
     final file = await ImagePicker().pickImage(source: source);
     if (file == null) return;
     try {
-      await _photos?.select(PickedPhoto(bytes: await file.readAsBytes(), name: file.name, mime: file.mimeType));
+      await _photos?.select(PickedPhoto(
+          bytes: await file.readAsBytes(),
+          name: file.name,
+          mime: file.mimeType));
     } finally {
       await deletePickedPhotoFile(file.path);
     }
@@ -173,12 +204,16 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
   Widget build(BuildContext context) {
     final upload = _photos;
     final unit = widget.unit;
-    return Scaffold(
-      appBar: const BackTitle(title: 'IMEI গাইড'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: unit.serial.isEmpty ? unit.category : unit.serial,
+        root: false,
         children: [
-          PageHeader(title: unit.serial.isEmpty ? unit.category : unit.serial, subtitle: '${widget.code} · ${unit.model.isEmpty ? unit.category : unit.model}'),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  '${widget.code} · ${unit.model.isEmpty ? unit.category : unit.model}',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
           const _GuideFrame(),
           const SizedBox(height: 12),
           const PaperCard(
@@ -189,29 +224,43 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
                 SizedBox(height: 6),
                 Text('২. নম্বরটা ফ্রেমের ভিতরে রাখুন। সরাসরি আলো এড়ান।'),
                 SizedBox(height: 6),
-                Text('৩. ছবি JPEG হবে, লোকেশন মুছে যাবে, এবং কাস্টমার লিংকে যাবে না।'),
+                Text(
+                    '৩. ছবি JPEG হবে, লোকেশন মুছে যাবে, এবং কাস্টমার লিংকে যাবে না।'),
               ],
             ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: AppButton(label: 'ক্যামেরা', kind: AppButtonKind.current, onPressed: () => _pick(ImageSource.camera))),
+              Expanded(
+                  child: AppButton(
+                      label: 'ক্যামেরা',
+                      kind: AppButtonKind.current,
+                      onPressed: () => _pick(ImageSource.camera))),
               const SizedBox(width: 8),
-              Expanded(child: AppButton(label: 'গ্যালারি', kind: AppButtonKind.quiet, onPressed: () => _pick(ImageSource.gallery))),
+              Expanded(
+                  child: AppButton(
+                      label: 'গ্যালারি',
+                      kind: AppButtonKind.quiet,
+                      onPressed: () => _pick(ImageSource.gallery))),
             ],
           ),
           if (upload != null && upload.busy) ...[
             const SizedBox(height: 12),
-            LinearProgressIndicator(value: upload.progress == 0 ? null : upload.progress, color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+            LinearProgressIndicator(
+                value: upload.progress == 0 ? null : upload.progress,
+                color: AppColors.teal,
+                backgroundColor: AppColors.tealSoft),
           ],
           if (upload?.prepared != null) ...[
             const SizedBox(height: 8),
-            const Text(locationStrippedNote, style: TextStyle(color: AppColors.muted)),
+            const Text(locationStrippedNote,
+                style: TextStyle(color: AppColors.muted)),
           ],
           if (upload?.error != null) ...[
             const SizedBox(height: 8),
-            Text(upload!.error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(upload!.error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
             const SizedBox(height: 8),
             AppButton(label: 'একই ছবি আবার পাঠান', onPressed: upload.retry),
           ],
@@ -219,9 +268,7 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
             const SizedBox(height: 12),
             EmptyNote(title: 'সেভ হয়েছে', body: _saved!),
           ],
-        ],
-      ),
-    );
+        ]);
   }
 }
 
@@ -233,7 +280,9 @@ class _GuideFrame extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 3 / 4,
       child: Container(
-        decoration: BoxDecoration(color: AppColors.ink, borderRadius: BorderRadius.circular(cardRadius)),
+        decoration: BoxDecoration(
+            color: AppColors.ink,
+            borderRadius: BorderRadius.circular(cardRadius)),
         child: CustomPaint(
           painter: _FramePainter(),
           child: const Center(
@@ -242,7 +291,11 @@ class _GuideFrame extends StatelessWidget {
               child: Text(
                 'IMEI\nএখানে',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700, height: 1.2),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2),
               ),
             ),
           ),
@@ -270,10 +323,20 @@ class _FramePainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
 
-    corner(const Offset(inset, inset + length), const Offset(inset, inset), const Offset(inset + length, inset));
-    corner(Offset(size.width - inset - length, inset), Offset(size.width - inset, inset), Offset(size.width - inset, inset + length));
-    corner(Offset(inset, size.height - inset - length), Offset(inset, size.height - inset), Offset(inset + length, size.height - inset));
-    corner(Offset(size.width - inset, size.height - inset - length), Offset(size.width - inset, size.height - inset), Offset(size.width - inset - length, size.height - inset));
+    corner(const Offset(inset, inset + length), const Offset(inset, inset),
+        const Offset(inset + length, inset));
+    corner(
+        Offset(size.width - inset - length, inset),
+        Offset(size.width - inset, inset),
+        Offset(size.width - inset, inset + length));
+    corner(
+        Offset(inset, size.height - inset - length),
+        Offset(inset, size.height - inset),
+        Offset(inset + length, size.height - inset));
+    corner(
+        Offset(size.width - inset, size.height - inset - length),
+        Offset(size.width - inset, size.height - inset),
+        Offset(size.width - inset - length, size.height - inset));
   }
 
   @override

@@ -57,7 +57,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _settings = current;
         _methods = methods;
         _staff = staff;
-        if (_rate.text.isEmpty && setup.rateConfirmed) _rate.text = current.rate.toString();
+        if (_rate.text.isEmpty && setup.rateConfirmed) {
+          _rate.text = current.rate.toString();
+        }
       });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -76,7 +78,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _error = null;
     });
     try {
-      await AppScope.of(context).settings.setPayMethodEnabled(method.id, enabled: !method.enabled);
+      await AppScope.of(context)
+          .settings
+          .setPayMethodEnabled(method.id, enabled: !method.enabled);
       await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -107,126 +111,190 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _openStaff() async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const StaffScreen()));
+    if (mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final setup = _setup;
     final settings = _settings;
     return Scaffold(
-      appBar: const BackTitle(title: 'সেটিংস'),
-      body: RefreshIndicator(
-        color: AppColors.teal,
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
-          children: [
-            const PageHeader(title: 'সেটিংস', subtitle: 'CNY রেট, বিকাশ বা ব্যাংক, এবং স্টাফের রোল ও পাসওয়ার্ড।'),
-            if (_loading && setup == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-            if (_error != null) ...[
-              ErrorNote(message: _error!, onRetry: _load),
-              const SizedBox(height: 12),
-            ],
-            if (setup != null && settings != null) ...[
-              const SectionTitle(title: 'সেটআপ'),
-              _Check(label: 'CNY রেট নিশ্চিত', ok: setup.rateConfirmed),
-              _Check(label: 'ফান্ড অ্যাকাউন্ট ${setup.accounts}', ok: setup.accounts > 0),
-              _Check(label: 'পেমেন্ট মেথড ${setup.paymentMethods}', ok: setup.paymentMethods > 0),
-              _Check(label: 'সক্রিয় স্টাফ ${setup.users}', ok: setup.users > 0),
-              _Check(label: 'স্টোরেজ', ok: setup.storageConfigured),
-              _Check(label: 'মিডিয়া ক্লিনআপ', ok: setup.cleanupEnabled),
-              if (setup.lastCleanupAt != null) Text('শেষ ক্লিনআপ ${setup.lastCleanupAt}', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 16),
-              const SectionTitle(title: 'CNY রেট', subtitle: '৳ প্রতি ¥১। যে রেট ব্যবসা ব্যবহার করে সেটাই লিখুন।'),
-              Text('এখন সেভ করা রেট ${formatBdt(settings.rate)}', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 8),
-              TextField(controller: _rate, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'নতুন রেট')),
-              const SizedBox(height: 8),
-              AppButton(label: 'রেট সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _saveRate),
-              const SizedBox(height: 8),
-              Text('ওজন অ্যালার্ট ${settings.threshold} kg-এর বেশি হলে।', style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 16),
-              const SectionTitle(title: 'পেমেন্ট মেথড', subtitle: 'ট্র্যাকিং পেজে যা দেখায়। নম্বর আন্দাজ করবেন না।'),
-              if (_methods.isEmpty) const EmptyNote(title: 'মেথড নেই', body: 'আসল বিকাশ বা ব্যাংক নম্বর দিয়ে যোগ করুন।'),
-              for (final method in _methods) ...[
-                PaperCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text(method.title, style: const TextStyle(fontWeight: FontWeight.w700))),
-                          StatusPill(label: method.enabled ? 'চালু' : 'বন্ধ', tone: method.enabled ? ChipTone.green : ChipTone.neutral),
-                        ],
-                      ),
-                      Text('${method.currency} · ${method.detail}', style: const TextStyle(color: AppColors.muted)),
-                      const SizedBox(height: 8),
-                      AppButton(
-                        label: method.enabled ? 'বন্ধ করুন' : 'চালু করুন',
-                        kind: AppButtonKind.quiet,
-                        busy: _busy,
-                        onPressed: () => _toggle(method),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              const SizedBox(height: 8),
-              AppButton(
-                label: 'নতুন মেথড',
-                kind: AppButtonKind.current,
-                onPressed: () async {
-                  final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const PayMethodFormScreen()));
-                  if (saved == true && mounted) await _load();
-                },
-              ),
-              const SizedBox(height: 16),
-              const SectionTitle(title: 'স্টাফ'),
-              for (final person in _staff) ...[
-                PaperCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(person.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(person.email, style: const TextStyle(color: AppColors.muted)),
-                      const SizedBox(height: 6),
-                      StatusPill(label: person.active ? (person.role == 'hub' ? 'হাব' : 'অ্যাডমিন') : 'নিষ্ক্রিয়', tone: person.active ? ChipTone.teal : ChipTone.neutral),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              AppButton(
-                label: 'স্টাফ ব্যবস্থাপনা',
-                kind: AppButtonKind.teal,
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const StaffScreen())),
-              ),
-              const SizedBox(height: 8),
-              const Text('নিজের পাসওয়ার্ড বদলালে সব সেশন কেটে যায়।', style: TextStyle(color: AppColors.muted, height: 1.35)),
-            ],
-          ],
-        ),
-      ),
-    );
+        appBar: const BackTitle(title: 'সেটিংস'),
+        body: RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding:
+                    const EdgeInsets.fromLTRB(pageGutter, 12, pageGutter, 32),
+                children: [
+                  const Text('পেমেন্ট, এক্সচেঞ্জ রেট ও আপনার টিম',
+                      style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                  const SizedBox(height: 24),
+                  if (_loading && setup == null)
+                    const LinearProgressIndicator(),
+                  if (_error != null)
+                    ErrorNote(message: _error!, onRetry: _load),
+                  if (setup != null && settings != null) ...[
+                    const SectionTitle(title: 'এক্সচেঞ্জ রেট'),
+                    PaperCard(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Row(children: [
+                            const Icon(Icons.currency_exchange_rounded,
+                                color: AppColors.teal, size: 21),
+                            const SizedBox(width: 10),
+                            Expanded(
+                                child: Text(
+                                    '1 CNY = ${formatBdt(settings.rate)}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 17))),
+                          ]),
+                          const SizedBox(height: 6),
+                          const Text('নতুন লেনদেনে এই রেট ব্যবহার হবে।',
+                              style: TextStyle(
+                                  color: AppColors.muted, fontSize: 12)),
+                          const SizedBox(height: 16),
+                          Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                    child: TextField(
+                                        controller: _rate,
+                                        keyboardType: const TextInputType
+                                            .numberWithOptions(decimal: true),
+                                        decoration: const InputDecoration(
+                                            labelText: 'প্রতি CNY-তে BDT'))),
+                                const SizedBox(width: 12),
+                                AppButton(
+                                    label: 'সেভ',
+                                    expand: false,
+                                    busy: _busy,
+                                    onPressed: _saveRate),
+                              ]),
+                        ])),
+                    const SizedBox(height: 24),
+                    SectionTitle(
+                        title: 'পেমেন্ট মেথড',
+                        subtitle: 'Customer link-এ প্রদর্শিত হবে',
+                        action: TextButton.icon(
+                            icon: const Icon(Icons.add_rounded, size: 17),
+                            label: const Text('নতুন'),
+                            onPressed: () async {
+                              final saved = await Navigator.of(context)
+                                  .push<bool>(MaterialPageRoute(
+                                      builder: (_) =>
+                                          const PayMethodFormScreen()));
+                              if (saved == true && mounted) await _load();
+                            })),
+                    if (_methods.isEmpty)
+                      const EmptyNote(
+                          title: 'মেথড নেই',
+                          body: 'বিকাশ, ব্যাংক বা ওয়ালেটের তথ্য যোগ করুন।')
+                    else
+                      SurfaceGroup(children: [
+                        for (final method in _methods)
+                          SwitchListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
+                              value: method.enabled,
+                              onChanged: _busy ? null : (_) => _toggle(method),
+                              title: Text(method.title,
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500)),
+                              subtitle: Text(
+                                  '${method.currency} · ${method.detail}',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: AppColors.muted))),
+                      ]),
+                    const SizedBox(height: 24),
+                    const SectionTitle(title: 'টিম ও অপারেশন'),
+                    SurfaceGroup(children: [
+                      MenuRow(
+                          title: 'স্টাফ ব্যবস্থাপনা',
+                          subtitle:
+                              '${_staff.where((person) => person.active).length} জন সক্রিয় · অ্যাক্সেস ও পাসওয়ার্ড',
+                          icon: Icons.people_outline_rounded,
+                          onTap: _openStaff),
+                      Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(children: [
+                            const Icon(Icons.scale_outlined,
+                                size: 21, color: AppColors.muted),
+                            const SizedBox(width: 14),
+                            Expanded(
+                                child: Text(
+                                    'ওজনের পার্থক্য ${settings.threshold} kg ছাড়ালে সতর্কতা',
+                                    style: const TextStyle(fontSize: 13))),
+                          ])),
+                    ]),
+                    const SizedBox(height: 24),
+                    PaperCard(
+                        padding: EdgeInsets.zero,
+                        child: ExpansionTile(
+                            tilePadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 4),
+                            leading: const Icon(Icons.checklist_rounded,
+                                color: AppColors.muted, size: 22),
+                            title: const Text('সিস্টেম সেটআপ',
+                                style: TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w500)),
+                            subtitle: const Text('সংযোগ ও প্রয়োজনীয় সেটিংস',
+                                style: TextStyle(
+                                    fontSize: 12, color: AppColors.muted)),
+                            childrenPadding:
+                                const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                            shape: const Border(),
+                            collapsedShape: const Border(),
+                            children: [
+                              _Check(
+                                  label: 'CNY রেট নিশ্চিত',
+                                  ok: setup.rateConfirmed),
+                              _Check(
+                                  label: 'ফান্ড অ্যাকাউন্ট ${setup.accounts}',
+                                  ok: setup.accounts > 0),
+                              _Check(
+                                  label: 'পেমেন্ট মেথড ${setup.paymentMethods}',
+                                  ok: setup.paymentMethods > 0),
+                              _Check(
+                                  label: 'সক্রিয় স্টাফ ${setup.users}',
+                                  ok: setup.users > 0),
+                              _Check(
+                                  label: 'স্টোরেজ',
+                                  ok: setup.storageConfigured),
+                              _Check(
+                                  label: 'মিডিয়া ক্লিনআপ',
+                                  ok: setup.cleanupEnabled),
+                              if (setup.lastCleanupAt != null)
+                                Text('শেষ ক্লিনআপ ${setup.lastCleanupAt}',
+                                    style: const TextStyle(
+                                        color: AppColors.muted, fontSize: 12)),
+                            ])),
+                  ],
+                ])));
   }
 }
 
 class _Check extends StatelessWidget {
   const _Check({required this.label, required this.ok});
-
   final String label;
   final bool ok;
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(ok ? Icons.check_circle : Icons.radio_button_unchecked, color: ok ? AppColors.ok : AppColors.muted),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label)),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(children: [
+        Icon(
+            ok
+                ? Icons.check_circle_outline_rounded
+                : Icons.radio_button_unchecked,
+            size: 18,
+            color: ok ? AppColors.ok : AppColors.muted),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
+      ]));
 }

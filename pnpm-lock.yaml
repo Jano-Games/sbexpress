@@ -130,6 +130,8 @@ importers:
         specifier: ^7.1.5
         version: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.13)
 
+  apps/mobile: {}
+
 packages:
 
   '@aws-sdk/checksums@3.1000.29':

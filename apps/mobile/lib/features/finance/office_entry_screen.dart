@@ -61,8 +61,13 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
     final account = _picked;
     final amount = parseMoney(_amount.text);
     final note = _note.text.trim();
-    if (account == null || amount == null || amount <= 0 || note.isEmpty || (_kind != 'expense' && note.length > 160)) {
-      setState(() => _error = 'অ্যাকাউন্ট, অঙ্ক ও নোট দিন। আয়ের নোট ১৬০ অক্ষরের মধ্যে।');
+    if (account == null ||
+        amount == null ||
+        amount <= 0 ||
+        note.isEmpty ||
+        (_kind != 'expense' && note.length > 160)) {
+      setState(() =>
+          _error = 'অ্যাকাউন্ট, অঙ্ক ও নোট দিন। আয়ের নোট ১৬০ অক্ষরের মধ্যে।');
       return;
     }
     final chosen = account;
@@ -71,8 +76,13 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
       'expense' => 'অফিস খরচ',
       _ => 'আয়',
     };
-    final direction = _kind == 'expense' ? '${chosen.name} থেকে যাবে' : '${chosen.name}-এ ঢুকবে';
-    final ok = await confirmMoney(context, title: label, body: '${formatMoney(amount, chosen.currency)} $direction। ${_kind == 'capital' ? 'ক্যাশ বাড়বে, প্রফিট নয়।' : ''}');
+    final direction = _kind == 'expense'
+        ? '${chosen.name} থেকে যাবে'
+        : '${chosen.name}-এ ঢুকবে';
+    final ok = await confirmMoney(context,
+        title: label,
+        body:
+            '${formatMoney(amount, chosen.currency)} $direction। ${_kind == 'capital' ? 'ক্যাশ বাড়বে, প্রফিট নয়।' : ''}');
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -81,9 +91,19 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
     try {
       final finance = AppScope.of(context).finance;
       if (_kind == 'expense') {
-        await finance.recordOfficeExpense(category: _category, amount: amount, reason: note, accountName: chosen.name, currency: chosen.currency);
+        await finance.recordOfficeExpense(
+            category: _category,
+            amount: amount,
+            reason: note,
+            accountName: chosen.name,
+            currency: chosen.currency);
       } else {
-        await finance.recordIncome(amount: amount, accountName: chosen.name, currency: chosen.currency, note: note, kind: _kind);
+        await finance.recordIncome(
+            amount: amount,
+            accountName: chosen.name,
+            currency: chosen.currency,
+            note: note,
+            kind: _kind);
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -97,12 +117,22 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'জমা বা খরচ'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: 'জমা বা খরচ',
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: 'সেভ করুন',
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'জমা বা খরচ', subtitle: 'শিপমেন্ট ছাড়া অফিসের আয়, মূলধন বা খরচ। শিপমেন্ট খরচ শিপমেন্টের খরচ পেজে।'),
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text(
+                  'শিপমেন্ট ছাড়া অফিসের আয়, মূলধন বা খরচ। শিপমেন্ট খরচ শিপমেন্টের খরচ পেজে।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
           ChoiceChips(
             options: const [
               (value: 'income', label: 'আয়'),
@@ -115,28 +145,36 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
           const SizedBox(height: 12),
           if (_kind == 'expense') ...[
             ChoiceChips(
-              options: [for (final entry in costCategories.entries) (value: entry.key, label: entry.value)],
+              options: [
+                for (final entry in costCategories.entries)
+                  (value: entry.key, label: entry.value)
+              ],
               selected: _category,
               onSelected: (value) => setState(() => _category = value),
             ),
             const SizedBox(height: 12),
           ],
-          AccountPicker(accounts: _accounts, selected: _account, onSelected: (account) => setState(() => _account = account.name)),
-          TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'অঙ্ক')),
+          AccountPicker(
+              accounts: _accounts,
+              selected: _account,
+              onSelected: (account) => setState(() => _account = account.name)),
+          TextField(
+              controller: _amount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'অঙ্ক')),
           const SizedBox(height: 8),
           TextField(
             controller: _note,
             maxLength: _kind == 'expense' ? 500 : 160,
-            decoration: InputDecoration(labelText: _kind == 'expense' ? 'কারণ' : 'নোট'),
+            decoration:
+                InputDecoration(labelText: _kind == 'expense' ? 'কারণ' : 'নোট'),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }

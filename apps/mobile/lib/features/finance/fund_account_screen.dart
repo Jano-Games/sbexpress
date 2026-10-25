@@ -39,7 +39,8 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
     final typed = _opening.text.trim();
     final opening = typed.isEmpty ? 0.0 : parseMoney(typed);
     if (opening == null || opening < 0) {
-      setState(() => _error = 'শুরুর ব্যালেন্স ০ বা তার বেশি, দুই দশমিক পর্যন্ত।');
+      setState(
+          () => _error = 'শুরুর ব্যালেন্স ০ বা তার বেশি, দুই দশমিক পর্যন্ত।');
       return;
     }
     final body = opening == 0
@@ -52,7 +53,8 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
       _error = null;
     });
     try {
-      await AppScope.of(context).finance.createAccount(name: name, kind: _kind, currency: _currency, balance: opening);
+      await AppScope.of(context).finance.createAccount(
+          name: name, kind: _kind, currency: _currency, balance: opening);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ApiException catch (error) {
@@ -65,44 +67,58 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন ফান্ড'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: 'নতুন ফান্ড',
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: 'ফান্ড তৈরি',
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(
-            title: 'নতুন ফান্ড',
-            subtitle: 'ক্যাশ বা সাধারণ ফান্ড। শুরুর টাকা ক্যাপিটাল পেমেন্ট। খালি রাখলে ০, কোনো লেজার লাইন হয় না। ব্যাংক ও বিকাশ পেমেন্ট মেথড থেকে যোগ হয়।',
-          ),
-          TextField(controller: _name, decoration: const InputDecoration(labelText: 'অ্যাকাউন্টের নাম')),
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text(
+                  'ক্যাশ বা সাধারণ ফান্ড। শুরুর টাকা ক্যাপিটাল পেমেন্ট। খালি রাখলে ০, কোনো লেজার লাইন হয় না। ব্যাংক ও বিকাশ পেমেন্ট মেথড থেকে যোগ হয়।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'অ্যাকাউন্টের নাম')),
           const SizedBox(height: 12),
           TextField(
             controller: _opening,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: 'শুরুর ব্যালেন্স ($_currency)', helperText: 'অ্যাকাউন্টের মুদ্রায়। খালি মানে ০।'),
+            decoration: InputDecoration(
+                labelText: 'শুরুর ব্যালেন্স ($_currency)',
+                helperText: 'অ্যাকাউন্টের মুদ্রায়। খালি মানে ০।'),
           ),
           const SizedBox(height: 12),
           const SectionTitle(title: 'ধরন'),
           ChoiceChips(
-            options: const [(value: 'cash', label: 'ক্যাশ'), (value: 'fund', label: 'ফান্ড')],
+            options: const [
+              (value: 'cash', label: 'ক্যাশ'),
+              (value: 'fund', label: 'ফান্ড')
+            ],
             selected: _kind,
             onSelected: (value) => setState(() => _kind = value),
           ),
           const SizedBox(height: 12),
           const SectionTitle(title: 'মুদ্রা'),
           ChoiceChips(
-            options: const [(value: 'BDT', label: 'BDT'), (value: 'CNY', label: 'CNY')],
+            options: const [
+              (value: 'BDT', label: 'BDT'),
+              (value: 'CNY', label: 'CNY')
+            ],
             selected: _currency,
             onSelected: (value) => setState(() => _currency = value),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'ফান্ড তৈরি', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }

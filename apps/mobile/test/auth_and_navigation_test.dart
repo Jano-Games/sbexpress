@@ -40,7 +40,8 @@ void main() {
         );
       }),
     );
-    final user = await AuthRepository(api).login(email: 'Mina@sbx.test', password: 'secret');
+    final user = await AuthRepository(api)
+        .login(email: 'Mina@sbx.test', password: 'secret');
     expect(sent.keys.toSet(), {'email', 'password'});
     expect(sent.containsKey('role'), isFalse);
     expect(sent['email'], 'Mina@sbx.test');
@@ -79,13 +80,15 @@ void main() {
 
   test('hub more menu has no finance or invoice tools', () {
     final hub = moreDestinations(UserRole.hub).map((item) => item.id).toSet();
-    final admin = moreDestinations(UserRole.admin).map((item) => item.id).toSet();
+    final admin =
+        moreDestinations(UserRole.admin).map((item) => item.id).toSet();
     expect(hub.contains('finance'), isFalse);
     expect(hub.contains('invoice-share'), isFalse);
     expect(admin.contains('finance'), isTrue);
   });
 
-  testWidgets('login has email and password and no role picker', (tester) async {
+  testWidgets('login has email and password and no role picker',
+      (tester) async {
     String? email;
     await tester.pumpWidget(MaterialApp(
       home: LoginScreen(onSubmit: (value, password) async {
@@ -98,25 +101,34 @@ void main() {
     expect(find.text('OTP পাঠান'), findsNothing);
     expect(find.byKey(const Key('login-email')), findsOneWidget);
     expect(find.byKey(const Key('login-password')), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('login-email')), 'mina@sbx.test');
+    await tester.enterText(
+        find.byKey(const Key('login-email')), 'mina@sbx.test');
     await tester.enterText(find.byKey(const Key('login-password')), 'secret');
+    await tester.ensureVisible(find.byKey(const Key('login-submit')));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('login-submit')));
     await tester.pump();
     expect(email, 'mina@sbx.test');
   });
 
-  testWidgets('bottom nav uses the four tabs and 48px targets', (tester) async {
+  testWidgets('hub bottom nav has five tabs with flights and 48px targets',
+      (tester) async {
     tester.view.physicalSize = const Size(800, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(bottomNavigationBar: AppBottomNav(index: 0, onChanged: (_) {}))));
-    final size = tester.getSize(find.byKey(const Key('nav-0')));
-    expect(size.width, greaterThanOrEqualTo(48));
-    expect(size.height, greaterThanOrEqualTo(48));
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            bottomNavigationBar: AppBottomNav(index: 0, onChanged: (_) {}))));
+    for (var i = 0; i < 5; i++) {
+      final size = tester.getSize(find.byKey(Key('nav-$i')));
+      expect(size.width, greaterThanOrEqualTo(48));
+      expect(size.height, greaterThanOrEqualTo(48));
+    }
     expect(find.byKey(const Key('nav-pill')), findsOneWidget);
     expect(find.text('হোম'), findsOneWidget);
-    expect(find.text('Shipment'), findsOneWidget);
+    expect(find.text('শিপমেন্ট'), findsOneWidget);
+    expect(find.text('ফ্লাইট'), findsOneWidget);
     expect(find.text('কাজ'), findsOneWidget);
     expect(find.text('আরও'), findsOneWidget);
   });

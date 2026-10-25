@@ -1,6 +1,7 @@
 import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/flight.dart';
+import '../models/hub_flight.dart';
 import '../money_payload.dart';
 
 class FlightRepository {
@@ -16,6 +17,17 @@ class FlightRepository {
   Future<FlightDetail> detail(String code) async {
     final json = await api.getJson(_path(code));
     return FlightDetail.fromJson(asJsonMap(json['flight'], 'flight'));
+  }
+
+  /// Hub-safe schedule: no fare, ticket cost or booking revenue.
+  Future<HubFlightSchedule> hubSchedule() async {
+    final json = await api.getJson('/api/flights/hub');
+    return HubFlightSchedule.fromJson(json);
+  }
+
+  Future<HubFlightDetail> hubDetail(String code) async {
+    final json = await api.getJson('/api/flights/hub/${Uri.encodeComponent(code)}');
+    return HubFlightDetail.fromJson(asJsonMap(json['flight'], 'flight'));
   }
 
   Future<String> create(FlightDraft draft) async {

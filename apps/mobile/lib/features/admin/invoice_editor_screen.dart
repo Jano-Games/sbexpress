@@ -79,7 +79,10 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
       }
       _lines
         ..clear()
-        ..addAll(invoice.lines.map((line) => _DraftLine(label: line.label, amount: line.amount.toString(), costId: line.costId)));
+        ..addAll(invoice.lines.map((line) => _DraftLine(
+            label: line.label,
+            amount: line.amount.toString(),
+            costId: line.costId)));
       if (_lines.isEmpty) _lines.add(_DraftLine(label: '', amount: ''));
       _discount.text = invoice.discount == 0 ? '' : invoice.discount.toString();
       _note.text = invoice.note;
@@ -103,7 +106,8 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
       if (amount == null) return null;
       sum += amount;
     }
-    final discount = _discount.text.trim().isEmpty ? 0.0 : parseMoney(_discount.text);
+    final discount =
+        _discount.text.trim().isEmpty ? 0.0 : parseMoney(_discount.text);
     if (discount == null || discount < 0) return null;
     return roundMoney(sum - discount);
   }
@@ -125,7 +129,8 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
       }
       built.add(InvoiceLine(label: label, amount: amount, costId: line.costId));
     }
-    final discount = _discount.text.trim().isEmpty ? 0.0 : parseMoney(_discount.text);
+    final discount =
+        _discount.text.trim().isEmpty ? 0.0 : parseMoney(_discount.text);
     final note = _note.text.trim();
     if (discount == null || discount < 0) {
       setState(() => _error = 'ছাড় ০ বা তার বেশি হতে হবে।');
@@ -135,7 +140,8 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
       setState(() => _error = 'নোট ৩০০ অক্ষরের মধ্যে রাখুন।');
       return null;
     }
-    final total = roundMoney(built.fold<double>(0, (sum, line) => sum + line.amount) - discount);
+    final total = roundMoney(
+        built.fold<double>(0, (sum, line) => sum + line.amount) - discount);
     if (total < 0) {
       setState(() => _error = 'ইনভয়েস ঋণাত্মক হতে পারে না।');
       return null;
@@ -164,18 +170,22 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
       return;
     }
     final changed = (document.total - invoice.total).abs() > 0.001;
-    final needsReason = invoice.saved && invoice.state == 'issued' && (invoice.needsReview || changed);
+    final needsReason = invoice.saved &&
+        invoice.state == 'issued' &&
+        (invoice.needsReview || changed);
     final reason = _reason.text.trim();
     if (needsReason && reason.isEmpty) {
       setState(() => _error = 'ইস্যু করা বিল বদলালে কারণ লিখুন।');
       return;
     }
     if (state == 'issued' && document.total == 0 && !_confirmFree) {
-      setState(() => _error = 'শূন্য বিল ইস্যু করতে ফ্রি অব চার্জ নিশ্চিত করুন।');
+      setState(
+          () => _error = 'শূন্য বিল ইস্যু করতে ফ্রি অব চার্জ নিশ্চিত করুন।');
       return;
     }
     if (state == 'issued') {
-      final lower = invoice.state == 'issued' && document.total < invoice.total - 0.001;
+      final lower =
+          invoice.state == 'issued' && document.total < invoice.total - 0.001;
       final ok = await confirmMoney(
         context,
         title: lower ? 'ক্রেডিট নোট তৈরি হবে' : 'ইনভয়েস ইস্যু',
@@ -219,7 +229,9 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
     try {
       return await AppScope.of(context).shipments.invoicePdf(widget.code);
     } on ApiException catch (error) {
-      if (mounted && error.status != 401) setState(() => _error = error.message);
+      if (mounted && error.status != 401) {
+        setState(() => _error = error.message);
+      }
       return null;
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -232,14 +244,20 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
   Future<void> _viewPdf() async {
     final bytes = await _loadPdf();
     if (!mounted || bytes == null) return;
-    await openPdf(context, title: widget.code, filename: 'invoice-${widget.code}.pdf', bytes: bytes);
+    await openPdf(context,
+        title: widget.code,
+        filename: 'invoice-${widget.code}.pdf',
+        bytes: bytes);
   }
 
   Future<void> _pdf() async {
     final bytes = await _loadPdf();
     if (!mounted || bytes == null) return;
     try {
-      await shareBytes(bytes: bytes, filename: 'invoice-${widget.code}.pdf', mimeType: 'application/pdf');
+      await shareBytes(
+          bytes: bytes,
+          filename: 'invoice-${widget.code}.pdf',
+          mimeType: 'application/pdf');
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString());
@@ -251,21 +269,32 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
     final invoice = _invoice;
     final total = _total();
     final issued = invoice?.state == 'issued';
-    return Scaffold(
-      appBar: BackTitle(title: widget.code),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: 'ইনভয়েস লাইন',
+        root: false,
+        subtitle: widget.code,
         children: [
-          const PageHeader(title: 'ইনভয়েস লাইন', subtitle: 'লাইন ও ছাড় এখানে। ইস্যু করলে মোট লক হয়; কমানো হলে ক্রেডিট নোট তৈরি হয়।'),
-          if (_loading && invoice == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text(
+                  'লাইন ও ছাড় এখানে। ইস্যু করলে মোট লক হয়; কমানো হলে ক্রেডিট নোট তৈরি হয়।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading && invoice == null)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ...[
             ErrorNote(message: _error!),
             const SizedBox(height: 12),
           ],
           if (invoice != null) ...[
-            Text(invoice.number, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text(issued ? 'ইস্যু হয়েছে' : 'ড্রাফট', style: const TextStyle(color: AppColors.muted)),
-            if (invoice.needsReview) const Text('দাম রিভিউ দরকার। বদলালে কারণ লিখুন।', style: TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(invoice.number,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(issued ? 'ইস্যু হয়েছে' : 'ড্রাফট',
+                style: const TextStyle(color: AppColors.muted)),
+            if (invoice.needsReview)
+              const Text('দাম রিভিউ দরকার। বদলালে কারণ লিখুন।',
+                  style: TextStyle(color: AppColors.danger, height: 1.35)),
             const SizedBox(height: 12),
             const SectionTitle(title: 'লাইন'),
             for (var i = 0; i < _lines.length; i++) ...[
@@ -278,7 +307,8 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
               TextField(
                 controller: _lines[i].amount,
                 onChanged: (_) => setState(() => _dirty = true),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true, signed: true),
                 decoration: const InputDecoration(labelText: 'অঙ্ক (BDT)'),
               ),
               if (_lines.length > 1)
@@ -307,8 +337,10 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
             TextField(
               controller: _discount,
               onChanged: (_) => setState(() => _dirty = true),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'ছাড় (BDT)', helperText: 'খালি রাখলে ০'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'ছাড় (BDT)', helperText: 'খালি রাখলে ০'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -318,32 +350,53 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
               decoration: const InputDecoration(labelText: 'নোট'),
             ),
             const SizedBox(height: 8),
-            PaperCard(child: KvRow(label: 'মোট', value: total == null ? '—' : formatBdt(total))),
+            PaperCard(
+                child: KvRow(
+                    label: 'মোট',
+                    value: total == null ? '—' : formatBdt(total))),
             if (issued || invoice.needsReview) ...[
               const SizedBox(height: 8),
-              TextField(controller: _reason, decoration: const InputDecoration(labelText: 'রিভিশনের কারণ')),
+              TextField(
+                  controller: _reason,
+                  decoration:
+                      const InputDecoration(labelText: 'রিভিশনের কারণ')),
             ],
             if (total == 0) ...[
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _confirmFree,
-                onChanged: (value) => setState(() => _confirmFree = value ?? false),
+                onChanged: (value) =>
+                    setState(() => _confirmFree = value ?? false),
                 title: const Text('এই শিপমেন্ট ফ্রি অব চার্জ'),
               ),
             ],
             const SizedBox(height: 8),
             if (!issued) ...[
-              AppButton(label: 'ড্রাফট সেভ', kind: AppButtonKind.quiet, busy: _busy, onPressed: () => _save('draft')),
+              AppButton(
+                  label: 'ড্রাফট সেভ',
+                  kind: AppButtonKind.quiet,
+                  busy: _busy,
+                  onPressed: () => _save('draft')),
               const SizedBox(height: 8),
             ],
-            AppButton(label: issued ? 'ইস্যু আপডেট' : 'ইস্যু করুন', kind: AppButtonKind.current, busy: _busy, onPressed: () => _save('issued')),
+            AppButton(
+                label: issued ? 'ইস্যু আপডেট' : 'ইস্যু করুন',
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: () => _save('issued')),
             const SizedBox(height: 8),
-            AppButton(label: 'PDF দেখুন', kind: AppButtonKind.teal, busy: _busy, onPressed: _viewPdf),
+            AppButton(
+                label: 'PDF দেখুন',
+                kind: AppButtonKind.teal,
+                busy: _busy,
+                onPressed: _viewPdf),
             const SizedBox(height: 8),
-            AppButton(label: 'PDF শেয়ার', kind: AppButtonKind.quiet, busy: _busy, onPressed: _pdf),
+            AppButton(
+                label: 'PDF শেয়ার',
+                kind: AppButtonKind.quiet,
+                busy: _busy,
+                onPressed: _pdf),
           ],
-        ],
-      ),
-    );
+        ]);
   }
 }

@@ -101,7 +101,8 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
     final actual = readOptionalMoney(_cost.text);
     final agency = readOptionalMoney(_agency.text);
     if (actual == null || agency == null || agency > actual) {
-      setState(() => _error = 'টিকিট ও এজেন্সি শেয়ার ০ বা তার বেশি, দুই দশমিক পর্যন্ত। খালি রাখলে ০। এজেন্সি শেয়ার আসল খরচের বেশি হতে পারে না।');
+      setState(() => _error =
+          'টিকিট ও এজেন্সি শেয়ার ০ বা তার বেশি, দুই দশমিক পর্যন্ত। খালি রাখলে ০। এজেন্সি শেয়ার আসল খরচের বেশি হতে পারে না।');
       return;
     }
     FinanceAccount? paying;
@@ -113,7 +114,11 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       final ok = await confirmMoney(
         context,
         title: 'টিকিট ক্যাশ',
-        body: bdtFundMovement(amountBdt: actual, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: false),
+        body: bdtFundMovement(
+            amountBdt: actual,
+            accountName: chosen.name,
+            accountCurrency: chosen.currency,
+            intoAccount: false),
       );
       if (!ok || !mounted) return;
     }
@@ -146,22 +151,41 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
   @override
   Widget build(BuildContext context) {
     final dateLabel = _date == null ? 'তারিখ বেছে নিন' : _iso(_date!);
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন ফ্লাইট'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: 'নতুন ফ্লাইট',
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: 'ফ্লাইট সেভ করুন',
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(
-            title: 'নতুন ফ্লাইট',
-            subtitle: 'ফ্লাইট নম্বর প্রতিদিন আবার আসে। বুকিং রেফারেন্স সার্ভার বানাবে। টাকা না দিলে কিছু কাটে না। অ্যাকাউন্ট বাছলে টিকিটের টাকা সেখান থেকে যায়।',
-          ),
-          if (_loading) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-          TextField(controller: _code, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'এয়ারলাইন ফ্লাইট নম্বর')),
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text(
+                  'ফ্লাইট নম্বর প্রতিদিন আবার আসে। বুকিং রেফারেন্স সার্ভার বানাবে। টাকা না দিলে কিছু কাটে না। অ্যাকাউন্ট বাছলে টিকিটের টাকা সেখান থেকে যায়।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          if (_loading)
+            const LinearProgressIndicator(
+                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          TextField(
+              controller: _code,
+              textCapitalization: TextCapitalization.characters,
+              decoration:
+                  const InputDecoration(labelText: 'এয়ারলাইন ফ্লাইট নম্বর')),
           const SizedBox(height: 12),
-          AppButton(label: dateLabel, kind: AppButtonKind.quiet, onPressed: _pickDate),
+          AppButton(
+              label: dateLabel,
+              kind: AppButtonKind.quiet,
+              onPressed: _pickDate),
           const SizedBox(height: 16),
-          const SectionTitle(title: 'ফ্লায়ার', subtitle: 'যারা এই টিকিটে উড়বেন।'),
-          if (_flyers.isEmpty && !_loading) const EmptyNote(title: 'ফ্লায়ার নেই', body: 'আগে ফ্লায়ার প্রোফাইল খুলুন।'),
+          const SectionTitle(
+              title: 'ফ্লায়ার', subtitle: 'যারা এই টিকিটে উড়বেন।'),
+          if (_flyers.isEmpty && !_loading)
+            const EmptyNote(
+                title: 'ফ্লায়ার নেই', body: 'আগে ফ্লায়ার প্রোফাইল খুলুন।'),
           for (final flyer in _flyers)
             CheckboxListTile(
               value: _picked.contains(flyer.name),
@@ -178,13 +202,25 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
               controlAffinity: ListTileControlAffinity.leading,
             ),
           const SizedBox(height: 8),
-          TextField(controller: _space, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'ক্যাপাসিটি kg', helperText: 'সাধারণত ৪৪ বা ৫২')),
+          TextField(
+              controller: _space,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                  labelText: 'ক্যাপাসিটি kg', helperText: 'সাধারণত ৪৪ বা ৫২')),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: TextField(controller: _mobiles, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'মোবাইল'))),
+              Expanded(
+                  child: TextField(
+                      controller: _mobiles,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'মোবাইল'))),
               const SizedBox(width: 8),
-              Expanded(child: TextField(controller: _laptops, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'ল্যাপটপ'))),
+              Expanded(
+                  child: TextField(
+                      controller: _laptops,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'ল্যাপটপ'))),
             ],
           ),
           const SizedBox(height: 8),
@@ -192,24 +228,35 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
             controller: _cost,
             onChanged: (_) => setState(() {}),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'আসল টিকিট খরচ (BDT)', helperText: 'জানা না থাকলে খালি রাখুন'),
+            decoration: const InputDecoration(
+                labelText: 'আসল টিকিট খরচ (BDT)',
+                helperText: 'জানা না থাকলে খালি রাখুন'),
           ),
           const SizedBox(height: 8),
-          TextField(controller: _agency, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'এজেন্সি শেয়ার (BDT)')),
+          TextField(
+              controller: _agency,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration:
+                  const InputDecoration(labelText: 'এজেন্সি শেয়ার (BDT)')),
           if ((double.tryParse(_cost.text.trim()) ?? 0) > 0) ...[
             const SizedBox(height: 12),
-            const SectionTitle(title: 'যে অ্যাকাউন্ট থেকে যাবে', subtitle: 'না বাছলে এখন কোনো ক্যাশ নড়ে না। পরে ফ্লাইট থেকে সেটল করা যায়।'),
-            AccountPicker(accounts: _accounts, selected: _account, onSelected: (account) => setState(() => _account = account.name)),
+            const SectionTitle(
+                title: 'যে অ্যাকাউন্ট থেকে যাবে',
+                subtitle:
+                    'না বাছলে এখন কোনো ক্যাশ নড়ে না। পরে ফ্লাইট থেকে সেটল করা যায়।'),
+            AccountPicker(
+                accounts: _accounts,
+                selected: _account,
+                onSelected: (account) =>
+                    setState(() => _account = account.name)),
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'ফ্লাইট সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }
 

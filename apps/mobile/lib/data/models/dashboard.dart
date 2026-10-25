@@ -1,4 +1,5 @@
 import '../json_read.dart';
+import 'hub_flight.dart';
 import 'shipment.dart';
 
 class HubNotice {
@@ -44,6 +45,7 @@ class HubDashboard {
     required this.openTodoCount,
     required this.notices,
     required this.toProcess,
+    this.upcomingFlights = const [],
   });
 
   final String todayLabel;
@@ -52,6 +54,9 @@ class HubDashboard {
   final int openTodoCount;
   final List<HubNotice> notices;
   final List<OperationalShipment> toProcess;
+
+  /// Next flights into Dhaka, soonest first. Older servers do not send it.
+  final List<HubFlight> upcomingFlights;
 
   factory HubDashboard.fromJson(Map<String, Object?> json) {
     final notices = [for (final item in requiredMapList(json, 'notices')) HubNotice.fromJson(item)].where(hubNoticeAllowed).toList();
@@ -62,6 +67,9 @@ class HubDashboard {
       openTodoCount: requiredInt(json, 'openTodoCount'),
       notices: notices,
       toProcess: [for (final item in requiredMapList(json, 'toProcess')) OperationalShipment.fromJson(item)],
+      upcomingFlights: json.containsKey('upcomingFlights')
+          ? [for (final item in requiredMapList(json, 'upcomingFlights')) HubFlight.fromJson(item)]
+          : const [],
     );
   }
 }

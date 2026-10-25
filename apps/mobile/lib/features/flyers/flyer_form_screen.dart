@@ -28,7 +28,17 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
 
   @override
   void dispose() {
-    for (final controller in [_first, _last, _bd, _cn, _university, _batch, _program, _wechat, _emergency]) {
+    for (final controller in [
+      _first,
+      _last,
+      _bd,
+      _cn,
+      _university,
+      _batch,
+      _program,
+      _wechat,
+      _emergency
+    ]) {
       controller.dispose();
     }
     super.dispose();
@@ -67,37 +77,65 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন ফ্লায়ার'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: 'নতুন ফ্লায়ার',
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: 'সেভ করুন',
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'নতুন ফ্লায়ার', subtitle: 'নাম দিয়ে প্রোফাইল খোলে। বাকি ঘর খালি রাখা যায়।'),
-          TextField(controller: _first, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'নামের প্রথম অংশ')),
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text('নাম দিয়ে প্রোফাইল খোলে। বাকি ঘর খালি রাখা যায়।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _first,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'নামের প্রথম অংশ')),
           const SizedBox(height: 8),
-          TextField(controller: _last, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'নামের শেষ অংশ')),
+          TextField(
+              controller: _last,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'নামের শেষ অংশ')),
           const SizedBox(height: 8),
-          TextField(controller: _bd, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'বাংলাদেশ ফোন')),
+          TextField(
+              controller: _bd,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'বাংলাদেশ ফোন')),
           const SizedBox(height: 8),
-          TextField(controller: _cn, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'চায়না ফোন')),
+          TextField(
+              controller: _cn,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'চায়না ফোন')),
           const SizedBox(height: 8),
-          TextField(controller: _university, decoration: const InputDecoration(labelText: 'বিশ্ববিদ্যালয়')),
+          TextField(
+              controller: _university,
+              decoration: const InputDecoration(labelText: 'বিশ্ববিদ্যালয়')),
           const SizedBox(height: 8),
-          TextField(controller: _program, decoration: const InputDecoration(labelText: 'প্রোগ্রাম')),
+          TextField(
+              controller: _program,
+              decoration: const InputDecoration(labelText: 'প্রোগ্রাম')),
           const SizedBox(height: 8),
-          TextField(controller: _batch, decoration: const InputDecoration(labelText: 'ব্যাচ')),
+          TextField(
+              controller: _batch,
+              decoration: const InputDecoration(labelText: 'ব্যাচ')),
           const SizedBox(height: 8),
-          TextField(controller: _wechat, decoration: const InputDecoration(labelText: 'WeChat')),
+          TextField(
+              controller: _wechat,
+              decoration: const InputDecoration(labelText: 'WeChat')),
           const SizedBox(height: 8),
-          TextField(controller: _emergency, decoration: const InputDecoration(labelText: 'ইমার্জেন্সি কন্টাক্ট')),
+          TextField(
+              controller: _emergency,
+              decoration:
+                  const InputDecoration(labelText: 'ইমার্জেন্সি কন্টাক্ট')),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: AppColors.danger)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }

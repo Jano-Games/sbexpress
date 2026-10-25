@@ -4,13 +4,13 @@ import 'package:image_picker/image_picker.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/hub/hub_chain.dart';
+import '../../data/models/flight.dart';
 import '../../data/models/shipment.dart';
 import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_icons.dart';
 import '../../widgets/ui.dart';
 import '../imei/imei_guide_screen.dart';
 
@@ -41,7 +41,15 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
   @override
   void initState() {
     super.initState();
-    for (final controller in [_kg, _count, _courier, _ref, _reason, _confirmation, _holdReason]) {
+    for (final controller in [
+      _kg,
+      _count,
+      _courier,
+      _ref,
+      _reason,
+      _confirmation,
+      _holdReason
+    ]) {
       controller.addListener(() {
         if (mounted) setState(() {});
       });
@@ -56,7 +64,9 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
     super.didChangeDependencies();
     _photos ??= PhotoUploadController(
       decodeHeic: flutterDecodeHeic,
-      upload: (image, onProgress) => AppScope.of(context).media.uploadPhoto(widget.code, image, onProgress),
+      upload: (image, onProgress) => AppScope.of(context)
+          .media
+          .uploadPhoto(widget.code, image, onProgress),
     )..addListener(() => setState(() {}));
   }
 
@@ -79,7 +89,8 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
       _error = null;
     });
     try {
-      final detail = await AppScope.of(context).shipments.hubDetail(widget.code);
+      final detail =
+          await AppScope.of(context).shipments.hubDetail(widget.code);
       if (!mounted) return;
       setState(() {
         _detail = detail;
@@ -128,43 +139,90 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
   Widget build(BuildContext context) {
     final detail = _detail;
     final chain = detail == null ? null : chainForDetail(detail);
-    return Scaffold(
-      appBar: BackTitle(title: widget.code),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+    final done = chain == null
+        ? 0
+        : HubChainStep.values
+            .where((step) =>
+                chain.visual(step) == HubStepVisual.done ||
+                chain.visual(step) == HubStepVisual.skipped)
+            .length;
+    return WorkspaceScaffold(
+        title: widget.code,
+        root: false,
+        subtitle: chain?.current == null
+            ? 'হাব প্রসেসিং'
+            : 'হাব প্রসেসিং · ধাপ ${chain!.current!.index + 1}/5',
+        actions: [
+          if (detail != null)
+            Center(
+                child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: StatusPill(
+                        label: banglaStatus(detail.status, detail.statusLabel),
+                        tone: shipmentStatusTone(detail.statusIndex)))),
+        ],
         children: [
-          const Text(hubChainOrderLabel, style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.teal)),
-          const SizedBox(height: 6),
-          const Text('ধাপের ক্রম একই থাকে। অ্যাম্বার শুধু এখনকার কাজ।', style: TextStyle(color: AppColors.muted, height: 1.35)),
-          const SizedBox(height: 16),
-          if (_loading && detail == null) const LinearProgressIndicator(color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_loading && detail == null) const LinearProgressIndicator(),
           if (_error != null) ...[
             ErrorNote(message: _error!, onRetry: _load),
-            const SizedBox(height: 12),
           ],
           if (detail != null && chain != null) ...[
             _Facts(detail: detail),
             if (detail.deviceCount > 0) ...[
               const SizedBox(height: 12),
               AppButton(
-                label: detail.devicePhotoCount < detail.deviceCount ? 'IMEI ছবি নিন' : 'IMEI ছবি দেখুন',
-                kind: AppButtonKind.quiet,
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DeviceUnitsScreen(code: widget.code, hub: true))),
+                label: detail.devicePhotoCount < detail.deviceCount
+                    ? 'IMEI ছবি নিন (${detail.devicePhotoCount}/${detail.deviceCount})'
+                    : 'IMEI ছবি দেখুন',
+                icon: Icons.qr_code_scanner_rounded,
+                kind: AppButtonKind.tonal,
+                onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                        builder: (_) =>
+                            DeviceUnitsScreen(code: widget.code, hub: true))),
               ),
             ],
-            const SizedBox(height: 12),
-            for (final step in HubChainStep.values) ...[
-              _StepTile(step: step, chain: chain),
-              const SizedBox(height: 8),
+            if (chain.current == null) ...[
+              const SizedBox(height: 12),
+              PaperCard(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                    const SectionTitle(title: 'পরবর্তী কাজ'),
+                    _Action(detail: detail, chain: chain, state: this),
+                  ])),
             ],
-            const SizedBox(height: 8),
-            _Action(detail: detail, chain: chain, state: this),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            PaperCard(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        const Expanded(
+                            child: Text('কাজের ধাপ',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700))),
+                        Text('$done/5 সম্পন্ন',
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.muted)),
+                      ]),
+                      const SizedBox(height: 14),
+                      for (final step in HubChainStep.values)
+                        _StepTile(
+                            step: step,
+                            chain: chain,
+                            last: step == HubChainStep.handover,
+                            child: chain.current == step
+                                ? _Action(
+                                    detail: detail, chain: chain, state: this)
+                                : null),
+                    ])),
+            const SizedBox(height: 12),
             _Photos(controller: _photos, onPick: _pickPhoto),
           ],
-        ],
-      ),
-    );
+        ]);
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -172,7 +230,8 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
     if (file == null) return;
     try {
       final bytes = await file.readAsBytes();
-      await _photos?.select(PickedPhoto(bytes: bytes, name: file.name, mime: file.mimeType));
+      await _photos?.select(
+          PickedPhoto(bytes: bytes, name: file.name, mime: file.mimeType));
     } finally {
       await deletePickedPhotoFile(file.path);
     }
@@ -186,74 +245,209 @@ class _Facts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final delta = formatWeightDelta(detail.weightDelta);
+    final delta = detail.weightDelta;
+    Widget fact(String label, String value) =>
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          Text(value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, height: 1.35)),
+        ]);
     return PaperCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(banglaStatus(detail.status, detail.statusLabel), style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text('কাস্টমার কোড ${detail.supplierCode}'),
-          if (detail.flyerName != null) Text('ফ্লায়ার ${detail.flyerName}'),
-          if (detail.flightCode != null) Text('ফ্লাইট ${detail.flightCode} · ${detail.flightDate ?? ''}'),
-          Text('বুকড ${formatKg(detail.bookedKg)} · মাপা ${detail.weighedKg == null ? 'হয়নি' : formatKg(detail.weighedKg!)}'),
-          if (delta != null) Text(delta, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
-          Text(detail.packedAt == null ? 'প্যাকেজ এখনো কনফার্ম হয়নি' : 'প্যাকেজ ${detail.packageCount}'),
-          Text(detail.hasCourierRef ? 'কুরিয়ার রেফ ${detail.lastMile!.courier} · ${detail.lastMile!.ref}' : 'কুরিয়ার রেফারেন্স নেই'),
-          Text('ডিভাইস ${detail.deviceCount} · ছবি ${detail.devicePhotoCount}/${detail.deviceCount} · শিপমেন্ট ছবি ${detail.photosCount}'),
-          if (detail.exception != null) Text('এক্সসেপশন: ${detail.exception}', style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: fact('কাস্টমার', detail.supplierCode)),
+            const SizedBox(width: 16),
+            Expanded(
+                child: fact('পণ্য',
+                    detail.description.isEmpty ? '—' : detail.description)),
+          ]),
+          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: fact(
+                    detail.weighedKg == null ? 'বুকিং ওজন' : 'মাপা ওজন',
+                    detail.weighedKg == null
+                        ? formatKg(detail.bookedKg)
+                        : '${formatKg(detail.weighedKg!)} (বুকিং ${formatKg(detail.bookedKg)})')),
+            const SizedBox(width: 16),
+            Expanded(
+                child: fact(
+                    'ফ্লাইট',
+                    detail.flightCode == null
+                        ? '—'
+                        : [
+                            displayFlightCode(detail.flightCode!),
+                            if (detail.flightDate != null) detail.flightDate!
+                          ].join(' · '))),
+          ]),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (delta != null)
+              InfoChip(
+                  icon: Icons.warning_amber_rounded,
+                  label: formatWeightDelta(delta)!,
+                  tone: ChipTone.red),
+            if (detail.flyerName != null)
+              InfoChip(
+                  icon: Icons.person_outline_rounded,
+                  label: 'ফ্লায়ার ${detail.flyerName}'),
+            InfoChip(
+                icon: Icons.inventory_2_outlined,
+                label: detail.packedAt == null
+                    ? 'প্যাক হয়নি'
+                    : 'প্যাকেজ ${detail.packageCount}'),
+            if (detail.hasCourierRef)
+              InfoChip(
+                  icon: Icons.local_shipping_outlined,
+                  label:
+                      '${detail.lastMile!.courier} · ${detail.lastMile!.ref}'),
+            if (detail.deviceCount > 0)
+              InfoChip(
+                  icon: Icons.smartphone_rounded,
+                  label:
+                      'ডিভাইস ${detail.deviceCount} · ছবি ${detail.devicePhotoCount}/${detail.deviceCount}'),
+            InfoChip(
+                icon: Icons.photo_library_outlined,
+                label: 'ছবি ${detail.photosCount}'),
+            if (detail.exception != null)
+              InfoChip(
+                  icon: Icons.block_rounded,
+                  label: 'এক্সসেপশন: ${detail.exception}',
+                  tone: ChipTone.red),
+          ]),
         ],
       ),
     );
   }
 }
 
+const _stepHints = {
+  HubChainStep.weigh: ('ওজন মাপুন', 'স্কেলে মেপে kg-তে লিখুন'),
+  HubChainStep.pack: ('প্যাক', 'প্যাকিং শেষ হলে কনফার্ম'),
+  HubChainStep.courier: ('কুরিয়ার বা হাব পিকআপ', 'কীভাবে পৌঁছাবে বেছে নিন'),
+  HubChainStep.dispatch: ('ডিসপ্যাচ', 'পার্সেল রওনা হলে কনফার্ম'),
+  HubChainStep.handover: ('হ্যান্ডওভার', 'কাস্টমার বুঝে পেলে শেষ'),
+};
+
+/// One row of the vertical stepper. The current step carries its form.
 class _StepTile extends StatelessWidget {
-  const _StepTile({required this.step, required this.chain});
+  const _StepTile(
+      {required this.step,
+      required this.chain,
+      required this.last,
+      this.child});
 
   final HubChainStep step;
   final HubChainSnapshot chain;
+  final bool last;
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
     final visual = chain.visual(step);
     final current = visual == HubStepVisual.current;
-    final label = switch (visual) {
-      HubStepVisual.waiting => 'অপেক্ষা',
-      HubStepVisual.current => 'এখন',
-      HubStepVisual.done => 'হয়ে গেছে',
-      HubStepVisual.skipped => 'হাব পিকআপ — ডিসপ্যাচ প্রযোজ্য নয়',
+    final finished =
+        visual == HubStepVisual.done || visual == HubStepVisual.skipped;
+    final (title, hint) = _stepHints[step]!;
+    final note = switch (visual) {
+      HubStepVisual.waiting => hint,
+      HubStepVisual.current => hint,
+      HubStepVisual.done => 'হয়ে গেছে',
+      HubStepVisual.skipped => 'হাব পিকআপ — ডিসপ্যাচ প্রযোজ্য নয়',
     };
-    return Container(
-      constraints: const BoxConstraints(minHeight: minTouchTarget),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: current ? AppColors.amber : AppColors.card,
-        borderRadius: BorderRadius.circular(cardRadius),
-        border: Border.all(color: current ? AppColors.amber : AppColors.line),
-      ),
-      child: Row(
-        children: [
-          Text('${step.index + 1}', style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${chain.title(step)} · ${step.name}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text(label, style: const TextStyle(fontSize: 13)),
-              ],
-            ),
-          ),
-          if (visual == HubStepVisual.done) const SbxIcon(SbxIconKind.check, color: AppColors.ok),
-        ],
-      ),
-    );
+    return Stack(children: [
+      if (!last)
+        Positioned(
+            left: 15,
+            top: 36,
+            bottom: 4,
+            child: Container(
+                width: 2, color: finished ? AppColors.okSoft : AppColors.line)),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: current
+                    ? AppColors.accentSoft
+                    : finished
+                        ? AppColors.okSoft
+                        : AppColors.paper,
+                border: Border.all(
+                    color: current
+                        ? AppColors.accent
+                        : finished
+                            ? AppColors.okSoft
+                            : AppColors.field,
+                    width: current ? 2 : 1.5)),
+            child: finished
+                ? const Icon(Icons.check_rounded, size: 18, color: AppColors.ok)
+                : Text('${step.index + 1}',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            current ? AppColors.accentInk : AppColors.muted))),
+        const SizedBox(width: 14),
+        Expanded(
+            child: Padding(
+                padding: EdgeInsets.only(top: 3, bottom: last ? 10 : 18),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                          spacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(title,
+                                style: TextStyle(
+                                    fontSize: current ? 16 : 15,
+                                    fontWeight: current
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: finished || current
+                                        ? AppColors.ink
+                                        : AppColors.inkSoft)),
+                            if (current)
+                              Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 1),
+                                  decoration: BoxDecoration(
+                                      color: AppColors.accentStrong,
+                                      borderRadius: BorderRadius.circular(999)),
+                                  child: const Text('এখন',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          height: 1.4,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white))),
+                          ]),
+                      Text(note,
+                          style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  finished ? AppColors.ok : AppColors.muted)),
+                      if (child != null) ...[
+                        const SizedBox(height: 12),
+                        child!,
+                      ],
+                    ]))),
+      ]),
+    ]);
   }
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.detail, required this.chain, required this.state});
+  const _Action(
+      {required this.detail, required this.chain, required this.state});
 
   final HubShipmentDetail detail;
   final HubChainSnapshot chain;
@@ -263,14 +457,17 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = AppScope.of(context).shipments;
     if (chain.blockedByException) {
-      final canResume = detail.exception == 'on_hold' || detail.exception == 'delivery_failed';
+      final canResume = detail.exception == 'on_hold' ||
+          detail.exception == 'delivery_failed';
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('চেইন থেমে আছে। চালু করতে কারণ লিখুন।'),
           const SizedBox(height: 8),
           if (canResume) ...[
-            TextField(controller: state._holdReason, decoration: const InputDecoration(labelText: 'কারণ')),
+            TextField(
+                controller: state._holdReason,
+                decoration: const InputDecoration(labelText: 'কারণ')),
             const SizedBox(height: 8),
             AppButton(
               label: 'আবার চালু করুন',
@@ -278,17 +475,21 @@ class _Action extends StatelessWidget {
               busy: state._busy,
               onPressed: state._holdReason.text.trim().length < 3
                   ? null
-                  : () => state._run(() => repo.setException(detail.code, type: 'resume', reason: state._holdReason.text.trim())),
+                  : () => state._run(() => repo.setException(detail.code,
+                      type: 'resume', reason: state._holdReason.text.trim())),
             ),
           ],
         ],
       );
     }
     if (chain.waitingOnCustoms) {
-      return const EmptyNote(title: 'কাস্টমসের অপেক্ষা', body: 'কাস্টমস ক্লিয়ার হলে হাবে গ্রহণ করা যাবে।');
+      return const EmptyNote(
+          title: 'কাস্টমসের অপেক্ষা',
+          body: 'কাস্টমস ক্লিয়ার হলে হাবে গ্রহণ করা যাবে।');
     }
     if (chain.notAtHub) {
-      return const EmptyNote(title: 'এখনো ঢাকা হাবে নয়', body: 'এই শিপমেন্ট হাব চেইনে ঢোকেনি।');
+      return const EmptyNote(
+          title: 'এখনো ঢাকা হাবে নয়', body: 'এই শিপমেন্ট হাব চেইনে ঢোকেনি।');
     }
     if (chain.needsReceive) {
       return AppButton(
@@ -299,7 +500,8 @@ class _Action extends StatelessWidget {
       );
     }
     if (chain.delivered) {
-      return const EmptyNote(title: 'হ্যান্ডওভার হয়ে গেছে', body: 'এই শিপমেন্টের হাব চেইন শেষ।');
+      return const EmptyNote(
+          title: 'হ্যান্ডওভার হয়ে গেছে', body: 'এই শিপমেন্টের হাব চেইন শেষ।');
     }
     final current = chain.current;
     if (current == null) return const SizedBox.shrink();
@@ -309,10 +511,18 @@ class _Action extends StatelessWidget {
           children: [
             TextField(
               controller: state._kg,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'মাপা ওজন (kg)', helperText: 'ডিভাইস-অনলি হলে ০'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w700, height: 1.3),
+              decoration: InputDecoration(
+                  labelText: 'মাপা ওজন (kg)',
+                  hintText: '0.0',
+                  suffixText: 'kg',
+                  helperText:
+                      'বুকিং ${formatKg(detail.bookedKg)} · ডিভাইস-অনলি হলে ০'),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             AppButton(
               label: 'ওজন সেভ করুন',
               kind: AppButtonKind.current,
@@ -366,7 +576,10 @@ class _Action extends StatelessWidget {
           children: [
             TextField(
               controller: state._confirmation,
-              decoration: InputDecoration(labelText: detail.lastMile?.isPickup == true ? 'কে নিল' : 'ডেলিভারি কনফার্মেশন'),
+              decoration: InputDecoration(
+                  labelText: detail.lastMile?.isPickup == true
+                      ? 'কে নিল'
+                      : 'ডেলিভারি কনফার্মেশন'),
             ),
             const SizedBox(height: 8),
             AppButton(
@@ -375,7 +588,8 @@ class _Action extends StatelessWidget {
               busy: state._busy,
               onPressed: state._confirmation.text.trim().length < 3
                   ? null
-                  : () => state._run(() => repo.handover(detail.code, state._confirmation.text.trim())),
+                  : () => state._run(() => repo.handover(
+                      detail.code, state._confirmation.text.trim())),
             ),
           ],
         );
@@ -398,29 +612,48 @@ class _CourierForm extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: _Mode(label: 'কুরিয়ার', selected: state._mode == 'courier', onTap: () => state.chooseMode('courier'))),
+            Expanded(
+                child: _Mode(
+                    label: 'কুরিয়ার',
+                    selected: state._mode == 'courier',
+                    onTap: () => state.chooseMode('courier'))),
             const SizedBox(width: 8),
-            Expanded(child: _Mode(label: 'হাব পিকআপ', selected: state._mode == 'pickup', onTap: () => state.chooseMode('pickup'))),
+            Expanded(
+                child: _Mode(
+                    label: 'হাব পিকআপ',
+                    selected: state._mode == 'pickup',
+                    onTap: () => state.chooseMode('pickup'))),
           ],
         ),
         const SizedBox(height: 8),
         if (state._mode == 'courier')
-          TextField(controller: state._courier, decoration: const InputDecoration(labelText: 'কুরিয়ার সার্ভিস')),
+          TextField(
+              controller: state._courier,
+              decoration: const InputDecoration(labelText: 'কুরিয়ার সার্ভিস')),
         const SizedBox(height: 8),
-        TextField(controller: state._ref, decoration: const InputDecoration(labelText: 'বুকিং / পিকআপ রেফারেন্স')),
+        TextField(
+            controller: state._ref,
+            decoration:
+                const InputDecoration(labelText: 'বুকিং / পিকআপ রেফারেন্স')),
         if (correcting) ...[
           const SizedBox(height: 8),
-          TextField(controller: state._reason, decoration: const InputDecoration(labelText: 'বদলের কারণ')),
+          TextField(
+              controller: state._reason,
+              decoration: const InputDecoration(labelText: 'বদলের কারণ')),
         ],
         const SizedBox(height: 8),
         AppButton(
-          label: correcting ? 'বুকিং আপডেট করুন' : 'কুরিয়ার বুক করুন',
+          label: correcting ? 'বুকিং আপডেট করুন' : 'কুরিয়ার বুক করুন',
           kind: AppButtonKind.current,
           busy: state._busy,
           onPressed: () {
             final ref = state._ref.text.trim();
-            final courier = state._mode == 'pickup' ? 'Hub pickup' : state._courier.text.trim();
-            if (ref.isEmpty || courier.isEmpty || (correcting && state._reason.text.trim().length < 3)) {
+            final courier = state._mode == 'pickup'
+                ? 'Hub pickup'
+                : state._courier.text.trim();
+            if (ref.isEmpty ||
+                courier.isEmpty ||
+                (correcting && state._reason.text.trim().length < 3)) {
               state.fail('রেফারেন্স দিন। বদল হলে অন্তত ৩ অক্ষরের কারণ লাগে।');
               return;
             }
@@ -439,7 +672,8 @@ class _CourierForm extends StatelessWidget {
 }
 
 class _Mode extends StatelessWidget {
-  const _Mode({required this.label, required this.selected, required this.onTap});
+  const _Mode(
+      {required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;
@@ -461,7 +695,10 @@ class _Mode extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.teal),
           ),
-          child: Text(label, style: TextStyle(color: selected ? Colors.white : AppColors.teal, fontWeight: FontWeight.w600)),
+          child: Text(label,
+              style: TextStyle(
+                  color: selected ? Colors.white : AppColors.teal,
+                  fontWeight: FontWeight.w600)),
         ),
       ),
     );
@@ -481,32 +718,53 @@ class _Photos extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('শিপমেন্ট ছবি', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('শিপমেন্ট ছবি',
+              style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          const Text('পাঠানোর আগে JPEG, সর্বোচ্চ ২০০০px। IMEI গাইড ফ্রেম এই স্লাইসে নেই।', style: TextStyle(color: AppColors.muted, height: 1.35)),
+          const Text('প্যাকেজ ও পণ্যের ছবি যোগ করুন।',
+              style: TextStyle(color: AppColors.muted, height: 1.35)),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: AppButton(label: 'ক্যামেরা', kind: AppButtonKind.quiet, onPressed: () => onPick(ImageSource.camera))),
+              Expanded(
+                  child: AppButton(
+                      label: 'ক্যামেরা',
+                      kind: AppButtonKind.quiet,
+                      onPressed: () => onPick(ImageSource.camera))),
               const SizedBox(width: 8),
-              Expanded(child: AppButton(label: 'গ্যালারি', kind: AppButtonKind.quiet, onPressed: () => onPick(ImageSource.gallery))),
+              Expanded(
+                  child: AppButton(
+                      label: 'গ্যালারি',
+                      kind: AppButtonKind.quiet,
+                      onPressed: () => onPick(ImageSource.gallery))),
             ],
           ),
           if (upload != null && upload.prepared != null) ...[
             const SizedBox(height: 8),
-            const Text(locationStrippedNote, style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            const Text(locationStrippedNote,
+                style: TextStyle(color: AppColors.muted, fontSize: 13)),
           ],
           if (upload != null && upload.busy) ...[
             const SizedBox(height: 8),
-            LinearProgressIndicator(value: upload.progress == 0 ? null : upload.progress, color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+            LinearProgressIndicator(
+                value: upload.progress == 0 ? null : upload.progress,
+                color: AppColors.teal,
+                backgroundColor: AppColors.tealSoft),
           ],
           if (upload != null && upload.error != null) ...[
             const SizedBox(height: 8),
-            Text(upload.error!, style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            Text(upload.error!,
+                style: const TextStyle(color: AppColors.danger, height: 1.35)),
             const SizedBox(height: 8),
-            AppButton(label: 'একই ছবি আবার পাঠান', kind: AppButtonKind.teal, onPressed: upload.retry),
+            AppButton(
+                label: 'একই ছবি আবার পাঠান',
+                kind: AppButtonKind.teal,
+                onPressed: upload.retry),
           ],
-          if (upload != null && upload.done) const Padding(padding: EdgeInsets.only(top: 8), child: Text('ছবি যোগ হয়েছে।')),
+          if (upload != null && upload.done)
+            const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('ছবি যোগ হয়েছে।')),
         ],
       ),
     );

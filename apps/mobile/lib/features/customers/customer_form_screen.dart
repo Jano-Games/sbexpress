@@ -57,19 +57,38 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const BackTitle(title: 'নতুন কাস্টমার'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(pageGutter, 8, pageGutter, 32),
+    return WorkspaceScaffold(
+        title: 'নতুন কাস্টমার',
+        root: false,
+        footer: ActionFooter(
+            child: AppButton(
+                label: 'সেভ করুন',
+                kind: AppButtonKind.current,
+                busy: _busy,
+                onPressed: _save)),
         children: [
-          const PageHeader(title: 'নতুন কাস্টমার', subtitle: 'কোড সার্ভার দেবে। পেমেন্ট অ্যাকাউন্ট এখানে যোগ করা হয় না।'),
-          TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'নাম')),
+          const Padding(
+              padding: EdgeInsets.only(bottom: 20),
+              child: Text(
+                  'কোড সার্ভার দেবে। পেমেন্ট অ্যাকাউন্ট এখানে যোগ করা হয় না।',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          TextField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'নাম')),
           const SizedBox(height: 8),
-          TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'ফোন')),
+          TextField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'ফোন')),
           const SizedBox(height: 8),
-          TextField(controller: _address, decoration: const InputDecoration(labelText: 'ঠিকানা')),
+          TextField(
+              controller: _address,
+              decoration: const InputDecoration(labelText: 'ঠিকানা')),
           const SizedBox(height: 12),
-          const Text('বিলিং টার্ম', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('বিলিং টার্ম',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ChoiceChips(
             options: const [
@@ -83,10 +102,6 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: AppColors.danger)),
           ],
-          const SizedBox(height: 16),
-          AppButton(label: 'সেভ করুন', kind: AppButtonKind.current, busy: _busy, onPressed: _save),
-        ],
-      ),
-    );
+        ]);
   }
 }
