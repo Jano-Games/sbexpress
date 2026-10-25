@@ -185,8 +185,9 @@ void main() {
     await t.pumpAndSettle();
     await t.ensureVisible(find.text('মাসিক স্টেটমেন্ট'));
     expect(find.text('মাসিক স্টেটমেন্ট'), findsOneWidget);
-    await t.ensureVisible(find.text('শিপমেন্ট').first);
-    await t.tap(find.text('শিপমেন্ট').first);
+    // The tab shows the shipment count, as in the design.
+    await t.ensureVisible(find.text('শিপমেন্ট · 1'));
+    await t.tap(find.text('শিপমেন্ট · 1'));
     await t.pumpAndSettle();
     expect(find.text('SH-18'), findsOneWidget);
     await t.tap(find.text('লেনদেন'));
@@ -200,7 +201,7 @@ void main() {
     await t.pumpWidget(app(const FlightDetailScreen(code: 'BG305')));
     await t.pumpAndSettle();
     expect(find.text('বুকিং নেই'), findsOneWidget);
-    await t.tap(find.text('ফ্লায়ার').first);
+    await t.tap(find.text('ফ্লায়ার · 1'));
     await t.pumpAndSettle();
     expect(find.text('Arif Rahman'), findsOneWidget);
     await t.tap(find.text('হিসাব'));
@@ -215,6 +216,7 @@ void main() {
       (t) async {
     phone(t);
     final scopes = <String>[];
+    final payments = <String>[];
     await t.pumpWidget(
         app(const AdminShipmentScreen(code: 'SH-18', initialTab: 1),
             intercept: (r) async {
@@ -227,25 +229,28 @@ void main() {
             }),
             200);
       }
+      if (r.method == 'POST' && r.url.path.endsWith('/payments')) {
+        payments.add(r.url.path);
+      }
       return null;
     }));
     await t.pumpAndSettle();
-    await t.ensureVisible(find.text('পেমেন্ট'));
-    await t.tap(find.text('পেমেন্ট'));
-    await t.pumpAndSettle();
+    // One scroll: the payment form and the link options are separate cards,
+    // each with its own button.
+    await t.ensureVisible(find.text('জমা সেভ করুন'));
     expect(find.text('টাকা জমা'), findsOneWidget);
-    expect(find.text('শেয়ার লিংক তৈরি করুন'), findsNothing);
-    await t.tap(find.text('শেয়ার লিংক'));
-    await t.pumpAndSettle();
-    expect(find.text('জমা সেভ করুন'), findsNothing);
+    expect(find.text('জমা সেভ করুন'), findsOneWidget);
     final toggle = find.byType(SwitchListTile);
     await t.ensureVisible(toggle);
+    await t.pumpAndSettle();
     await t.tap(toggle);
     await t.pumpAndSettle();
     await t.ensureVisible(find.text('শেয়ার লিংক তৈরি করুন'));
+    await t.pumpAndSettle();
     await t.tap(find.text('শেয়ার লিংক তৈরি করুন'));
     await t.pumpAndSettle();
     expect(scopes, ['invoice']);
+    expect(payments, isEmpty);
     expect(find.text('লিংক কপি'), findsOneWidget);
     expect(t.takeException(), isNull);
   });

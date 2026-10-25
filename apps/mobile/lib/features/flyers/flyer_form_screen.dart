@@ -4,7 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/flyer.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/app_colors.dart';
+import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 
 class FlyerFormScreen extends StatefulWidget {
@@ -76,68 +76,63 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
     }
   }
 
+  Widget _field(String label, TextEditingController controller,
+          {TextInputType? keyboard,
+          TextCapitalization caps = TextCapitalization.none}) =>
+      LabeledField(
+          label: label,
+          child: TextField(
+              controller: controller,
+              keyboardType: keyboard,
+              textCapitalization: caps,
+              textInputAction: TextInputAction.next));
+
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
         title: tr('New flyer'),
+        subtitle: tr('Profiles and travel documents'),
         root: false,
-        footer: ActionFooter(
+        footer: FooterActions(
+            error: _error,
             child: AppButton(
                 label: tr('Save flyer'),
+                icon: Icons.check_rounded,
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  tr(
-                      'A name is enough to create the profile. Other fields can stay blank.'),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          TextField(
-              controller: _first,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(labelText: tr('First name'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _last,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(labelText: tr('Last name'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _bd,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(labelText: tr('Bangladesh phone'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _cn,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(labelText: tr('China phone'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _university,
-              decoration: InputDecoration(labelText: tr('University'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _program,
-              decoration: InputDecoration(labelText: tr('Program'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _batch,
-              decoration: InputDecoration(labelText: tr('Batch'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _wechat,
-              decoration: const InputDecoration(labelText: 'WeChat')),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _emergency,
-              decoration: InputDecoration(labelText: tr('Emergency contact'))),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.danger)),
-          ],
+          FormCard(title: tr('Personal details'), children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  child: _field(tr('First name'), _first,
+                      caps: TextCapitalization.words)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _field(tr('Last name'), _last,
+                      caps: TextCapitalization.words)),
+            ]),
+          ]),
+          const SizedBox(height: 14),
+          FormCard(title: tr('Contact'), children: [
+            _field(tr('Bangladesh phone'), _bd, keyboard: TextInputType.phone),
+            _field(tr('China phone'), _cn, keyboard: TextInputType.phone),
+            _field('WeChat', _wechat),
+            _field(tr('Emergency contact'), _emergency),
+          ]),
+          const SizedBox(height: 14),
+          FormCard(title: tr('Study'), children: [
+            _field(tr('University'), _university),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: _field(tr('Program'), _program)),
+              const SizedBox(width: 10),
+              Expanded(child: _field(tr('Batch'), _batch)),
+            ]),
+          ]),
+          const SizedBox(height: 14),
+          TipNote(
+              text: tr(
+                  'A name is enough to create the profile. Other fields can stay blank.')),
         ]);
   }
 }

@@ -7,8 +7,10 @@ import '../../data/models/flight.dart';
 import '../../data/models/workspace.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/flight_parts.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
+import '../admin/money_format.dart';
 import '../customers/customer_form_screen.dart';
 
 class IntakeScreen extends StatefulWidget {
@@ -43,6 +45,9 @@ class _IntakeScreenState extends State<IntakeScreen> {
   String? _flight;
   String? _flyer;
   final _pieces = <String, _PieceDraft>{};
+
+  static const _currencies = ['BDT', 'CNY'];
+  static const _termValues = ['invoice', 'cod', 'monthly'];
 
   @override
   void initState() {
@@ -108,6 +113,9 @@ class _IntakeScreenState extends State<IntakeScreen> {
     return null;
   }
 
+  double get _kgValue => double.tryParse(_kg.text.trim()) ?? 0;
+  double get _rateValue => double.tryParse(_rate.text.trim()) ?? 0;
+
   Future<String?> _pick(
           String title,
           List<({String value, String title, String subtitle})> options,
@@ -134,27 +142,15 @@ class _IntakeScreenState extends State<IntakeScreen> {
     if (mounted && value != null) setState(() => _supplier = value);
   }
 
-  Future<void> _pickFlight() async {
-    final value = await _pick(
-        tr('Choose a flight'),
-        [
-          (
-            value: '',
-            title: tr('Assign later'),
-            subtitle: tr('Create the shipment without a flight')
-          ),
-          for (final flight in _flights)
-            (
-              value: flight.code,
-              title: flight.displayCode,
-              subtitle: tr('{date} · {kg} kg left',
-                  {'date': flight.date, 'kg': flight.leftKg.toStringAsFixed(1)})
-            ),
-        ],
-        _flight ?? '');
-    if (!mounted || value == null) return;
+  Future<void> _newCustomer() async {
+    final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const CustomerFormScreen()));
+    if (created == true && mounted) await _load();
+  }
+
+  void _chooseFlight(String? code) {
     setState(() {
-      _flight = value.isEmpty ? null : value;
+      _flight = code;
       final flyers = _selectedFlight?.flyers ?? <String>[];
       _flyer = flyers.length == 1 ? flyers.first : null;
     });
@@ -272,85 +268,172 @@ class _IntakeScreenState extends State<IntakeScreen> {
     });
   }
 
+  void _goTo(int stage) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _error = null;
+      _stage = stage;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final flight = _selectedFlight;
     return WorkspaceScaffold(
+        // A fresh list per step, so each step opens at its top.
+        key: ValueKey('intake-step-$_stage'),
         title: tr('New shipment'),
-        subtitle: tr('Step {step} of 3', {'step': _stage + 1}),
-        toolbar: ScreenTabs(
-            labels: [tr('1 · Cargo'), tr('2 · Billing'), tr('3 · Review')],
-            index: _stage,
-            enabledThrough: _stage,
-            onChanged: (i) {
-              if (i < _stage) setState(() => _stage = i);
-            }),
-        footer: ActionFooter(
-            child: Row(children: [
-          if (_stage > 0) ...[
-            OutlinedButton(
-                onPressed: _busy ? null : () => setState(() => _stage--),
-                child: Text(tr('Previous step'))),
-            const SizedBox(width: 12)
-          ],
-          Expanded(
-              child: AppButton(
-                  key: const Key('intake-next'),
-                  label: _stage == 2 ? tr('Create shipment') : tr('Next'),
-                  busy: _busy,
-                  onPressed: _loading
-                      ? null
-                      : _stage == 2
-                          ? _save
-                          : _next)),
-        ])),
+        subtitle: _stage == 2
+            ? tr('Step 3 of 3 · check and create')
+            : tr('Step {step} of 3', {'step': _stage + 1}),
+        toolbar: WizardSteps(
+            labels: [tr('Cargo'), tr('Billing'), tr('Review')],
+            current: _stage,
+            onBack: _busy ? (_) {} : _goTo),
+        footer:
+            ActionFooter(child: LayoutBuilder(builder: (context, constraints) {
+          // Icons give way to the labels on narrow screens.
+          final narrow = constraints.maxWidth < 340;
+          return Row(children: [
+            if (_stage > 0) ...[
+              Expanded(
+                  flex: 11,
+                  child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(48, 50),
+                          padding: const EdgeInsets.symmetric(horizontal: 10)),
+                      onPressed: _busy ? null : () => _goTo(_stage - 1),
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (!narrow) ...[
+                              const Icon(Icons.arrow_back_rounded, size: 19),
+                              const SizedBox(width: 6),
+                            ],
+                            Flexible(
+                                child: Text(tr('Previous'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis)),
+                          ]))),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+                flex: 16,
+                child: AppButton(
+                    key: const Key('intake-next'),
+                    label: switch (_stage) {
+                      0 => tr('Next: Billing'),
+                      1 => tr('Next: Review'),
+                      _ => tr('Create shipment'),
+                    },
+                    icon: _stage == 2 && !narrow ? Icons.check_rounded : null,
+                    busy: _busy,
+                    onPressed: _loading
+                        ? null
+                        : _stage == 2
+                            ? _save
+                            : _next)),
+          ]);
+        })),
         children: [
           if (_loading) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-          if (_stage == 0) ...[
-            SectionTitle(
-                title: tr('Customer'),
-                action: TextButton.icon(
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: Text(tr('New')),
-                    onPressed: () async {
-                      final created = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(
-                              builder: (_) => const CustomerFormScreen()));
-                      if (created == true && mounted) await _load();
-                    })),
-            if (_customers.isEmpty && !_loading)
-              EmptyNote(
-                  title: tr('No customers'),
-                  body: tr('Tap New to add a customer.'))
-            else
-              DirectoryTile(
-                  title: _selectedCustomer?.name ?? tr('Choose a customer'),
-                  subtitle: _selectedCustomer == null
-                      ? tr('Search by name, code or phone')
-                      : '${_selectedCustomer!.code} · ${_selectedCustomer!.phone}',
-                  icon: Icons.person_outline_rounded,
-                  onTap: _pickCustomer),
-            const SizedBox(height: 16),
-            SectionTitle(title: tr('Categories')),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final name in _categories)
-                  FilterChip(
-                    label: Text(name),
+          if (_stage == 0) ..._cargo(),
+          if (_stage == 1) ..._billing(),
+          if (_stage == 2) ..._review(),
+        ]);
+  }
+
+  List<Widget> _cargo() {
+    final customer = _selectedCustomer;
+    return [
+      SectionTitle(
+          title: tr('Customer'),
+          action: TextButton.icon(
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text(tr('New customer')),
+              onPressed: _newCustomer)),
+      if (_customers.isEmpty && !_loading)
+        EmptyNote(
+            icon: Icons.person_outline_rounded,
+            title: tr('No customers'),
+            body: tr('Tap New to add a customer.'))
+      else if (customer == null)
+        PaperCard(
+            onTap: _pickCustomer,
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              const IconBadge(Icons.person_search_outlined, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(tr('Choose a customer'),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                    Text(tr('Search by name, code or phone'),
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.muted)),
+                  ])),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 20, color: AppColors.faint),
+            ]))
+      else
+        PaperCard(
+            onTap: _pickCustomer,
+            padding: const EdgeInsets.all(14),
+            border: const BorderSide(color: AppColors.primary, width: 1.5),
+            child: Row(children: [
+              LetterAvatar.customer(customer.name),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(customer.name,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                    Text('${customer.code} · ${customer.phone}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.muted)),
+                  ])),
+              const SizedBox(width: 8),
+              Text(tr('Change'),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary)),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 18, color: AppColors.primary),
+            ])),
+      const SizedBox(height: 18),
+      SectionTitle(
+          title: tr('Categories'),
+          action: _picked.isEmpty
+              ? null
+              : Text(tr('{n} chosen', {'n': _picked.length}),
+                  style:
+                      const TextStyle(fontSize: 13, color: AppColors.muted))),
+      PaperCard(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final name in _categories)
+                CategoryChip(
+                    label: name,
                     selected: _picked.contains(name),
-                    onSelected: (_) => _toggleCategory(name),
-                    selectedColor: AppColors.tealSoft,
-                    checkmarkColor: AppColors.tealInk,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
+                    onTap: () => _toggleCategory(name)),
+            ]),
+            const SizedBox(height: 6),
             if (_addingCategory) ...[
+              const SizedBox(height: 6),
               TextField(
                   controller: _categoryName,
+                  autofocus: true,
                   decoration:
                       InputDecoration(labelText: tr('New category name'))),
               const SizedBox(height: 8),
@@ -358,7 +441,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
                 Expanded(
                     child: AppButton(
                         label: tr('Add'),
-                        kind: AppButtonKind.quiet,
+                        kind: AppButtonKind.tonal,
                         busy: _savingCategory,
                         onPressed: _addCategory)),
                 const SizedBox(width: 8),
@@ -368,135 +451,339 @@ class _IntakeScreenState extends State<IntakeScreen> {
                         : () => setState(() => _addingCategory = false),
                     child: Text(tr('Cancel'))),
               ]),
+              const SizedBox(height: 8),
             ] else
-              Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                      icon: const Icon(Icons.add_rounded, size: 17),
-                      label: Text(tr('New category')),
-                      onPressed: () => setState(() => _addingCategory = true))),
-            for (final entry in _pieces.entries) ...[
-              const SizedBox(height: 12),
-              _PieceFields(
-                  name: entry.key,
-                  draft: entry.value,
-                  onChanged: () => setState(() {})),
-            ],
-            const SizedBox(height: 16),
-          ],
-          if (_stage == 1) ...[
-            FormSection(title: tr('Charges and payment'), children: [
-              SectionTitle(title: tr('Weight and rate')),
-              TextField(
+              TextButton.icon(
+                  style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4)),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(tr('New category')),
+                  onPressed: () => setState(() => _addingCategory = true)),
+          ])),
+      for (final entry in _pieces.entries) ...[
+        const SizedBox(height: 16),
+        _PieceFields(
+            name: entry.key,
+            draft: entry.value,
+            onChanged: () => setState(() {})),
+      ],
+      const SizedBox(height: 8),
+    ];
+  }
+
+  List<Widget> _billing() {
+    final shipping = _kgValue * _rateValue;
+    return [
+      PaperCard(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        CardHeading(
+            icon: Icons.scale_outlined,
+            title: tr('Weight and rate'),
+            subtitle:
+                tr('Charged on the booked weight; pieces are billed apart.')),
+        const SizedBox(height: 16),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+              child: TextField(
                   controller: _kg,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                       labelText: tr('Booked kg'),
-                      helperText: tr('0 for devices only'))),
-              const SizedBox(height: 8),
-              TextField(
+                      suffixText: 'kg',
+                      helperText: tr('0 for devices only')))),
+          const SizedBox(width: 10),
+          Expanded(
+              child: TextField(
                   controller: _rate,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                       labelText: tr('Rate per kg'),
-                      helperText: tr('Leave blank for 0'))),
-              const SizedBox(height: 8),
-              ChoiceChips(
-                options: const [
-                  (value: 'BDT', label: 'BDT'),
-                  (value: 'CNY', label: 'CNY')
-                ],
-                selected: _currency,
-                onSelected: (value) => setState(() => _currency = value),
+                      prefixText: _currency == 'CNY' ? '¥ ' : '৳ ',
+                      helperText: tr('Leave blank for 0')))),
+        ]),
+        const SizedBox(height: 14),
+        FieldLabel(tr('Currency')),
+        ScreenTabs(
+            labels: _currencies,
+            index: _currencies.indexOf(_currency),
+            onChanged: (i) => setState(() => _currency = _currencies[i])),
+        const Divider(height: 28),
+        Row(children: [
+          Expanded(
+              child: Text(tr('Shipping charge'),
+                  style:
+                      const TextStyle(fontSize: 14, color: AppColors.inkSoft))),
+          const SizedBox(width: 8),
+          Text(formatMoney(shipping, _currency),
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: [FontFeature.tabularFigures()])),
+        ]),
+      ])),
+      const SizedBox(height: 12),
+      PaperCard(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        CardHeading(
+            icon: Icons.receipt_long_outlined,
+            tone: ChipTone.neutral,
+            title: tr('Contents and terms')),
+        const SizedBox(height: 16),
+        TextField(
+            controller: _description,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+                labelText: tr('Description'),
+                helperText: tr('Shown on the bill and to the hub.'))),
+        const SizedBox(height: 14),
+        FieldLabel(tr('Payment terms')),
+        ScreenTabs(
+            labels: [tr('Invoice'), 'COD', tr('Monthly')],
+            index: _termValues.indexOf(_terms),
+            onChanged: (i) => setState(() => _terms = _termValues[i])),
+      ])),
+      const SizedBox(height: 8),
+    ];
+  }
+
+  List<Widget> _review() {
+    final customer = _selectedCustomer;
+    final flight = _selectedFlight;
+    final kg = _kgValue;
+    final rate = _rateValue;
+    final shipping = kg * rate;
+    final pieces = [
+      for (final entry in _pieces.entries) (name: entry.key, draft: entry.value)
+    ];
+    final total = pieces.fold(
+        shipping, (sum, piece) => sum + piece.draft.count * piece.draft.rate);
+    final terms = _terms == 'cod'
+        ? 'COD'
+        : _terms == 'monthly'
+            ? tr('Monthly')
+            : tr('Invoice');
+    return [
+      MoneyHero(
+          label: tr('Estimated charge · at booked weight'),
+          amount: formatMoney(total, _currency),
+          children: [
+            HeroLines(lines: [
+              (
+                tr('Shipping · {kg} kg × {currency} {rate}', {
+                  'kg': kg.toStringAsFixed(1),
+                  'currency': _currency,
+                  'rate': _number(rate)
+                }),
+                formatMoney(shipping, _currency)
               ),
-              const SizedBox(height: 8),
-              TextField(
-                  controller: _description,
-                  decoration: InputDecoration(labelText: tr('Description'))),
-              const SizedBox(height: 16),
-              SectionTitle(title: tr('Payment terms')),
-              ChoiceChips(
-                options: [
-                  (value: 'invoice', label: tr('Invoice')),
-                  (value: 'cod', label: 'COD'),
-                  (value: 'monthly', label: tr('Monthly')),
-                ],
-                selected: _terms,
-                onSelected: (value) => setState(() => _terms = value),
-              ),
-              const SizedBox(height: 16),
-            ]),
-          ],
-          if (_stage == 2) ...[
-            FormSection(title: tr('Booking summary'), children: [
-              KvRow(
-                  label: tr('Customer'),
-                  value: _selectedCustomer?.name ?? _supplier ?? '—'),
-              KvRow(label: tr('Categories'), value: _picked.join(', ')),
-              KvRow(
-                  label: tr('Weight'),
-                  value: '${_kg.text.isEmpty ? '0' : _kg.text} kg'),
-              KvRow(
-                  label: tr('Rate per kg'),
-                  value: '$_currency ${_rate.text.isEmpty ? '0' : _rate.text}'),
-              KvRow(
-                  label: tr('Payment terms'),
-                  value: _terms == 'cod'
-                      ? 'COD'
-                      : _terms == 'monthly'
-                          ? tr('Monthly')
-                          : tr('Invoice')),
-              if (_description.text.isNotEmpty)
-                KvRow(label: tr('Description'), value: _description.text),
-              for (final entry in _pieces.entries)
-                KvRow(
-                    label: entry.key,
-                    value: trn(
-                        entry.value.count,
-                        '{n} piece · {currency} {rate} / piece',
-                        '{n} pieces · {currency} {rate} / piece',
-                        {'currency': _currency, 'rate': entry.value.rate})),
-            ]),
-            SectionTitle(
-                title: tr('Flight'),
-                subtitle: tr('Optional now; you can assign one later.')),
-            DirectoryTile(
-                title: flight?.displayCode ?? tr('Assign later'),
-                subtitle: flight == null
-                    ? tr('Tap to choose a flight')
-                    : tr('{date} · {kg} kg left', {
-                        'date': flight.date,
-                        'kg': flight.leftKg.toStringAsFixed(1)
-                      }),
-                icon: Icons.flight_takeoff_rounded,
-                onTap: _pickFlight),
-            if (flight != null && flight.flyers.length > 1) ...[
-              const SizedBox(height: 12),
-              DirectoryTile(
-                  title: _flyer ?? tr('Choose a flyer'),
-                  subtitle: tr('Carries the cargo on this flight'),
-                  icon: Icons.badge_outlined,
-                  onTap: () async {
-                    final value = await _pick(
-                        tr('Choose a flyer'),
-                        [
-                          for (final name in flight.flyers)
-                            (
-                              value: name,
-                              title: name,
-                              subtitle: flight.displayCode
-                            )
-                        ],
-                        _flyer);
-                    if (mounted && value != null) {
-                      setState(() => _flyer = value);
-                    }
+              for (final piece in pieces)
+                (
+                  tr('{name} · {n} pcs × {currency} {rate}', {
+                    'name': piece.name,
+                    'n': piece.draft.count,
+                    'currency': _currency,
+                    'rate': _number(piece.draft.rate)
                   }),
-            ],
-          ],
-        ]);
+                  formatMoney(piece.draft.count * piece.draft.rate, _currency)
+                ),
+            ]),
+          ]),
+      const SizedBox(height: 14),
+      PaperCard(
+          padding: EdgeInsets.zero,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: CardTitle(title: tr('Booking summary'))),
+            Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 12, 14),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        Expanded(child: CapsLabel(tr('Cargo'))),
+                        LinkText(label: tr('Edit'), onTap: () => _goTo(0)),
+                      ]),
+                      Row(children: [
+                        LetterAvatar.customer(
+                            customer?.name ?? _supplier ?? '?',
+                            size: 40),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(customer?.name ?? _supplier ?? '—',
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700)),
+                              if (customer != null)
+                                Text('${customer.code} · ${customer.phone}',
+                                    style: const TextStyle(
+                                        fontSize: 13, color: AppColors.muted)),
+                            ])),
+                      ]),
+                      const SizedBox(height: 12),
+                      FactGrid(facts: [
+                        Fact(tr('Categories'), _picked.join(', ')),
+                        for (final piece in pieces)
+                          Fact(
+                              piece.name,
+                              trn(
+                                  piece.draft.count,
+                                  '{n} piece · {currency} {rate} / piece',
+                                  '{n} pieces · {currency} {rate} / piece', {
+                                'currency': _currency,
+                                'rate': _number(piece.draft.rate)
+                              })),
+                      ]),
+                    ])),
+            const Divider(height: 1, color: AppColors.lineSoft),
+            Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 12, 16),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        Expanded(child: CapsLabel(tr('Billing'))),
+                        LinkText(label: tr('Edit'), onTap: () => _goTo(1)),
+                      ]),
+                      FactGrid(facts: [
+                        Fact(tr('Weight'),
+                            '${_kg.text.isEmpty ? '0' : _kg.text} kg'),
+                        Fact(tr('Rate per kg'),
+                            '$_currency ${_rate.text.isEmpty ? '0' : _rate.text}'),
+                        Fact(tr('Payment terms'), terms),
+                        if (_description.text.trim().isNotEmpty)
+                          Fact(tr('Description'), _description.text.trim()),
+                      ]),
+                    ])),
+          ])),
+      const SizedBox(height: 18),
+      SectionTitle(
+          title: tr('Flight'),
+          subtitle: tr('Optional now; you can assign one later.')),
+      RowCard(children: [
+        for (final row in _flights) _flightRow(row, kg),
+        RadioRow(
+            selected: _flight == null,
+            title: tr('Assign later'),
+            subtitle: tr('Create the shipment without a flight'),
+            onTap: () => _chooseFlight(null)),
+      ]),
+      if (flight != null && flight.flyers.length > 1) ...[
+        const SizedBox(height: 18),
+        SectionTitle(
+            title: tr('Flyer'),
+            subtitle: tr('{flight} has {n} flyers. Who carries this cargo?',
+                {'flight': flight.displayCode, 'n': flight.flyers.length})),
+        _FlyerChoices(
+            names: flight.flyers,
+            selected: _flyer,
+            onSelected: (name) => setState(() => _flyer = name)),
+      ],
+      const SizedBox(height: 8),
+    ];
+  }
+
+  Widget _flightRow(FlightSummary row, double kg) {
+    final selected = _flight == row.code;
+    final left = row.leftKg;
+    final after = left - kg;
+    return RadioRow(
+        selected: selected,
+        title: '${row.displayCode} · ${shortDay(row.date)}',
+        subtitle: selected
+            ? tr('{left} kg left · {after} kg after this booking', {
+                'left': left.toStringAsFixed(1),
+                'after': after.toStringAsFixed(1)
+              })
+            : tr('{kg} kg left', {'kg': left.toStringAsFixed(1)}),
+        trailing: !selected
+            ? null
+            : after >= 0
+                ? StatusPill(label: tr('Fits'), tone: ChipTone.green)
+                : StatusPill(label: tr('Over capacity'), tone: ChipTone.red),
+        onTap: () => _chooseFlight(row.code));
+  }
+}
+
+/// 950 rather than 950.0; keeps decimals when there are any.
+String _number(double value) => value == value.roundToDouble()
+    ? value.toStringAsFixed(0)
+    : value.toString();
+
+class _FlyerChoices extends StatelessWidget {
+  const _FlyerChoices(
+      {required this.names, required this.selected, required this.onSelected});
+  final List<String> names;
+  final String? selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget choice(String name) {
+      final on = name == selected;
+      return Semantics(
+          selected: on,
+          inMutuallyExclusiveGroup: true,
+          button: true,
+          child: Material(
+              color: AppColors.card,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                      color: on ? AppColors.primary : AppColors.field,
+                      width: on ? 2 : 1)),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                  onTap: () => onSelected(name),
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 56),
+                      child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          child: Row(children: [
+                            LetterAvatar(name,
+                                size: 32,
+                                color:
+                                    on ? AppColors.primary : AppColors.lineSoft,
+                                foreground:
+                                    on ? Colors.white : AppColors.inkSoft),
+                            const SizedBox(width: 10),
+                            Expanded(
+                                child: Text(name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 15,
+                                        height: 1.3,
+                                        fontWeight: on
+                                            ? FontWeight.w700
+                                            : FontWeight.w600))),
+                          ]))))));
+    }
+
+    return Column(children: [
+      for (var i = 0; i < names.length; i += 2)
+        Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: choice(names[i])),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: i + 1 < names.length
+                      ? choice(names[i + 1])
+                      : const SizedBox.shrink()),
+            ])),
+    ]);
   }
 }
 
@@ -527,6 +814,15 @@ class _PieceDraft {
   }
 }
 
+IconData _pieceIcon(String name) {
+  final lower = name.toLowerCase();
+  if (lower.contains('laptop')) return Icons.laptop_rounded;
+  if (lower.contains('mobile') || lower.contains('phone')) {
+    return Icons.smartphone_rounded;
+  }
+  return Icons.devices_other_rounded;
+}
+
 class _PieceFields extends StatelessWidget {
   const _PieceFields(
       {required this.name, required this.draft, required this.onChanged});
@@ -539,45 +835,90 @@ class _PieceFields extends StatelessWidget {
   Widget build(BuildContext context) {
     return PaperCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: '${draft.count}',
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: tr('Quantity')),
-            onChanged: (value) {
-              draft.resize(int.tryParse(value) ?? 1);
-              onChanged();
-            },
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: draft.rate == 0 ? '' : draft.rate.toString(),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-                labelText: tr('Price per piece'),
-                helperText: tr('Prefilled from settings when a rate is saved')),
-            onChanged: (value) => draft.rate = double.tryParse(value) ?? 0,
-          ),
+          CardHeading(
+              icon: _pieceIcon(name),
+              title: tr('{name} pieces', {'name': name}),
+              subtitle: tr("Count, price and each device's model and IMEI")),
+          const SizedBox(height: 16),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                  FieldLabel(tr('Quantity')),
+                  QuantityStepper(
+                      value: draft.count,
+                      onChanged: (value) {
+                        draft.resize(value);
+                        onChanged();
+                      }),
+                ])),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                  FieldLabel(tr('Price per piece')),
+                  TextFormField(
+                    key: ValueKey('$name-rate'),
+                    initialValue: draft.rate == 0 ? '' : _number(draft.rate),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w600),
+                    decoration:
+                        InputDecoration(hintText: '0', suffixText: tr('/ pc')),
+                    onChanged: (value) =>
+                        draft.rate = double.tryParse(value) ?? 0,
+                  ),
+                ])),
+          ]),
+          const SizedBox(height: 6),
+          Text(tr('Price is prefilled from settings when a rate is saved.'),
+              style: const TextStyle(
+                  fontSize: 12, height: 1.4, color: AppColors.muted)),
           for (var i = 0; i < draft.units.length; i++) ...[
-            const SizedBox(height: 8),
+            const Divider(height: 28),
             Text(tr('Piece {n}', {'n': i + 1}),
-                style: const TextStyle(color: AppColors.muted)),
-            TextFormField(
-              initialValue: draft.units[i].model,
-              decoration: InputDecoration(labelText: tr('Model')),
-              onChanged: (value) => draft.units[i] =
-                  (model: value, serial: draft.units[i].serial),
-            ),
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.inkSoft)),
             const SizedBox(height: 8),
-            TextFormField(
-              initialValue: draft.units[i].serial,
-              decoration: InputDecoration(labelText: tr('Serial / IMEI')),
-              onChanged: (value) =>
-                  draft.units[i] = (model: draft.units[i].model, serial: value),
-            ),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  flex: 9,
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FieldLabel(tr('Model')),
+                        TextFormField(
+                          key: ValueKey('$name-model-$i'),
+                          initialValue: draft.units[i].model,
+                          onChanged: (value) => draft.units[i] =
+                              (model: value, serial: draft.units[i].serial),
+                        ),
+                      ])),
+              const SizedBox(width: 10),
+              Expanded(
+                  flex: 11,
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FieldLabel(tr('Serial / IMEI')),
+                        TextFormField(
+                          key: ValueKey('$name-serial-$i'),
+                          initialValue: draft.units[i].serial,
+                          autocorrect: false,
+                          decoration:
+                              InputDecoration(hintText: tr('IMEI number')),
+                          onChanged: (value) => draft.units[i] =
+                              (model: draft.units[i].model, serial: value),
+                        ),
+                      ])),
+            ]),
           ],
         ],
       ),
@@ -637,11 +978,13 @@ class _PickerSheetState extends State<_PickerSheet> {
                             ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20, vertical: 4),
+                                leading:
+                                    LetterAvatar.customer(item.title, size: 40),
                                 title: Text(item.title),
                                 subtitle: Text(item.subtitle),
                                 trailing: item.value == widget.selected
                                     ? const Icon(Icons.check_rounded,
-                                        color: AppColors.teal)
+                                        color: AppColors.primary)
                                     : null,
                                 onTap: () =>
                                     Navigator.pop(context, item.value)),

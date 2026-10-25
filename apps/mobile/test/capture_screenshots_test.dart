@@ -1,4 +1,10 @@
 import 'support/screen_fixtures.dart';
+import 'support/team_fixtures.dart';
+import 'package:sbexpress/data/api/api_client.dart';
+import 'package:sbexpress/data/models/workspace.dart';
+import 'package:sbexpress/features/flyers/flyer_detail_screen.dart';
+import 'package:sbexpress/features/flyers/flyer_form_screen.dart';
+import 'package:sbexpress/features/flyers/flyers_screen.dart';
 import 'package:sbexpress/features/admin/admin_shipment_screen.dart';
 import 'package:sbexpress/features/flights/flight_detail_screen.dart';
 import 'dart:convert';
@@ -38,6 +44,10 @@ import 'package:sbexpress/features/admin/admin_home_screen.dart';
 import 'package:sbexpress/features/admin/invoice_editor_screen.dart';
 import 'package:sbexpress/features/admin/shipment_costs_screen.dart';
 import 'package:sbexpress/features/customers/customer_activity_screen.dart';
+import 'package:sbexpress/features/customers/customer_credit_screen.dart';
+import 'package:sbexpress/features/customers/customer_form_screen.dart';
+import 'package:sbexpress/features/finance/ledger_screen.dart';
+import 'package:sbexpress/features/finance/office_entry_screen.dart';
 import 'package:sbexpress/features/customers/customers_screen.dart';
 import 'package:sbexpress/features/customers/statement_screen.dart';
 import 'package:sbexpress/features/finance/finance_screen.dart';
@@ -193,6 +203,23 @@ void main() {
         _scoped(scope, const FlightMoneyScreen(code: 'BG305-20261021-ab12cd')),
         '12-flight-money',
         find.byType(FlightMoneyScreen));
+    await _scrollShot(tester, '12a-flight-money-ticket');
+    await _shot(
+        tester,
+        _scoped(scope, const TicketSettleScreen(code: 'BG305-20261021-ab12cd')),
+        '12b-ticket-settle',
+        find.byType(TicketSettleScreen));
+    await _shot(
+        tester,
+        _scoped(scope, const ContributionScreen(code: 'BG305-20261021-ab12cd')),
+        '12c-contributions',
+        find.byType(ContributionScreen));
+    await _scrollShot(tester, '12d-contributions-flyers');
+    await _shot(
+        tester,
+        _scoped(scope, const FlyerPaymentScreen(code: 'BG305-20261021-ab12cd')),
+        '12e-flyer-payment',
+        find.byType(FlyerPaymentScreen));
     await _shot(
         tester,
         _scoped(scope, const ShipmentCostsScreen(code: 'SH-18')),
@@ -224,6 +251,31 @@ void main() {
     await _saveShot(tester, '22b-customer-picker');
     await tester.tap(find.byTooltip(tr('Close')));
     await tester.pumpAndSettle();
+    await tester.tap(find.text(tr('Choose a customer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nila Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('General'));
+    await tester.tap(find.text('Mobile'));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '22c-intake-cargo');
+    await _scrollShot(tester, '22d-intake-pieces');
+    await tester.tap(find.byKey(const Key('intake-next')));
+    await tester.pumpAndSettle();
+    await tester.enterText(_field(tr('Booked kg')), '4');
+    await tester.enterText(_field(tr('Rate per kg')), '950');
+    await tester.enterText(_field(tr('Description')), 'Phones and chargers');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '22e-intake-billing');
+    await tester.tap(find.byKey(const Key('intake-next')));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '22f-intake-review');
+    await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('BG305 · '));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '22g-intake-review-flight');
     await _shot(tester, _scoped(scope, const FinanceScreen()),
         '23-finance-accounts', find.byType(FinanceScreen));
     await tester.tap(find.text(tr('Reports')));
@@ -237,18 +289,36 @@ void main() {
         _scoped(scope, const AdminShipmentScreen(code: 'SH-18')),
         '24-shipment-detail',
         find.byType(AdminShipmentScreen));
+    await _scrollShot(tester, '24a-shipment-detail-handling');
     await tester.tap(find.text(tr('Bill')));
     await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).first, const Offset(0, 2000));
+    await tester.pumpAndSettle();
     await _saveShot(tester, '24b-shipment-billing');
-    await tester.ensureVisible(find.text(tr('Payment')));
-    await tester.tap(find.text(tr('Payment')));
+    await _scrollShot(tester, '24c-shipment-payment');
+    await _scrollShot(tester, '24d-shipment-share');
+    await tester.tap(find.text(tr('Photos')));
     await tester.pumpAndSettle();
-    await _saveShot(tester, '24c-shipment-payment');
-    await tester.tap(find.text(tr('Share link')));
-    await tester.pumpAndSettle();
-    await _saveShot(tester, '24d-shipment-share');
+    await _saveShot(tester, '24e-shipment-photos');
     await _shot(tester, _scoped(scope, const FlightDetailScreen(code: 'BG305')),
         '25-flight-detail', find.byType(FlightDetailScreen));
+    await _shot(
+        tester,
+        _scoped(scope, const FlightDetailScreen(code: 'BG305-20261021-ab12cd')),
+        '25b-flight-detail-bookings',
+        find.byType(FlightDetailScreen));
+    await _scrollShot(tester, '25c-flight-detail-bookings-list');
+    final flyersTab = find.text(tr('Flyers · {n}', {'n': 2}));
+    await tester.ensureVisible(flyersTab);
+    await tester.pumpAndSettle();
+    await tester.tap(flyersTab);
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '25d-flight-detail-flyers');
+    await tester.ensureVisible(find.text(tr('Money')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(tr('Money')));
+    await tester.pumpAndSettle();
+    await _scrollShot(tester, '25e-flight-detail-money', dy: -300);
     await _shot(
         tester,
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
@@ -266,6 +336,43 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -700));
     await tester.pumpAndSettle();
     await _saveShot(tester, '28c-ticket-flights');
+    // Customers and finance.
+    await _shot(
+        tester,
+        _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
+        '26b-customer-shipments',
+        find.byType(CustomerDetailScreen));
+    await tester.tap(find.text(tr('Shipments · {n}', {'n': 1})));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '26b-customer-shipments');
+    await tester.tap(find.text(tr('Transactions')));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '26c-customer-transactions');
+    await _shot(
+        tester,
+        _scoped(
+            scope,
+            const CustomerCreditScreen(
+                code: 'C-14', name: 'Nila Store', orders: [])),
+        '26d-customer-credit',
+        find.byType(CustomerCreditScreen));
+    await _shot(tester, _scoped(scope, const CustomerFormScreen()),
+        '26e-customer-form', find.byType(CustomerFormScreen));
+    await _shot(tester, _scoped(scope, const LedgerScreen()), '29-ledger',
+        find.byType(LedgerScreen));
+    await _shot(
+        tester,
+        _scoped(scope, const OfficeEntryScreen(initialKind: 'expense')),
+        '30-office-expense',
+        find.byType(OfficeEntryScreen));
+    await tester.tap(find.byKey(const Key('account-Dhaka cash')));
+    await tester.enterText(find.byKey(const Key('office-amount')), '1850');
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '30-office-expense');
+    await tester.tap(find.byKey(const Key('office-kind-income')));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '30b-office-income');
+    await _teamShots(tester, scope);
     tester.view.physicalSize = const Size(320, 700);
     _textScale = 1.3;
     for (final entry in <String, Widget>{
@@ -276,8 +383,29 @@ void main() {
       'compact-finance': const FinanceScreen(),
       'compact-settings': const SettingsScreen(),
       'compact-transfer': const TransferScreen(),
+      'compact-customers': const CustomersScreen(),
+      'compact-customer': const CustomerDetailScreen(code: 'C-14'),
+      'compact-statement':
+          const StatementScreen(code: 'C-14', name: 'Nila Store'),
+      'compact-activity':
+          const CustomerActivityScreen(code: 'C-14', name: 'Nila Store'),
+      'compact-ledger': const LedgerScreen(),
+      'compact-office': const OfficeEntryScreen(initialKind: 'expense'),
+      'compact-reconciliation': const ReconciliationScreen(),
       'compact-workspace': MoreScreen(user: session.user!, session: session),
       'compact-login': LoginScreen(onSubmit: (email, password) async {}),
+      'compact-flights': const FlightsScreen(),
+      'compact-flight-detail':
+          const FlightDetailScreen(code: 'BG305-20261021-ab12cd'),
+      'compact-flight-money':
+          const FlightMoneyScreen(code: 'BG305-20261021-ab12cd'),
+      'compact-contributions':
+          const ContributionScreen(code: 'BG305-20261021-ab12cd'),
+      'compact-flyer-payment':
+          const FlyerPaymentScreen(code: 'BG305-20261021-ab12cd'),
+      'compact-shipment': const AdminShipmentScreen(code: 'SH-18'),
+      'compact-shipment-bill':
+          const AdminShipmentScreen(code: 'SH-18', initialTab: 1),
     }.entries) {
       await _shot(tester, _scoped(scope, entry.value), entry.key,
           find.byType(entry.value.runtimeType));
@@ -288,6 +416,7 @@ void main() {
         expect(tester.takeException(), isNull, reason: '${entry.key} scrolled');
       }
     }
+    await _teamCompactShots(tester, scope);
     await _shot(tester, _scoped(scope, const IntakeScreen()),
         '27-compact-booking', find.byType(IntakeScreen));
     await tester.tap(find.text(tr('Choose a customer')));
@@ -306,6 +435,172 @@ void main() {
 }
 
 double _textScale = 1;
+
+Finder _field(String label) => find.byWidgetPredicate(
+    (w) => w is TextField && w.decoration?.labelText == label);
+
+/// The same session on an API that also answers with the team fixtures.
+AppScope _teamScope(AppScope source,
+    {String invoiceState = 'draft',
+    bool needsReview = false,
+    bool cleanupEnabled = false}) {
+  final ApiClient api = screenFixtureApi(
+      intercept: (request) => teamFixtures(request,
+          invoiceState: invoiceState,
+          needsReview: needsReview,
+          cleanupEnabled: cleanupEnabled));
+  return AppScope(
+    session: source.session,
+    shipments: ShipmentRepository(api),
+    dashboard: DashboardRepository(api),
+    tasks: TaskRepository(api),
+    review: ReviewRepository(api),
+    media: MediaRepository(api),
+    flights: FlightRepository(api),
+    flyers: FlyerRepository(api),
+    customers: CustomerRepository(api),
+    finance: FinanceRepository(api),
+    settings: SettingsRepository(api),
+    child: const SizedBox.shrink(),
+  );
+}
+
+const _jamal = StaffAccount(
+    id: 'u3',
+    name: 'Jamal Hossain',
+    email: 'jamal@sbx.test',
+    role: 'hub',
+    active: false);
+const _rafiq = StaffAccount(
+    id: 'u1',
+    name: 'Rafiq',
+    email: 'rafiq@sbx.test',
+    role: 'admin',
+    active: true);
+
+/// Scrolls the first list further down and saves what is shown.
+Future<void> _scrollShot(WidgetTester tester, String name,
+    {double dy = -600}) async {
+  await tester.drag(find.byType(ListView).first, Offset(0, dy));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, name);
+}
+
+/// Flyers, tasks, settings, staff, payment method, invoice and fund forms.
+Future<void> _teamShots(WidgetTester tester, AppScope base) async {
+  final team = _teamScope(base);
+  await _shot(tester, _scoped(team, const FlyersScreen()), '30-flyers',
+      find.byType(FlyersScreen));
+  await _shot(
+      tester,
+      _scoped(team, const FlyerDetailScreen(name: 'Arif Rahman')),
+      '31-flyer-detail',
+      find.byType(FlyerDetailScreen));
+  await _scrollShot(tester, '31b-flyer-documents', dy: -560);
+  await _scrollShot(tester, '31c-flyer-flights', dy: -600);
+  await _shot(tester, _scoped(team, const FlyerFormScreen()), '32-flyer-form',
+      find.byType(FlyerFormScreen));
+  await _shot(
+      tester,
+      _scoped(team, TasksScreen(role: UserRole.admin, tasks: team.tasks)),
+      '33-tasks',
+      find.byType(TasksScreen));
+  await tester.tap(find.byTooltip(tr('New note')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '33b-tasks-compose');
+  await _shot(
+      tester,
+      _scoped(team, TasksScreen(role: UserRole.hub, tasks: team.tasks),
+          tab: 3, hub: true),
+      '34-hub-tasks',
+      find.byType(TasksScreen));
+  await _shot(tester, _scoped(team, const SettingsScreen()), '35-settings',
+      find.byType(SettingsScreen));
+  await _scrollShot(tester, '35b-settings-setup', dy: -600);
+  await _shot(tester, _scoped(team, const StaffScreen()), '36-staff',
+      find.byType(StaffScreen));
+  await _shot(tester, _scoped(team, const StaffCreateScreen()),
+      '37-staff-create', find.byType(StaffCreateScreen));
+  await _shot(
+      tester,
+      _scoped(team, const StaffEditScreen(person: _jamal, selfId: 'u1')),
+      '37b-staff-edit',
+      find.byType(StaffEditScreen));
+  await _shot(
+      tester,
+      _scoped(team, const StaffEditScreen(person: _rafiq, selfId: 'u1')),
+      '37c-staff-edit-self',
+      find.byType(StaffEditScreen));
+  await _shot(tester, _scoped(team, const PayMethodFormScreen()),
+      '38-pay-method', find.byType(PayMethodFormScreen));
+  await tester.enterText(find.byType(TextField).at(1), '01900000000');
+  await tester.enterText(find.byType(TextField).at(2), 'Business');
+  await tester.enterText(find.byType(TextField).at(3),
+      'Send Money only. Write your shipment code as the reference.');
+  await tester.pumpAndSettle();
+  await _scrollShot(tester, '38b-pay-method-preview', dy: -520);
+  await _shot(
+      tester,
+      _scoped(team, const PayMethodFormScreen(initialKind: 'bank_account')),
+      '38c-pay-method-bank',
+      find.byType(PayMethodFormScreen));
+  await _shot(tester, _scoped(team, const InvoiceEditorScreen(code: 'SH-18')),
+      '39-invoice-draft', find.byType(InvoiceEditorScreen));
+  await _scrollShot(tester, '39b-invoice-draft-end', dy: -600);
+  await _shot(
+      tester,
+      _scoped(_teamScope(base, invoiceState: 'issued'),
+          const InvoiceEditorScreen(code: 'SH-18')),
+      '39c-invoice-issued',
+      find.byType(InvoiceEditorScreen));
+  await _shot(
+      tester,
+      _scoped(_teamScope(base, invoiceState: 'issued', needsReview: true),
+          const InvoiceEditorScreen(code: 'SH-18')),
+      '39d-invoice-review',
+      find.byType(InvoiceEditorScreen));
+  await tester.enterText(find.byType(TextField).at(6), '4250');
+  await tester.pumpAndSettle();
+  await _scrollShot(tester, '39e-invoice-free', dy: -420);
+  await _shot(tester, _scoped(team, const FundAccountScreen()), '40-new-fund',
+      find.byType(FundAccountScreen));
+  await tester.enterText(find.byType(TextField).at(0), 'Office petty cash');
+  await tester.enterText(find.byType(TextField).at(1), '5000');
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '40b-new-fund-filled');
+}
+
+/// The same screens at 320 px with 1.3× text; nothing may overflow.
+Future<void> _teamCompactShots(WidgetTester tester, AppScope base) async {
+  final team = _teamScope(base);
+  for (final entry in <String, Widget>{
+    'compact-flyers': const FlyersScreen(),
+    'compact-flyer-detail': const FlyerDetailScreen(name: 'Arif Rahman'),
+    'compact-flyer-form': const FlyerFormScreen(),
+    'compact-tasks': TasksScreen(role: UserRole.admin, tasks: team.tasks),
+    'compact-team-settings': const SettingsScreen(),
+    'compact-staff': const StaffScreen(),
+    'compact-staff-edit': const StaffEditScreen(person: _jamal, selfId: 'u1'),
+    'compact-pay-method': const PayMethodFormScreen(),
+    'compact-pay-bank': const PayMethodFormScreen(initialKind: 'bank_account'),
+    'compact-invoice': const InvoiceEditorScreen(code: 'SH-18'),
+    'compact-new-fund': const FundAccountScreen(),
+  }.entries) {
+    await _shot(tester, _scoped(team, entry.value), entry.key,
+        find.byType(entry.value.runtimeType));
+    if (entry.value is TasksScreen) {
+      await tester.tap(find.byTooltip(tr('New note')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '${entry.key} compose');
+    }
+    for (var i = 0; i < 3; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '${entry.key} scrolled');
+    }
+    await _saveShot(tester, '${entry.key}-end');
+  }
+}
 
 Widget _scoped(AppScope source, Widget home, {int? tab, bool hub = false}) {
   return AppScope(
@@ -333,9 +628,8 @@ Widget _scoped(AppScope source, Widget home, {int? tab, bool hub = false}) {
                 body: home,
                 bottomNavigationBar: AppBottomNav(
                     index: home is MoreScreen ? 4 : tab,
-                    admin: !hub &&
-                        home is! HubHomeScreen &&
-                        home is! TasksScreen,
+                    admin:
+                        !hub && home is! HubHomeScreen && home is! TasksScreen,
                     onChanged: (_) {}))),
   );
 }

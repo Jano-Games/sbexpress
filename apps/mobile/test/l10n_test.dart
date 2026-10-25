@@ -6,15 +6,19 @@ import 'package:sbexpress/l10n/bn_admin.dart';
 import 'package:sbexpress/l10n/bn_billing.dart';
 import 'package:sbexpress/l10n/bn_core.dart';
 import 'package:sbexpress/l10n/bn_finance.dart';
+import 'package:sbexpress/l10n/bn_finance_ui.dart';
 import 'package:sbexpress/l10n/bn_flights.dart';
+import 'package:sbexpress/l10n/bn_flights_ui.dart';
 import 'package:sbexpress/l10n/bn_hub.dart';
 import 'package:sbexpress/l10n/bn_shared.dart';
+import 'package:sbexpress/l10n/bn_team_ui.dart';
 import 'package:sbexpress/l10n/l10n.dart';
 
 /// Bangla letters; the taka sign ৳ (U+09F3) is a currency symbol, not text.
 final _bangla = RegExp('[ঀ-৲৴-৿]');
 final _literal = RegExp(r"'(?:[^'\\\n]|\\.)*'|" r'"(?:[^"\\\n]|\\.)*"');
-final _trCall = RegExp(r"""\btr\(\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")""");
+final _trCall =
+    RegExp(r"""\btr\(\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")""");
 final _trnCall = RegExp(
     r"""\btrn\([^,]+,\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")\s*,\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")""");
 final _placeholder = RegExp(r'\{(\w+)\}');
@@ -22,10 +26,8 @@ final _placeholder = RegExp(r'\{(\w+)\}');
 /// Language names are written in their own script on purpose.
 const _allowedBangla = {'বাংলা'};
 
-Iterable<File> _sources() => Directory('lib')
-    .listSync(recursive: true)
-    .whereType<File>()
-    .where((file) =>
+Iterable<File> _sources() =>
+    Directory('lib').listSync(recursive: true).whereType<File>().where((file) =>
         file.path.endsWith('.dart') &&
         !file.path.replaceAll(r'\', '/').contains('lib/l10n/'));
 
@@ -35,9 +37,8 @@ String _code(File file) => file
     .where((line) => !line.trimLeft().startsWith('//'))
     .join('\n');
 
-String _unquote(String literal) => literal
-    .substring(1, literal.length - 1)
-    .replaceAllMapped(RegExp(r'\\(.)'),
+String _unquote(String literal) =>
+    literal.substring(1, literal.length - 1).replaceAllMapped(RegExp(r'\\(.)'),
         (m) => switch (m.group(1)!) { 'n' => '\n', 't' => '\t', final c => c });
 
 Set<String> _placeholders(String text) =>
@@ -97,6 +98,9 @@ void main() {
       'billing': bnBilling,
       'finance': bnFinance,
       'flights': bnFlights,
+      'flightsUi': bnFlightsUi,
+      'teamUi': bnTeamUi,
+      'financeUi': bnFinanceUi,
       'core': bnCore,
     };
     final seen = <String, (String, String)>{};

@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/workspace.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
 import 'pay_method_form_screen.dart';
@@ -25,6 +26,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _error;
   var _loading = true;
   var _busy = false;
+
+  /// Null until the first load; then open while a setup check is missing.
+  bool? _setupOpen;
   final _rate = TextEditingController();
 
   @override
@@ -58,6 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _settings = current;
         _methods = methods;
         _staff = staff;
+        _setupOpen ??= _checks(setup).any((check) => !check.ok);
         if (_rate.text.isEmpty && setup.rateConfirmed) {
           _rate.text = current.rate.toString();
         }
@@ -119,195 +124,362 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) await _load();
   }
 
+  Future<void> _newMethod() async {
+    final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const PayMethodFormScreen()));
+    if (saved == true && mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final setup = _setup;
     final settings = _settings;
-    return Scaffold(
-        appBar: BackTitle(title: tr('Settings')),
-        body: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding:
-                    const EdgeInsets.fromLTRB(pageGutter, 12, pageGutter, 32),
-                children: [
-                  Text(tr('Payments, exchange rate and your team'),
-                      style: const TextStyle(
-                          color: AppColors.muted, fontSize: 13)),
-                  const SizedBox(height: 24),
-                  if (_loading && setup == null)
-                    const LinearProgressIndicator(),
-                  if (_error != null)
-                    ErrorNote(message: _error!, onRetry: _load),
-                  if (setup != null && settings != null) ...[
-                    SectionTitle(title: tr('Exchange rate')),
-                    PaperCard(
+    return WorkspaceScaffold(
+        title: tr('Settings'),
+        subtitle: tr('Payments, exchange rate and your team'),
+        root: false,
+        onRefresh: _load,
+        children: [
+          if (_loading && setup == null) const LinearProgressIndicator(),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (setup != null && settings != null) ...[
+            _rateCard(setup, settings),
+            const SizedBox(height: 22),
+            SectionTitle(
+                title: tr('Payment methods'),
+                subtitle: tr('Shown on the customer link'),
+                action: BarPillButton(label: tr('New'), onPressed: _newMethod)),
+            if (_methods.isEmpty)
+              EmptyNote(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: tr('No methods'),
+                  body: tr('Add bKash, bank or wallet details.'))
+            else
+              SurfaceGroup(children: [
+                for (final method in _methods)
+                  _MethodRow(
+                      method: method,
+                      onChanged: _busy ? null : (_) => _toggle(method)),
+              ]),
+            const SizedBox(height: 22),
+            SectionTitle(title: tr('Team and operations')),
+            SurfaceGroup(children: [
+              MenuRow(
+                  title: tr('Staff management'),
+                  subtitle: tr('{count} active · Access and passwords', {
+                    'count': _staff.where((person) => person.active).length
+                  }),
+                  icon: Icons.people_outline_rounded,
+                  onTap: _openStaff),
+              Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(children: [
+                    const IconBadge(Icons.balance_rounded,
+                        tone: ChipTone.neutral),
+                    const SizedBox(width: 12),
+                    Expanded(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                          Row(children: [
-                            const Icon(Icons.currency_exchange_rounded,
-                                color: AppColors.teal, size: 21),
-                            const SizedBox(width: 10),
-                            Expanded(
-                                child: Text(
-                                    '1 CNY = ${formatBdt(settings.rate)}',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 17))),
-                          ]),
-                          const SizedBox(height: 6),
-                          Text(tr('New transactions use this rate.'),
+                          Text(tr('Weight alert'),
                               style: const TextStyle(
-                                  color: AppColors.muted, fontSize: 12)),
-                          const SizedBox(height: 16),
-                          Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                    child: TextField(
-                                        controller: _rate,
-                                        keyboardType: const TextInputType
-                                            .numberWithOptions(decimal: true),
-                                        decoration: InputDecoration(
-                                            labelText: tr('BDT per CNY')))),
-                                const SizedBox(width: 12),
-                                AppButton(
-                                    label: tr('Save rate'),
-                                    expand: false,
-                                    busy: _busy,
-                                    onPressed: _saveRate),
-                              ]),
+                                  fontSize: 15, fontWeight: FontWeight.w600)),
+                          Text(tr('Booked vs weighed difference'),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: AppColors.muted)),
                         ])),
-                    const SizedBox(height: 24),
-                    SectionTitle(
-                        title: tr('Payment methods'),
-                        subtitle: tr('Shown on the customer link'),
-                        action: TextButton.icon(
-                            icon: const Icon(Icons.add_rounded, size: 17),
-                            label: Text(tr('New')),
-                            onPressed: () async {
-                              final saved = await Navigator.of(context)
-                                  .push<bool>(MaterialPageRoute(
-                                      builder: (_) =>
-                                          const PayMethodFormScreen()));
-                              if (saved == true && mounted) await _load();
-                            })),
-                    if (_methods.isEmpty)
-                      EmptyNote(
-                          title: tr('No methods'),
-                          body: tr('Add bKash, bank or wallet details.'))
-                    else
-                      SurfaceGroup(children: [
-                        for (final method in _methods)
-                          SwitchListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 6),
-                              value: method.enabled,
-                              onChanged: _busy ? null : (_) => _toggle(method),
-                              title: Text(method.title,
+                    const SizedBox(width: 8),
+                    Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: AppColors.neutralSoft,
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text('${plainNumber(settings.threshold)} kg',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.inkSoft))),
+                  ])),
+            ]),
+            const SizedBox(height: 22),
+            _setupCard(setup),
+          ],
+        ]);
+  }
+
+  Widget _rateCard(SetupStatus setup, SettingsSnapshot settings) => PaperCard(
+      radius: heroRadius,
+      padding: const EdgeInsets.all(18),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const IconBadge(Icons.swap_horiz_rounded, size: 44),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(tr('Exchange rate'),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.muted)),
+                FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text('1 CNY = ${formatBdt(settings.rate)}',
+                        maxLines: 1,
+                        style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                            fontFeatures: [FontFeature.tabularFigures()]))),
+              ])),
+          const SizedBox(width: 8),
+          setup.rateConfirmed
+              ? StatusPill(label: tr('Confirmed'), tone: ChipTone.green)
+              : StatusPill(label: tr('Not confirmed'), tone: ChipTone.amber),
+        ]),
+        const SizedBox(height: 8),
+        Text(tr('New transactions use this rate.'),
+            style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+        const SizedBox(height: 14),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(
+              child: LabeledField(
+                  label: tr('BDT per CNY'),
+                  child: TextField(
+                      controller: _rate,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                          prefixIcon: fieldSign('৳'),
+                          prefixIconConstraints: fieldSignConstraints)))),
+          const SizedBox(width: 10),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: AppButton(
+                  label: tr('Save rate'),
+                  expand: false,
+                  busy: _busy,
+                  onPressed: _saveRate)),
+        ]),
+      ]));
+
+  List<({String label, String value, bool ok})> _checks(SetupStatus setup) => [
+        (
+          label: tr('CNY rate'),
+          value: setup.rateConfirmed ? tr('Confirmed') : tr('Not confirmed'),
+          ok: setup.rateConfirmed
+        ),
+        (
+          label: tr('Fund accounts'),
+          value: '${setup.accounts}',
+          ok: setup.accounts > 0
+        ),
+        (
+          label: tr('Payment methods'),
+          value: '${setup.paymentMethods}',
+          ok: setup.paymentMethods > 0
+        ),
+        (
+          label: tr('Active staff'),
+          value: '${setup.users}',
+          ok: setup.users > 0
+        ),
+        (
+          label: tr('Storage'),
+          value: setup.storageConfigured ? tr('Set up') : tr('Not set up'),
+          ok: setup.storageConfigured
+        ),
+        (
+          label: tr('Media cleanup'),
+          value: setup.cleanupEnabled ? tr('On') : tr('Off'),
+          ok: setup.cleanupEnabled
+        ),
+      ];
+
+  Widget _setupCard(SetupStatus setup) {
+    final checks = _checks(setup);
+    final done = checks.where((check) => check.ok).length;
+    final open = _setupOpen ?? false;
+    return PaperCard(
+        padding: EdgeInsets.zero,
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Semantics(
+              expanded: open,
+              button: true,
+              child: InkWell(
+                  onTap: () => setState(() => _setupOpen = !open),
+                  child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(children: [
+                        const IconBadge(Icons.fact_check_outlined,
+                            tone: ChipTone.neutral),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(tr('System setup'),
                                   style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500)),
-                              subtitle: Text(
-                                  '${method.currency} · ${method.detail}',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600)),
+                              Text(tr('Connections and required settings'),
                                   style: const TextStyle(
-                                      fontSize: 12, color: AppColors.muted))),
-                      ]),
-                    const SizedBox(height: 24),
-                    SectionTitle(title: tr('Team and operations')),
-                    SurfaceGroup(children: [
-                      MenuRow(
-                          title: tr('Staff management'),
-                          subtitle: tr(
-                              '{count} active · Access and passwords', {
-                            'count':
-                                _staff.where((person) => person.active).length
-                          }),
-                          icon: Icons.people_outline_rounded,
-                          onTap: _openStaff),
-                      Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(children: [
-                            const Icon(Icons.scale_outlined,
-                                size: 21, color: AppColors.muted),
-                            const SizedBox(width: 14),
-                            Expanded(
-                                child: Text(
-                                    tr('Alert when the weight difference exceeds {kg} kg',
-                                        {'kg': settings.threshold}),
-                                    style: const TextStyle(fontSize: 13))),
-                          ])),
-                    ]),
-                    const SizedBox(height: 24),
-                    PaperCard(
-                        padding: EdgeInsets.zero,
-                        child: ExpansionTile(
-                            tilePadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 4),
-                            leading: const Icon(Icons.checklist_rounded,
-                                color: AppColors.muted, size: 22),
-                            title: Text(tr('System setup'),
-                                style: const TextStyle(
-                                    fontSize: 14, fontWeight: FontWeight.w500)),
-                            subtitle: Text(
-                                tr('Connections and required settings'),
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.muted)),
-                            childrenPadding:
-                                const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                            shape: const Border(),
-                            collapsedShape: const Border(),
-                            children: [
-                              _Check(
-                                  label: tr('CNY rate confirmed'),
-                                  ok: setup.rateConfirmed),
-                              _Check(
-                                  label: tr('Fund accounts: {n}',
-                                      {'n': setup.accounts}),
-                                  ok: setup.accounts > 0),
-                              _Check(
-                                  label: tr('Payment methods: {n}',
-                                      {'n': setup.paymentMethods}),
-                                  ok: setup.paymentMethods > 0),
-                              _Check(
-                                  label: tr(
-                                      'Active staff: {n}', {'n': setup.users}),
-                                  ok: setup.users > 0),
-                              _Check(
-                                  label: tr('Storage'),
-                                  ok: setup.storageConfigured),
-                              _Check(
-                                  label: tr('Media cleanup'),
-                                  ok: setup.cleanupEnabled),
-                              if (setup.lastCleanupAt != null)
-                                Text(
-                                    tr('Last cleanup {at}',
-                                        {'at': setup.lastCleanupAt}),
-                                    style: const TextStyle(
-                                        color: AppColors.muted, fontSize: 12)),
+                                      fontSize: 13,
+                                      height: 1.4,
+                                      color: AppColors.muted)),
                             ])),
-                  ],
-                ])));
+                        const SizedBox(width: 8),
+                        StatusPill(
+                            label: '$done / ${checks.length}',
+                            tone: done == checks.length
+                                ? ChipTone.green
+                                : ChipTone.neutral),
+                        const SizedBox(width: 4),
+                        Icon(
+                            open
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            size: 22,
+                            color: AppColors.muted),
+                      ])))),
+          if (open)
+            Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ExcludeSemantics(
+                          child: StepBars(
+                              done: done,
+                              total: checks.length,
+                              current: false,
+                              height: 6)),
+                      const SizedBox(height: 12),
+                      for (var i = 0; i < checks.length; i += 2) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        IntrinsicHeight(
+                            child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                              Expanded(child: _CheckTile(check: checks[i])),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                  child: i + 1 < checks.length
+                                      ? _CheckTile(check: checks[i + 1])
+                                      : const SizedBox.shrink()),
+                            ])),
+                      ],
+                      if (setup.lastCleanupAt != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                            tr('Last cleanup {at}',
+                                {'at': setup.lastCleanupAt}),
+                            style: const TextStyle(
+                                color: AppColors.muted, fontSize: 12)),
+                      ],
+                    ])),
+        ]));
   }
 }
 
-class _Check extends StatelessWidget {
-  const _Check({required this.label, required this.ok});
-  final String label;
-  final bool ok;
+class _MethodRow extends StatelessWidget {
+  const _MethodRow({required this.method, required this.onChanged});
+  final PayMethodInfo method;
+  final ValueChanged<bool>? onChanged;
+
   @override
-  Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(children: [
-        Icon(
-            ok
-                ? Icons.check_circle_outline_rounded
-                : Icons.radio_button_unchecked,
-            size: 18,
-            color: ok ? AppColors.ok : AppColors.muted),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
-      ]));
+  Widget build(BuildContext context) {
+    final bank = method.kind == 'bank_account';
+    final detail = [
+      method.currency,
+      bank
+          ? tr('bank account')
+          : method.number.isEmpty
+              ? method.provider
+              : method.number,
+      if (!method.enabled) tr('hidden'),
+    ].join(' · ');
+    return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        child: Row(children: [
+          IconBadge(
+              bank ? Icons.account_balance_outlined : Icons.smartphone_rounded,
+              tone: method.enabled ? ChipTone.blue : ChipTone.neutral),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(method.title,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: method.enabled
+                            ? AppColors.ink
+                            : AppColors.inkSoft)),
+                Text(detail,
+                    style: const TextStyle(
+                        fontSize: 13, height: 1.4, color: AppColors.muted)),
+              ])),
+          const SizedBox(width: 8),
+          Semantics(
+              label: method.title,
+              child: Switch(value: method.enabled, onChanged: onChanged)),
+        ]));
+  }
+}
+
+class _CheckTile extends StatelessWidget {
+  const _CheckTile({required this.check});
+  final ({String label, String value, bool ok}) check;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(children: [
+          Icon(
+              check.ok
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 18,
+              color: check.ok ? AppColors.ok : AppColors.muted),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                Text(check.label,
+                    style: const TextStyle(
+                        fontSize: 12, height: 1.35, color: AppColors.muted)),
+                Text(check.value,
+                    style: TextStyle(
+                        fontSize: 14,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        color: check.ok ? AppColors.ink : AppColors.muted)),
+              ])),
+        ]));
+    return check.ok
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(controlRadius)),
+            child: body)
+        : DashedOutline(
+            color: AppColors.field,
+            strokeWidth: 1,
+            background: AppColors.card,
+            child: body);
+  }
 }

@@ -8,9 +8,12 @@ import 'bn_admin.dart';
 import 'bn_billing.dart';
 import 'bn_core.dart';
 import 'bn_finance.dart';
+import 'bn_finance_ui.dart';
 import 'bn_flights.dart';
+import 'bn_flights_ui.dart';
 import 'bn_hub.dart';
 import 'bn_shared.dart';
+import 'bn_team_ui.dart';
 
 final Map<String, String> bnStrings = {
   ...bnShared,
@@ -19,5 +22,8 @@ final Map<String, String> bnStrings = {
   ...bnBilling,
   ...bnFinance,
   ...bnFlights,
+  ...bnFlightsUi,
+  ...bnTeamUi,
+  ...bnFinanceUi,
   ...bnCore,
 };

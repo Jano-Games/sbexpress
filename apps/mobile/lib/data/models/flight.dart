@@ -3,11 +3,16 @@ import 'shipment.dart';
 
 /// Airline number without the internal booking suffix (`BG305-20261020-ab12cd`).
 String displayFlightCode(String code) {
-  return code.replaceAll(RegExp(r'-\d{8}-[a-z0-9]+$', caseSensitive: false), '').replaceAll('+', '-');
+  return code
+      .replaceAll(RegExp(r'-\d{8}-[a-z0-9]+$', caseSensitive: false), '')
+      .replaceAll('+', '-');
 }
 
 class FlightSettlement {
-  const FlightSettlement({required this.name, required this.contribution, required this.paidAmount});
+  const FlightSettlement(
+      {required this.name,
+      required this.contribution,
+      required this.paidAmount});
 
   final String name;
   final double contribution;
@@ -51,6 +56,8 @@ class FlightSummary {
     required this.revenue,
     required this.scheduleNeedsConfirmation,
     required this.settlements,
+    this.from,
+    this.to,
   });
 
   final String code;
@@ -79,7 +86,19 @@ class FlightSummary {
   final bool scheduleNeedsConfirmation;
   final List<FlightSettlement> settlements;
 
+  /// First departure and last arrival place from the itinerary legs; null
+  /// when the server sends no legs.
+  final String? from;
+  final String? to;
+
   String get displayCode => displayFlightCode(code);
+
+  /// "Via KMG Kunming" without the prefix; null for a direct flight.
+  String? get stopLabel {
+    final trimmed = via.trim();
+    if (trimmed.isEmpty || trimmed.toLowerCase() == 'direct') return null;
+    return trimmed.replaceFirst(RegExp(r'^via\s+', caseSensitive: false), '');
+  }
 
   double get fill {
     if (spaceKg <= 0) return 0;
@@ -90,7 +109,12 @@ class FlightSummary {
   }
 
   factory FlightSummary.fromJson(Map<String, Object?> json) {
+    final legs = json.containsKey('legs')
+        ? asMapList(json['legs'], 'legs')
+        : const <Map<String, Object?>>[];
     return FlightSummary(
+      from: legs.isEmpty ? null : _legPlace(legs.first, 'fromCity', 'fromIata'),
+      to: legs.isEmpty ? null : _legPlace(legs.last, 'toCity', 'toIata'),
       code: requiredString(json, 'code'),
       date: requiredString(json, 'date'),
       depTime: requiredString(json, 'depTime'),
@@ -102,8 +126,12 @@ class FlightSummary {
       flyerDue: requiredDouble(json, 'flyerDue'),
       ticketPaid: requiredDouble(json, 'ticketPaid'),
       ticketDue: requiredDouble(json, 'ticketDue'),
-      ticketRefundDue: json.containsKey('ticketRefundDue') ? requiredDouble(json, 'ticketRefundDue') : 0,
-      unallocatedFlyerPaid: json.containsKey('unallocatedFlyerPaid') ? requiredDouble(json, 'unallocatedFlyerPaid') : 0,
+      ticketRefundDue: json.containsKey('ticketRefundDue')
+          ? requiredDouble(json, 'ticketRefundDue')
+          : 0,
+      unallocatedFlyerPaid: json.containsKey('unallocatedFlyerPaid')
+          ? requiredDouble(json, 'unallocatedFlyerPaid')
+          : 0,
       spaceKg: requiredInt(json, 'spaceKg'),
       mobiles: requiredInt(json, 'mobiles'),
       laptops: requiredInt(json, 'laptops'),
@@ -114,14 +142,28 @@ class FlightSummary {
       flyers: requiredStringList(json, 'flyers'),
       shipmentCount: requiredInt(json, 'shipmentCount'),
       revenue: requiredDouble(json, 'revenue'),
-      scheduleNeedsConfirmation: requiredBool(json, 'scheduleNeedsConfirmation'),
-      settlements: [for (final row in requiredMapList(json, 'settlements')) FlightSettlement.fromJson(row)],
+      scheduleNeedsConfirmation:
+          requiredBool(json, 'scheduleNeedsConfirmation'),
+      settlements: [
+        for (final row in requiredMapList(json, 'settlements'))
+          FlightSettlement.fromJson(row)
+      ],
     );
   }
 }
 
+/// City, else airport code, of one end of a leg.
+String? _legPlace(Map<String, Object?> leg, String cityKey, String iataKey) {
+  for (final key in [cityKey, iataKey]) {
+    final value = leg[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+  }
+  return null;
+}
+
 class FlyerOnFlight {
-  const FlyerOnFlight({required this.name, required this.bdPhone, required this.initial});
+  const FlyerOnFlight(
+      {required this.name, required this.bdPhone, required this.initial});
 
   final String name;
   final String bdPhone;
@@ -137,7 +179,10 @@ class FlyerOnFlight {
 }
 
 class FlightDetail {
-  const FlightDetail({required this.summary, required this.flyerDetails, required this.bookings});
+  const FlightDetail(
+      {required this.summary,
+      required this.flyerDetails,
+      required this.bookings});
 
   final FlightSummary summary;
   final List<FlyerOnFlight> flyerDetails;
@@ -146,8 +191,14 @@ class FlightDetail {
   factory FlightDetail.fromJson(Map<String, Object?> json) {
     return FlightDetail(
       summary: FlightSummary.fromJson(json),
-      flyerDetails: [for (final row in requiredMapList(json, 'flyerDetails')) FlyerOnFlight.fromJson(row)],
-      bookings: [for (final row in requiredMapList(json, 'bookings')) AdminShipment.fromJson(row)],
+      flyerDetails: [
+        for (final row in requiredMapList(json, 'flyerDetails'))
+          FlyerOnFlight.fromJson(row)
+      ],
+      bookings: [
+        for (final row in requiredMapList(json, 'bookings'))
+          AdminShipment.fromJson(row)
+      ],
     );
   }
 }
@@ -186,6 +237,7 @@ class FlightDraft {
         'laptops': laptops,
         'actualCost': actualCost,
         'agencyShare': agencyShare,
-        if (accountName != null && accountName!.trim().isNotEmpty) 'accountName': accountName!.trim(),
+        if (accountName != null && accountName!.trim().isNotEmpty)
+          'accountName': accountName!.trim(),
       };
 }
