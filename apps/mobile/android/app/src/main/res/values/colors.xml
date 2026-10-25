@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand blue, AppColors.primary in lib/theme/app_colors.dart. -->
+    <color name="ic_launcher_background">#2459B8</color>
+    <color name="splash_background">#2459B8</color>
+</resources>

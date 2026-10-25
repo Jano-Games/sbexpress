@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:sbexpress/features/auth/login_screen.dart';
+import 'package:sbexpress/features/auth/splash_screen.dart';
 import 'package:sbexpress/features/hub/hub_home_screen.dart';
 import 'package:sbexpress/features/flights/hub_flights_screen.dart';
 import 'package:sbexpress/features/shipments/shipment_process_screen.dart';
@@ -101,6 +102,12 @@ void main() {
       child: const SizedBox.shrink(),
     );
 
+    // The splash's loading bar never settles, so pump a fixed time.
+    await tester.pumpWidget(RepaintBoundary(
+        key: const Key('capture'),
+        child: _scoped(scope, const SplashScreen())));
+    await tester.pump(const Duration(milliseconds: 800));
+    await _saveShot(tester, '00-splash');
     await _shot(
         tester,
         _scoped(scope, LoginScreen(onSubmit: (email, password) async {})),

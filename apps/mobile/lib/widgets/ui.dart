@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
+import 'brand_mark.dart';
 
 class PageHeader extends StatelessWidget {
   const PageHeader(
@@ -56,15 +57,7 @@ class BrandLockup extends StatelessWidget {
   final bool onDark;
   @override
   Widget build(BuildContext context) => Row(children: [
-        Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-                color: onDark ? Colors.white : AppColors.primary,
-                borderRadius: BorderRadius.circular(13)),
-            child: Icon(Icons.inventory_2_outlined,
-                color: onDark ? AppColors.primary : Colors.white, size: 23)),
+        BrandMark(onDark: onDark),
         const SizedBox(width: 12),
         Expanded(
             child:

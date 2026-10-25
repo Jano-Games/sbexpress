@@ -1,15 +1,21 @@
+import 'package:flutter/foundation.dart';
+
 import 'l10n/l10n.dart';
 
-/// Backend origin. The default is debug-only.
+/// Production backend; release builds use it unless told otherwise.
+const productionApiBaseUrl = 'https://api.sbexpress.jhotpot.app';
+
+/// Backend origin. Release builds default to [productionApiBaseUrl], debug
+/// builds and tests to this machine.
 ///
 /// Override at build/run time:
 /// `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3002`
 ///
-/// Release builds must pass an `https` origin. Debug may use `http` only for
+/// Release builds must use an `https` origin. Debug may use `http` only for
 /// a loopback host (this machine, or the Android emulator host).
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://localhost:3002',
+  defaultValue: kReleaseMode ? productionApiBaseUrl : 'http://localhost:3002',
 );
 
 bool isLoopbackHost(String host) {

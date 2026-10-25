@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app_scope.dart';
 import 'data/api/api_client.dart';
 import 'data/session/session_controller.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/splash_screen.dart';
 import 'features/shell/main_shell.dart';
 import 'l10n/l10n.dart';
 import 'theme/app_colors.dart';
@@ -11,11 +14,19 @@ import 'theme/app_theme.dart';
 
 class SbExpressApp extends StatefulWidget {
   const SbExpressApp(
-      {super.key, required this.session, required this.api, this.language});
+      {super.key,
+      required this.session,
+      required this.api,
+      this.language,
+      this.splashMinimum = Duration.zero});
 
   final SessionController session;
   final ApiClient api;
   final LanguageStore? language;
+
+  /// How long the splash stays up at launch even when sign-in is restored
+  /// at once. Tests leave it at zero.
+  final Duration splashMinimum;
 
   @override
   State<SbExpressApp> createState() => _SbExpressAppState();
@@ -24,11 +35,19 @@ class SbExpressApp extends StatefulWidget {
 class _SbExpressAppState extends State<SbExpressApp> {
   var _navigatorGeneration = 0;
   var _hadUser = false;
+  var _holdSplash = false;
+  Timer? _splashTimer;
 
   @override
   void initState() {
     super.initState();
     widget.session.addListener(_onSession);
+    if (widget.splashMinimum > Duration.zero) {
+      _holdSplash = true;
+      _splashTimer = Timer(widget.splashMinimum, () {
+        if (mounted) setState(() => _holdSplash = false);
+      });
+    }
   }
 
   @override
@@ -42,6 +61,7 @@ class _SbExpressAppState extends State<SbExpressApp> {
 
   @override
   void dispose() {
+    _splashTimer?.cancel();
     widget.session.removeListener(_onSession);
     super.dispose();
   }
@@ -68,7 +88,7 @@ class _SbExpressAppState extends State<SbExpressApp> {
           title: 'SBExpress',
           theme: buildAppTheme(),
           debugShowCheckedModeBanner: false,
-          home: AuthGate(session: widget.session),
+          home: AuthGate(session: widget.session, holdSplash: _holdSplash),
         ),
       ),
     );
@@ -76,9 +96,12 @@ class _SbExpressAppState extends State<SbExpressApp> {
 }
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key, required this.session});
+  const AuthGate({super.key, required this.session, this.holdSplash = false});
 
   final SessionController session;
+
+  /// Keeps the splash up while the launch minimum has not passed.
+  final bool holdSplash;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -98,10 +121,8 @@ class _AuthGateState extends State<AuthGate> {
     return ListenableBuilder(
       listenable: widget.session,
       builder: (context, _) {
-        if (!widget.session.ready) {
-          return const Scaffold(
-              body: Center(
-                  child: CircularProgressIndicator(color: AppColors.teal)));
+        if (!widget.session.ready || widget.holdSplash) {
+          return const SplashScreen();
         }
         final banner = widget.session.banner;
         if (widget.session.user == null) {
