@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
@@ -62,12 +63,13 @@ class _FlightMoneyScreenState extends State<FlightMoneyScreen> {
   @override
   Widget build(BuildContext context) {
     final summary = _detail?.summary;
-    return WorkspaceScaffold(title: 'টিকিটের টাকা', root: false, children: [
-      const Padding(
-          padding: EdgeInsets.only(bottom: 20),
+    return WorkspaceScaffold(title: tr('Ticket money'), root: false, children: [
+      Padding(
+          padding: const EdgeInsets.only(bottom: 20),
           child: Text(
-              'আগে কনট্রিবিউশন ভাগ করুন, তারপর ফ্লায়ারের জমা। টিকিট ক্যাশ আলাদা।',
-              style: TextStyle(
+              tr(
+                  'Split contributions first, then record flyer payments. Ticket payment is separate.'),
+              style: const TextStyle(
                   fontSize: 13, color: AppColors.muted, height: 1.5))),
       if (_loading && summary == null)
         const LinearProgressIndicator(
@@ -80,37 +82,41 @@ class _FlightMoneyScreenState extends State<FlightMoneyScreen> {
         PaperCard(
           child: Column(
             children: [
-              KvRow(label: 'আসল খরচ', value: formatBdt(summary.actualCost)),
-              KvRow(label: 'এজেন্সি', value: formatBdt(summary.agencyShare)),
-              KvRow(label: 'ফ্লায়ার বাকি', value: formatBdt(summary.flyerDue)),
               KvRow(
-                  label: 'টিকিট বাকি',
+                  label: tr('Actual cost'),
+                  value: formatBdt(summary.actualCost)),
+              KvRow(label: tr('Agency'), value: formatBdt(summary.agencyShare)),
+              KvRow(
+                  label: tr('Due from flyers'),
+                  value: formatBdt(summary.flyerDue)),
+              KvRow(
+                  label: tr('Ticket due'),
                   value: formatBdt(summary.ticketDue),
                   valueColor:
                       summary.ticketDue > 0 ? AppColors.danger : AppColors.ok),
               KvRow(
-                  label: 'টিকিট রিফান্ড',
+                  label: tr('Ticket refund'),
                   value: formatBdt(summary.ticketRefundDue)),
               if (summary.unallocatedFlyerPaid > 0)
                 KvRow(
-                    label: 'অবণ্টিত জমা',
+                    label: tr('Unallocated payments'),
                     value: formatBdt(summary.unallocatedFlyerPaid)),
             ],
           ),
         ),
         const SizedBox(height: 16),
         AppButton(
-            label: 'টিকিট ক্যাশ সেটল',
+            label: tr('Settle ticket payment'),
             kind: AppButtonKind.current,
             onPressed: () => _open(TicketSettleScreen(code: widget.code))),
         const SizedBox(height: 8),
         AppButton(
-            label: 'কনট্রিবিউশন ভাগ',
+            label: tr('Split contributions'),
             kind: AppButtonKind.teal,
             onPressed: () => _open(ContributionScreen(code: widget.code))),
         const SizedBox(height: 8),
         AppButton(
-            label: 'ফ্লায়ার জমা',
+            label: tr('Flyer payment'),
             kind: AppButtonKind.teal,
             onPressed: () => _open(FlyerPaymentScreen(code: widget.code))),
       ],
@@ -163,18 +169,32 @@ class _TicketSettleScreenState extends State<TicketSettleScreen> {
       if (row.name == _account) account = row;
     }
     if (summary == null || account == null) {
-      setState(() => _error = 'অ্যাকাউন্ট বেছে নিন।');
+      setState(() => _error = tr('Choose an account.'));
       return;
     }
     final chosen = account;
     if (summary.ticketDue <= 0 && summary.ticketRefundDue <= 0) {
-      setState(() => _error = 'টিকিটে সেটল করার মতো বাকি বা রিফান্ড নেই।');
+      setState(
+          () => _error = tr('Nothing is due or to refund on this ticket.'));
       return;
     }
     final effect = summary.ticketDue > 0
-        ? 'বাকি ${bdtFundMovement(amountBdt: summary.ticketDue, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: false)}'
-        : 'রিফান্ড ${bdtFundMovement(amountBdt: summary.ticketRefundDue, accountName: chosen.name, accountCurrency: chosen.currency, intoAccount: true)}';
-    final ok = await confirmMoney(context, title: 'টিকিট সেটল', body: effect);
+        ? tr('Due: {movement}', {
+            'movement': bdtFundMovement(
+                amountBdt: summary.ticketDue,
+                accountName: chosen.name,
+                accountCurrency: chosen.currency,
+                intoAccount: false)
+          })
+        : tr('Refund: {movement}', {
+            'movement': bdtFundMovement(
+                amountBdt: summary.ticketRefundDue,
+                accountName: chosen.name,
+                accountCurrency: chosen.currency,
+                intoAccount: true)
+          });
+    final ok =
+        await confirmMoney(context, title: tr('Settle ticket'), body: effect);
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -196,24 +216,26 @@ class _TicketSettleScreenState extends State<TicketSettleScreen> {
   Widget build(BuildContext context) {
     final summary = _summary;
     return WorkspaceScaffold(
-        title: 'টিকিট ক্যাশ',
+        title: tr('Ticket payment'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'সেটল করুন',
+                label: tr('Settle now'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'শুধু বাকি টিকিট খরচ বা রিফান্ড এই অ্যাকাউন্টে বসবে। অন্য ফিল্ড বদলায় না।',
-                  style: TextStyle(
+                  tr(
+                      'Only the outstanding ticket cost or refund is posted to this account. Nothing else changes.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (summary != null) ...[
-            KvRow(label: 'বাকি', value: formatBdt(summary.ticketDue)),
-            KvRow(label: 'রিফান্ড', value: formatBdt(summary.ticketRefundDue)),
+            KvRow(label: tr('Due'), value: formatBdt(summary.ticketDue)),
+            KvRow(
+                label: tr('Refund'), value: formatBdt(summary.ticketRefundDue)),
           ],
           const SizedBox(height: 12),
           AccountPicker(
@@ -301,7 +323,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
           contribution < 0 ||
           legacy == null ||
           legacy < 0) {
-        setState(() => _error = 'প্রতিটি ফ্লায়ারের অঙ্ক ০ বা তার বেশি দিন।');
+        setState(() => _error = tr('Enter 0 or more for each flyer.'));
         return;
       }
       contributionSum += contribution;
@@ -309,19 +331,21 @@ class _ContributionScreenState extends State<ContributionScreen> {
       rows.add((name: name, contribution: contribution, legacyPaid: legacy));
     }
     if ((roundMoney(contributionSum) - target).abs() > 0.001) {
-      setState(
-          () => _error = 'কনট্রিবিউশন মিলিয়ে ${formatBdt(target)} হতে হবে।');
+      setState(() => _error = tr('Contributions must add up to {amount}.',
+          {'amount': formatBdt(target)}));
       return;
     }
     if ((roundMoney(legacySum) - summary.unallocatedFlyerPaid).abs() > 0.001) {
-      setState(() => _error =
-          'আগের অবণ্টিত জমা ${formatBdt(summary.unallocatedFlyerPaid)} ঠিক একবার ভাগ করুন।');
+      setState(() => _error = tr(
+          'Split the earlier unallocated payments of {amount} exactly once.',
+          {'amount': formatBdt(summary.unallocatedFlyerPaid)}));
       return;
     }
     final ok = await confirmMoney(context,
-        title: 'কনট্রিবিউশন',
-        body:
-            'ফ্লায়ার ভাগ ${formatBdt(target)} লক হবে। পরে জমা এই ভাগের বেশি হতে পারবে না।');
+        title: tr('Contributions'),
+        body: tr(
+            'The flyer share of {amount} will be locked. Later payments cannot exceed it.',
+            {'amount': formatBdt(target)}));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -348,11 +372,11 @@ class _ContributionScreenState extends State<ContributionScreen> {
         ? 0.0
         : roundMoney(summary.actualCost - summary.agencyShare);
     return WorkspaceScaffold(
-        title: 'কনট্রিবিউশন',
+        title: tr('Contributions'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'ভাগ সেভ',
+                label: tr('Save split'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed:
@@ -361,15 +385,17 @@ class _ContributionScreenState extends State<ContributionScreen> {
           Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'সবার ভাগ মিলিয়ে ${formatBdt(target)}। প্রতিটি ফ্লায়ার একবার।',
+                  tr('Shares must add up to {amount}. One entry per flyer.',
+                      {'amount': formatBdt(target)}),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (summary == null)
             const LinearProgressIndicator(
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft)
           else if (summary.flyers.isEmpty)
-            const EmptyNote(
-                title: 'ফ্লায়ার নেই', body: 'আগে ফ্লাইটে ফ্লায়ার যোগ করুন।')
+            EmptyNote(
+                title: tr('No flyers'),
+                body: tr('Add flyers to the flight first.'))
           else
             for (final name in summary.flyers) ...[
               Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -378,7 +404,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
                 controller: _contribution[name],
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'কনট্রিবিউশন'),
+                decoration: InputDecoration(labelText: tr('Contribution')),
               ),
               if (summary.unallocatedFlyerPaid > 0) ...[
                 const SizedBox(height: 8),
@@ -387,9 +413,9 @@ class _ContributionScreenState extends State<ContributionScreen> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                      labelText: 'আগের জমা',
-                      helperText:
-                          'মোট ${formatBdt(summary.unallocatedFlyerPaid)}'),
+                      labelText: tr('Earlier payment'),
+                      helperText: tr('Total {amount}',
+                          {'amount': formatBdt(summary.unallocatedFlyerPaid)})),
                 ),
               ],
               const SizedBox(height: 12),
@@ -470,21 +496,25 @@ class _FlyerPaymentScreenState extends State<FlyerPaymentScreen> {
         account == null ||
         amount == null ||
         amount <= 0) {
-      setState(() =>
-          _error = 'আগে ভাগ সেভ করুন, তারপর ফ্লায়ার, অ্যাকাউন্ট ও অঙ্ক দিন।');
+      setState(() => _error = tr(
+          'Save the split first, then choose the flyer, account and amount.'));
       return;
     }
     final chosen = account;
     final due = roundMoney(settlement.contribution - settlement.paidAmount);
     if (amount > due + 0.001) {
-      setState(
-          () => _error = 'এই ফ্লায়ারের বাকি ${formatBdt(due)}-এর বেশি নয়।');
+      setState(() => _error = tr(
+          "Enter no more than this flyer's {amount} due.",
+          {'amount': formatBdt(due)}));
       return;
     }
     final ok = await confirmMoney(context,
-        title: 'ফ্লায়ার জমা',
-        body:
-            '${formatMoney(amount, chosen.currency)} ${chosen.name}-এ $name-এর জমা হিসেবে ঢুকবে।');
+        title: tr('Flyer payment'),
+        body: tr('{amount} goes into {account} as a payment from {flyer}.', {
+          'amount': formatMoney(amount, chosen.currency),
+          'account': chosen.name,
+          'flyer': name
+        }));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -510,20 +540,21 @@ class _FlyerPaymentScreenState extends State<FlyerPaymentScreen> {
   Widget build(BuildContext context) {
     final summary = _summary;
     return WorkspaceScaffold(
-        title: 'ফ্লায়ার জমা',
+        title: tr('Flyer payment'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'জমা সেভ',
+                label: tr('Save flyer payment'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'যে অ্যাকাউন্টে টাকা এসেছে এবং যে ফ্লায়ার দিয়েছেন, সেটাই লিখুন।',
-                  style: TextStyle(
+                  tr(
+                      'Record the account the money arrived in and the flyer who paid.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (summary == null)
             const LinearProgressIndicator(
@@ -534,8 +565,11 @@ class _FlyerPaymentScreenState extends State<FlyerPaymentScreen> {
                 title: name,
                 subtitle: () {
                   final row = _settlement(name);
-                  if (row == null) return 'ভাগ এখনো সেভ হয়নি';
-                  return 'ভাগ ${formatBdt(row.contribution)} · পেইড ${formatBdt(row.paidAmount)}';
+                  if (row == null) return tr('Split not saved yet');
+                  return tr('Share {share} · Paid {paid}', {
+                    'share': formatBdt(row.contribution),
+                    'paid': formatBdt(row.paidAmount)
+                  });
                 }(),
                 selected: _flyer == name,
                 onTap: () => setState(() => _flyer = name),
@@ -552,7 +586,7 @@ class _FlyerPaymentScreenState extends State<FlyerPaymentScreen> {
                 controller: _amount,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'অঙ্ক')),
+                decoration: InputDecoration(labelText: tr('Amount received'))),
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),

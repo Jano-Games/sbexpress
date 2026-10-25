@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { FileUp, Plus } from "lucide-react";
 import {
   PageHeader,
   PageTabs,
@@ -18,6 +18,7 @@ import {
   ProgressBar,
 } from "@/components/ui";
 import { AddFlightModal } from "@/modals/AddFlightModal";
+import { ImportTicketModal } from "@/modals/ImportTicketModal";
 import { FLIGHT_CHIP, fmtBdt, fmtDate } from "@/lib/format";
 
 export function Flights() {
@@ -25,6 +26,7 @@ export function Flights() {
     flights: FlightSummary[];
   }>("/flights");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [view, setView] = usePageSection(
     "all",
     ["all", "upcoming", "departed", "completed"],
@@ -43,10 +45,16 @@ export function Flights() {
         title="Flights"
         description="Manage flight schedules, cargo capacity and flyer payments."
         actions={
-          <Button onClick={() => setAdding(true)}>
-            <Plus size={16} />
-            Add flight
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setImporting(true)}>
+              <FileUp size={16} />
+              Import ticket
+            </Button>
+            <Button onClick={() => setAdding(true)}>
+              <Plus size={16} />
+              Add flight
+            </Button>
+          </div>
         }
       />
       <SummaryStrip
@@ -166,6 +174,11 @@ export function Flights() {
       <AddFlightModal
         open={adding}
         onClose={() => setAdding(false)}
+        onDone={() => void reload()}
+      />
+      <ImportTicketModal
+        open={importing}
+        onClose={() => setImporting(false)}
         onDone={() => void reload()}
       />
     </div>

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/payment_review.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import 'money_format.dart';
@@ -158,17 +159,19 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
       },
       child: Scaffold(
         appBar: BackTitle(
-            title: current == null ? 'পেমেন্ট যাচাই' : 'রসিদ যাচাই',
+            title:
+                current == null ? tr('Payment review') : tr('Review receipt'),
             subtitle: current == null
                 ? null
-                : '${current.recordLabel} · ${current.kind == ReviewKind.shipment ? 'শিপমেন্ট' : 'মাসিক স্টেটমেন্ট'}',
+                : '${current.recordLabel} · ${current.kind == ReviewKind.shipment ? tr('Shipment') : tr('Monthly statement')}',
             actions: [
               if (current == null && pending > 0)
                 Center(
                     child: Padding(
                         padding: const EdgeInsets.only(right: 16),
                         child: StatusPill(
-                            label: '$pendingটি বাকি', tone: ChipTone.amber))),
+                            label: tr('{n} pending', {'n': pending}),
+                            tone: ChipTone.amber))),
             ],
             onBack: current == null ? null : _backToQueue),
         body: RefreshIndicator(
@@ -182,15 +185,18 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
               if (_error != null) ErrorNote(message: _error!, onRetry: _load),
               if (current == null) ...[
                 PageHeader(
-                    title: 'যাচাইয়ের অপেক্ষায়',
+                    title: tr('Awaiting review'),
                     subtitle: queue == null
-                        ? 'রসিদগুলো লোড হচ্ছে'
-                        : '${queue.all.length}টি রসিদ · খুলে লেনদেন মিলিয়ে নিন'),
+                        ? tr('Loading receipts')
+                        : trn(
+                            queue.all.length,
+                            '{n} receipt · open it to match the transaction',
+                            '{n} receipts · open each to match the transaction')),
                 if (queue != null && queue.all.isEmpty)
-                  const EmptyNote(
+                  EmptyNote(
                       icon: Icons.fact_check_outlined,
-                      title: 'রিভিউ বাকি নেই',
-                      body: 'নতুন রসিদ এলে এখানে দেখা যাবে।'),
+                      title: tr('No receipts awaiting review'),
+                      body: tr('New receipts will appear here.')),
                 if (queue != null)
                   for (final item in queue.all) ...[
                     _ReviewCard(
@@ -227,7 +233,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
                 Expanded(
                     flex: 2,
                     child: AppButton(
-                        label: 'ফেরত দিন',
+                        label: tr('Return'),
                         kind: AppButtonKind.danger,
                         onPressed: _busy
                             ? null
@@ -237,7 +243,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
                     flex: 3,
                     child: AppButton(
                         key: const Key('review-approve'),
-                        label: 'অ্যাপ্রুভ করুন',
+                        label: tr('Approve'),
                         icon: Icons.check_rounded,
                         busy: _busy,
                         onPressed: canApprovePayment(current)
@@ -283,8 +289,8 @@ class _ReviewCard extends StatelessWidget {
                         ? Icons.image_outlined
                         : Icons.tag_rounded,
                     label: item.hasScreenshot
-                        ? 'স্ক্রিনশট আছে'
-                        : 'শুধু ট্রানজ্যাকশন আইডি'),
+                        ? tr('Screenshot attached')
+                        : tr('Transaction ID only')),
               ])),
           const Icon(Icons.chevron_right_rounded,
               color: AppColors.faint, size: 22),
@@ -320,7 +326,9 @@ class _Detail extends StatelessWidget {
         if (total > 1)
           Padding(
               padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-              child: Text('রসিদ $position / $total',
+              child: Text(
+                  tr('Receipt {position} of {total}',
+                      {'position': position, 'total': total}),
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -346,8 +354,8 @@ class _Detail extends StatelessWidget {
                         const TextStyle(fontSize: 13, color: AppColors.muted)),
               ]),
               const SizedBox(height: 14),
-              const Text('জমা হবে · BDT',
-                  style: TextStyle(fontSize: 13, color: AppColors.muted)),
+              Text(tr('To be received · BDT'),
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted)),
               Text(formatBdt(item.amount),
                   style: const TextStyle(
                       fontSize: 34,
@@ -356,33 +364,35 @@ class _Detail extends StatelessWidget {
                       fontFeatures: [FontFeature.tabularFigures()])),
               if (item.sourceCurrency != 'BDT')
                 Text(
-                    'কাস্টমার পাঠিয়েছেন ${item.sourceCurrency} ${item.sourceAmount.toStringAsFixed(2)}',
+                    tr('Customer sent {amount}', {
+                      'amount':
+                          '${item.sourceCurrency} ${item.sourceAmount.toStringAsFixed(2)}'
+                    }),
                     style: const TextStyle(color: AppColors.muted)),
               const SizedBox(height: 10),
               const Divider(height: 1),
               _Line(
                   label: item.kind == ReviewKind.shipment
-                      ? 'শিপমেন্ট'
-                      : 'স্টেটমেন্ট',
+                      ? tr('Shipment')
+                      : tr('Statement'),
                   value: item.recordLabel),
-              _Line(label: 'কাস্টমার', value: item.supplierName),
+              _Line(label: tr('Customer'), value: item.supplierName),
               _Line(
-                  label: 'ট্রানজ্যাকশন আইডি',
+                  label: tr('Transaction ID'),
                   value: item.txnRef,
                   trailing: IconButton(
-                      tooltip: 'ট্রানজ্যাকশন কপি',
+                      tooltip: tr('Copy transaction ID'),
                       color: AppColors.primary,
                       icon: const Icon(Icons.copy_rounded, size: 18),
                       onPressed: () async {
                         await Clipboard.setData(
                             ClipboardData(text: item.txnRef));
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('ট্রানজ্যাকশন কপি হয়েছে')));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(tr('Transaction ID copied'))));
                         }
                       })),
-              _Line(label: 'জমার তারিখ', value: item.date, last: true),
+              _Line(label: tr('Submitted on'), value: item.date, last: true),
             ])),
         const SizedBox(height: 14),
         if (!item.hasScreenshot)
@@ -392,19 +402,18 @@ class _Detail extends StatelessWidget {
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.field, width: 1.5)),
-              child: const Row(children: [
-                IconBadge(Icons.hide_image_outlined,
+              child: Row(children: [
+                const IconBadge(Icons.hide_image_outlined,
                     tone: ChipTone.neutral, round: true),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text('স্ক্রিনশট দেওয়া হয়নি',
-                          style: TextStyle(fontWeight: FontWeight.w600)),
-                      Text(
-                          'ঐচ্ছিক — ট্রানজ্যাকশন আইডি মিলিয়েও অ্যাপ্রুভ করা যায়',
-                          style: TextStyle(
+                      Text(tr('No screenshot attached'),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(tr('Optional — you can also approve by matching the transaction ID'),
+                          style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.muted,
                               height: 1.45)),
@@ -415,13 +424,13 @@ class _Detail extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                const Text('পেমেন্টের প্রমাণ',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                Text(tr('Proof of payment'),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 if (shotUrl == null)
                   AppButton(
-                      label: 'স্ক্রিনশট দেখুন',
+                      label: tr('View screenshot'),
                       icon: Icons.image_outlined,
                       kind: AppButtonKind.tonal,
                       onPressed: onShot),
@@ -439,7 +448,7 @@ class _Detail extends StatelessWidget {
                                   Align(
                                       alignment: Alignment.centerRight,
                                       child: IconButton(
-                                          tooltip: 'বন্ধ করুন',
+                                          tooltip: tr('Close'),
                                           icon: const Icon(Icons.close,
                                               color: Colors.white),
                                           onPressed: () =>
@@ -453,8 +462,8 @@ class _Detail extends StatelessWidget {
                                                   fit: BoxFit.contain,
                                                   errorBuilder: (_, error,
                                                           stack) =>
-                                                      const Text('ছবি লোড হয়নি',
-                                                          style: TextStyle(
+                                                      Text(tr('Could not load image'),
+                                                          style: const TextStyle(
                                                               color: Colors
                                                                   .white)))))),
                                 ])),
@@ -465,39 +474,43 @@ class _Detail extends StatelessWidget {
                               height: 220,
                               fit: BoxFit.contain,
                               errorBuilder: (_, error, stack) => ErrorNote(
-                                  message: 'ছবি লোড হয়নি', onRetry: onShot)))),
+                                  message: tr('Could not load image'),
+                                  onRetry: onShot)))),
                   const SizedBox(height: 8),
-                  const Text('বড় করে দেখতে ছবিতে চাপুন',
+                  Text(tr('Tap the image to enlarge'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                      style: const TextStyle(
+                          color: AppColors.muted, fontSize: 12)),
                 ],
               ])),
         const SizedBox(height: 14),
         HintNote(
             text: item.method.isEmpty
-                ? 'অ্যাকাউন্টে টাকা এসেছে নিশ্চিত হয়ে অনুমোদন দিন।'
-                : '${item.method} স্টেটমেন্টে আইডি ও টাকার পরিমাণ মিলিয়ে তারপর অ্যাপ্রুভ করুন।'),
+                ? tr('Approve once you are sure the money reached the account.')
+                : tr(
+                    'Match the ID and amount on the {method} statement, then approve.',
+                    {'method': item.method})),
         if (rejecting) ...[
           const SizedBox(height: 18),
-          const SectionTitle(title: 'রসিদ ফেরত দিন'),
+          SectionTitle(title: tr('Return receipt')),
           TextField(
               controller: reason,
               minLines: 2,
               maxLines: 4,
               autofocus: true,
-              decoration: const InputDecoration(
-                  labelText: 'ফেরত দেওয়ার কারণ',
-                  hintText: 'লেনদেনের কোন তথ্য মেলেনি লিখুন')),
+              decoration: InputDecoration(
+                  labelText: tr('Reason for return'),
+                  hintText: tr('Say which transaction detail did not match'))),
           const SizedBox(height: 12),
           AppButton(
-              label: 'ফেরত দেওয়া নিশ্চিত করুন',
+              label: tr('Confirm return'),
               kind: AppButtonKind.danger,
               busy: busy,
               onPressed: reason.text.trim().length < 3 ? null : onReject),
           const SizedBox(height: 4),
           TextButton(
               onPressed: busy ? null : onCancelReject,
-              child: const Text('বাতিল')),
+              child: Text(tr('Cancel'))),
         ],
       ]);
 }

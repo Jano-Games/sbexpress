@@ -17,6 +17,10 @@ ApiClient screenFixtureApi(
         return http.Response(jsonEncode(hubScheduleBody()), 200,
             headers: {'content-type': 'application/json'});
       }
+      if (request.method == 'POST' && path == '/api/flights/ticket') {
+        return http.Response(jsonEncode(ticketImportBody()), 200,
+            headers: {'content-type': 'application/json'});
+      }
       if (path.startsWith('/api/flights/hub/')) {
         return http.Response(jsonEncode(hubFlightDetailBody()), 200,
             headers: {'content-type': 'application/json'});
@@ -274,6 +278,59 @@ Map<String, Object?> hubScheduleBody() {
     ],
   };
 }
+
+Map<String, Object?> _ticketLeg(String code, String date, String from,
+        String fromCity, String to, String toCity, String dep, String arr) =>
+    {
+      'source': 'ticket',
+      'code': code,
+      'airline': 'China Eastern Airlines',
+      'date': date,
+      'arrDate': date,
+      'fromIata': from,
+      'fromCity': fromCity,
+      'toIata': to,
+      'toCity': toCity,
+      'depTime': dep,
+      'arrTime': arr,
+      'status': 'Confirmed',
+    };
+
+/// A read return ticket; the passenger and numbers are made up.
+Map<String, Object?> ticketImportBody() => {
+      'ticket': {
+        'agency': 'DESH TRAVELER',
+        'passenger': 'KHAN / MD ARIF HOSSAIN SD',
+        'pnr': 'TEST01',
+        'ticketNumber': '781-0000000001',
+        'issuedOn': '2026-10-24',
+      },
+      'flyerMatches': [
+        {'name': 'Arif Rahman', 'score': 1},
+      ],
+      'journeys': [
+        {
+          'direction': 'to_bangladesh',
+          'date': '2026-11-13',
+          'legs': [
+            _ticketLeg('MU5842', '2026-11-13', 'TFU', 'Chengdu', 'KMG',
+                'Kunming', '21:00', '22:30'),
+            _ticketLeg('MU2035', '2026-11-14', 'KMG', 'Kunming', 'DAC',
+                'Dhaka', '12:10', '13:00'),
+          ],
+        },
+        {
+          'direction': 'from_bangladesh',
+          'date': '2026-11-23',
+          'legs': [
+            _ticketLeg('MU2036', '2026-11-23', 'DAC', 'Dhaka', 'KMG',
+                'Kunming', '14:00', '18:20'),
+            _ticketLeg('MU5843', '2026-11-24', 'KMG', 'Kunming', 'CTU',
+                'Chengdu', '08:40', '10:05'),
+          ],
+        },
+      ],
+    };
 
 Map<String, Object?> hubFlightDetailBody() => {
       'flight': {

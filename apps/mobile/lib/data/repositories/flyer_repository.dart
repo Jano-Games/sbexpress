@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../../l10n/l10n.dart';
 import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/flyer.dart';
@@ -12,9 +13,13 @@ class FlyerRepository {
   final ApiClient api;
 
   Future<List<FlyerSummary>> list({bool includeArchived = false}) async {
-    final path = includeArchived ? '/api/flyers?includeArchived=1' : '/api/flyers';
+    final path =
+        includeArchived ? '/api/flyers?includeArchived=1' : '/api/flyers';
     final json = await api.getJson(path);
-    return [for (final row in requiredMapList(json, 'flyers')) FlyerSummary.fromJson(row)];
+    return [
+      for (final row in requiredMapList(json, 'flyers'))
+        FlyerSummary.fromJson(row)
+    ];
   }
 
   Future<FlyerDetail> detail(String name) async {
@@ -37,7 +42,8 @@ class FlyerRepository {
   }
 
   Future<String> documentUrl(String name, String reference) async {
-    final json = await api.getJson('${_path(name)}/documents/${Uri.encodeComponent(reference)}/url');
+    final json = await api.getJson(
+        '${_path(name)}/documents/${Uri.encodeComponent(reference)}/url');
     return requiredString(json, 'url');
   }
 
@@ -48,15 +54,23 @@ class FlyerRepository {
     required Uint8List bytes,
     required void Function(double progress) onProgress,
   }) {
-    if (bytes.isEmpty) throw const FormatException('খালি ফাইল নেওয়া যায় না।');
-    if (bytes.length > imageUploadMaxBytes) throw const FormatException('PDF ১০ MB-এর বেশি। আরও ছোট ফাইল দিন।');
-    final safe = filename.toLowerCase().endsWith('.pdf') ? filename : '$filename.pdf';
-    final file = PreparedImage(bytes: bytes, filename: safe, contentType: 'application/pdf');
+    if (bytes.isEmpty) {
+      throw FormatException(tr('Empty files are not accepted.'));
+    }
+    if (bytes.length > imageUploadMaxBytes) {
+      throw FormatException(
+          tr('The PDF is over 10 MB. Choose a smaller file.'));
+    }
+    final safe =
+        filename.toLowerCase().endsWith('.pdf') ? filename : '$filename.pdf';
+    final file = PreparedImage(
+        bytes: bytes, filename: safe, contentType: 'application/pdf');
     return transferPreparedUpload(
       file: file,
       onProgress: onProgress,
       reserve: (file) async {
-        final json = await api.postJson('${_path(name)}/documents/upload', body: {
+        final json =
+            await api.postJson('${_path(name)}/documents/upload', body: {
           'kind': kind,
           'name': file.filename,
           'contentType': file.contentType,
@@ -68,15 +82,20 @@ class FlyerRepository {
           expiresAt: requiredString(json, 'expiresAt'),
         );
       },
-      put: (reservation, file, progress) => api.putBytes(reservation.uploadUrl, file.bytes, file.contentType, progress),
+      put: (reservation, file, progress) => api.putBytes(
+          reservation.uploadUrl, file.bytes, file.contentType, progress),
       complete: (reference) async {
-        await api.postJson('${_path(name)}/documents/${Uri.encodeComponent(reference)}/complete');
+        await api.postJson(
+            '${_path(name)}/documents/${Uri.encodeComponent(reference)}/complete');
       },
     );
   }
 
-  Future<void> setVerified(String name, String reference, {required bool verified}) async {
-    await api.patchJson('${_path(name)}/documents/${Uri.encodeComponent(reference)}/verification', body: {'verified': verified});
+  Future<void> setVerified(String name, String reference,
+      {required bool verified}) async {
+    await api.patchJson(
+        '${_path(name)}/documents/${Uri.encodeComponent(reference)}/verification',
+        body: {'verified': verified});
   }
 
   Future<String> uploadDocument({
@@ -89,7 +108,8 @@ class FlyerRepository {
       file: image,
       onProgress: onProgress,
       reserve: (file) async {
-        final json = await api.postJson('${_path(name)}/documents/upload', body: {
+        final json =
+            await api.postJson('${_path(name)}/documents/upload', body: {
           'kind': kind,
           'name': file.filename,
           'contentType': file.contentType,
@@ -101,9 +121,11 @@ class FlyerRepository {
           expiresAt: requiredString(json, 'expiresAt'),
         );
       },
-      put: (reservation, file, progress) => api.putBytes(reservation.uploadUrl, file.bytes, file.contentType, progress),
+      put: (reservation, file, progress) => api.putBytes(
+          reservation.uploadUrl, file.bytes, file.contentType, progress),
       complete: (reference) async {
-        await api.postJson('${_path(name)}/documents/${Uri.encodeComponent(reference)}/complete');
+        await api.postJson(
+            '${_path(name)}/documents/${Uri.encodeComponent(reference)}/complete');
       },
     );
   }

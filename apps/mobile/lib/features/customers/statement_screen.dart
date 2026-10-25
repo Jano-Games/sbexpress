@@ -5,6 +5,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/ledger_actions.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -53,7 +54,7 @@ class _StatementScreenState extends State<StatementScreen> {
 
   Future<void> _load() async {
     if (!_monthOk) {
-      setState(() => _error = 'মাস ২০২৬-১০ এই ফর্মে লিখুন।');
+      setState(() => _error = tr('Enter the month as 2026-10.'));
       return;
     }
     setState(() {
@@ -83,18 +84,20 @@ class _StatementScreenState extends State<StatementScreen> {
 
   Future<void> _create() async {
     if (!_monthOk) {
-      setState(() => _error = 'মাস ২০২৬-১০ এই ফর্মে লিখুন।');
+      setState(() => _error = tr('Enter the month as 2026-10.'));
       return;
     }
     final amount =
         _amount.text.trim().isEmpty ? null : parseMoney(_amount.text);
     if (_amount.text.trim().isNotEmpty && (amount == null || amount <= 0)) {
-      setState(() => _error = 'অনুরোধের অঙ্ক খালি রাখুন অথবা ধনাত্মক দিন।');
+      setState(() => _error =
+          tr('Leave the requested amount empty or enter a positive amount.'));
       return;
     }
     final due = _balance?.due;
     if (amount != null && due != null && amount > due + 0.001) {
-      setState(() => _error = 'অনুরোধ বকেয়া ${formatBdt(due)}-এর বেশি নয়।');
+      setState(() => _error = tr('The request cannot exceed the {amount} due.',
+          {'amount': formatBdt(due)}));
       return;
     }
     setState(() {
@@ -120,8 +123,8 @@ class _StatementScreenState extends State<StatementScreen> {
 
   Future<void> _revoke() async {
     final ok = await confirmMoney(context,
-        title: 'সব লিংক বাতিল',
-        body: 'এই কাস্টমারের চালু স্টেটমেন্ট লিংক আর খুলবে না।');
+        title: tr('Revoke all links'),
+        body: tr("This customer's active statement links will stop opening."));
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -137,9 +140,9 @@ class _StatementScreenState extends State<StatementScreen> {
 
   Future<void> _approve(StatementReceiptInfo receipt) async {
     final ok = await confirmMoney(context,
-        title: 'রসিদ অনুমোদন',
-        body:
-            '${formatBdt(receipt.amount)} ${receipt.method} জমা হিসেবে ঢুকবে।');
+        title: tr('Approve receipt'),
+        body: tr('{amount} via {method} will be recorded as received.',
+            {'amount': formatBdt(receipt.amount), 'method': receipt.method}));
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -156,10 +159,10 @@ class _StatementScreenState extends State<StatementScreen> {
   }
 
   Future<void> _reject(StatementReceiptInfo receipt) async {
-    final reason = await askReason(context, title: 'রসিদ বাতিল');
+    final reason = await askReason(context, title: tr('Reject receipt'));
     if (reason == null || !mounted) return;
     if (reason.length < 3) {
-      setState(() => _error = 'বাতিলের কারণ কমপক্ষে ৩ অক্ষর।');
+      setState(() => _error = tr('The reason must be at least 3 characters.'));
       return;
     }
     setState(() => _busy = true);
@@ -180,23 +183,25 @@ class _StatementScreenState extends State<StatementScreen> {
   Widget build(BuildContext context) {
     final balance = _balance;
     return WorkspaceScaffold(
-        title: 'মাসিক স্টেটমেন্ট',
+        title: tr('Monthly statement'),
         root: false,
         subtitle: widget.code,
         children: [
           Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  '${widget.name}। শুধু ইস্যু ও রিভিউ করা ইনভয়েস থাকলে লিংক হয়।',
+                  tr('{name}. A link can be made only when there are issued, reviewed invoices.',
+                      {'name': widget.name}),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           TextField(
               controller: _month,
-              decoration: const InputDecoration(
-                  labelText: 'মাস', helperText: 'যেমন ২০২৬-১০')),
+              decoration: InputDecoration(
+                  labelText: tr('Month'),
+                  helperText: tr('For example 2026-10'))),
           const SizedBox(height: 8),
           AppButton(
-              label: 'এই মাস দেখুন',
+              label: tr('Show this month'),
               kind: AppButtonKind.quiet,
               busy: _loading,
               onPressed: _load),
@@ -209,19 +214,19 @@ class _StatementScreenState extends State<StatementScreen> {
             PaperCard(
               child: Column(
                 children: [
-                  KvRow(label: 'বিল', value: formatBdt(balance.billed)),
-                  KvRow(label: 'পেইড', value: formatBdt(balance.paid)),
-                  KvRow(label: 'বাকি', value: formatBdt(balance.due)),
+                  KvRow(label: tr('Billed'), value: formatBdt(balance.billed)),
+                  KvRow(label: tr('Paid'), value: formatBdt(balance.paid)),
+                  KvRow(label: tr('Due'), value: formatBdt(balance.due)),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            const SectionTitle(title: 'নতুন লিংক'),
+            SectionTitle(title: tr('New link')),
             ChoiceChips(
-              options: const [
-                (value: '7', label: '৭ দিন'),
-                (value: '14', label: '১৪ দিন'),
-                (value: '30', label: '৩০ দিন')
+              options: [
+                (value: '7', label: tr('7 days')),
+                (value: '14', label: tr('14 days')),
+                (value: '30', label: tr('30 days'))
               ],
               selected: '$_days',
               onSelected: (value) => setState(() => _days = int.parse(value)),
@@ -231,26 +236,28 @@ class _StatementScreenState extends State<StatementScreen> {
                 controller: _amount,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: 'অনুরোধের অঙ্ক (ঐচ্ছিক)',
-                    helperText: 'খালি রাখলে পুরো বকেয়া')),
+                decoration: InputDecoration(
+                    labelText: tr('Requested amount (optional)'),
+                    helperText:
+                        tr('Leave empty to request the full due amount'))),
             const SizedBox(height: 8),
             AppButton(
-                label: 'লিংক তৈরি ও কপি',
+                label: tr('Create and copy link'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _create),
             const SizedBox(height: 8),
             AppButton(
-                label: 'সব লিংক বাতিল',
+                label: tr('Revoke all links'),
                 kind: AppButtonKind.danger,
                 busy: _busy,
                 onPressed: _revoke),
             const SizedBox(height: 16),
-            const SectionTitle(title: 'সেভ করা লিংক'),
+            SectionTitle(title: tr('Saved links')),
             if (_links.isEmpty)
-              const EmptyNote(
-                  title: 'লিংক নেই', body: 'এই মাসে এখনো শেয়ার করা হয়নি।'),
+              EmptyNote(
+                  title: tr('No links'),
+                  body: tr('Nothing shared for this month yet.')),
             for (final link in _links) ...[
               PaperCard(
                 child: Column(
@@ -258,23 +265,24 @@ class _StatementScreenState extends State<StatementScreen> {
                   children: [
                     StatusPill(label: link.status),
                     const SizedBox(height: 6),
-                    Text(link.url ?? 'লিংক আর কপি করা যায় না',
+                    Text(link.url ?? tr('This link can no longer be copied'),
                         style: const TextStyle(height: 1.35)),
                     if (link.url != null)
                       TextButton(
                           onPressed: () =>
                               Clipboard.setData(ClipboardData(text: link.url!)),
-                          child: const Text('কপি')),
+                          child: Text(tr('Copy'))),
                   ],
                 ),
               ),
               const SizedBox(height: 8),
             ],
-            const SectionTitle(title: 'রসিদ'),
+            SectionTitle(title: tr('Receipts')),
             if (_receipts.isEmpty)
-              const EmptyNote(
-                  title: 'রসিদ নেই',
-                  body: 'কাস্টমার পাবলিক লিংকে রসিদ দিলে এখানে আসবে।'),
+              EmptyNote(
+                  title: tr('No receipts'),
+                  body: tr(
+                      'Receipts customers submit on the public link will appear here.')),
             for (final receipt in _receipts) ...[
               PaperCard(
                 child: Column(
@@ -288,13 +296,13 @@ class _StatementScreenState extends State<StatementScreen> {
                     if (receipt.status == 'pending') ...[
                       const SizedBox(height: 8),
                       AppButton(
-                          label: 'অনুমোদন',
+                          label: tr('Accept'),
                           kind: AppButtonKind.current,
                           busy: _busy,
                           onPressed: () => _approve(receipt)),
                       const SizedBox(height: 8),
                       AppButton(
-                          label: 'বাতিল',
+                          label: tr('Reject'),
                           kind: AppButtonKind.danger,
                           busy: _busy,
                           onPressed: () => _reject(receipt)),

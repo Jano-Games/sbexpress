@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../json_read.dart';
 import 'flight.dart';
 import 'shipment.dart';
@@ -154,7 +155,8 @@ class HubFlightSchedule {
   }
 }
 
-const _weekdays = ['সোম', 'মঙ্গল', 'বুধ', 'বৃহস্পতি', 'শুক্র', 'শনি', 'রবি'];
+const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _weekdayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const _months = [
   'Jan',
   'Feb',
@@ -175,27 +177,35 @@ class FlightDay {
   const FlightDay(
       {required this.day,
       required this.month,
-      required this.weekday,
+      required this.weekdayIndex,
       required this.daysAway});
 
   final int day;
+
+  /// English short month, kept in both languages ("Oct").
   final String month;
 
-  /// Short Bangla weekday, e.g. "মঙ্গল".
-  final String weekday;
+  /// 0 = Monday.
+  final int weekdayIndex;
 
   /// Whole days from today; negative once the date has passed.
   final int daysAway;
 
+  /// Short weekday in the app language, e.g. "Tue" / "মঙ্গল".
+  String get weekday => tr(_weekdays[weekdayIndex]);
+
+  /// Full weekday in the app language, e.g. "Tuesday" / "মঙ্গলবার".
+  String get weekdayName => tr(_weekdayNames[weekdayIndex]);
+
   String get shortLabel => '$weekday, $day $month';
 
-  /// "আজ", "আগামীকাল", "3 দিন পর", "গতকাল", "2 দিন আগে".
+  /// "Today", "Tomorrow", "In 3 days", "Yesterday", "2 days ago".
   String get relativeLabel {
-    if (daysAway == 0) return 'আজ';
-    if (daysAway == 1) return 'আগামীকাল';
-    if (daysAway == -1) return 'গতকাল';
-    if (daysAway > 1) return '$daysAway দিন পর';
-    return '${-daysAway} দিন আগে';
+    if (daysAway == 0) return tr('Today');
+    if (daysAway == 1) return tr('Tomorrow');
+    if (daysAway == -1) return tr('Yesterday');
+    if (daysAway > 1) return trn(daysAway, 'In {n} day', 'In {n} days');
+    return trn(-daysAway, '{n} day ago', '{n} days ago');
   }
 
   static FlightDay? parse(String iso, {DateTime? today}) {
@@ -207,7 +217,7 @@ class FlightDay {
     return FlightDay(
       day: date.day,
       month: _months[date.month - 1],
-      weekday: _weekdays[date.weekday - 1],
+      weekdayIndex: date.weekday - 1,
       daysAway: date.difference(base).inDays,
     );
   }

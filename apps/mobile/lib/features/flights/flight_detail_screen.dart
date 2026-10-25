@@ -4,6 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/shipment.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
@@ -130,7 +131,10 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                         space: summary.spaceKg.toDouble()),
                     const SizedBox(height: 8),
                     Text(
-                        'বাকি ${summary.leftKg.toStringAsFixed(1)} kg · রেফারেন্স ${summary.code}',
+                        tr('{kg} kg left · Reference {code}', {
+                          'kg': summary.leftKg.toStringAsFixed(1),
+                          'code': summary.code
+                        }),
                         style: const TextStyle(
                             color: AppColors.muted, height: 1.35)),
                   ],
@@ -138,50 +142,50 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
               ),
               const SizedBox(height: 16),
               ScreenTabs(
-                  labels: const ['বুকিং', 'ফ্লায়ার', 'হিসাব'],
+                  labels: [tr('Bookings'), tr('Flyers'), tr('Money')],
                   index: _tab,
                   onChanged: (i) => setState(() => _tab = i)),
               const SizedBox(height: 20),
               if (_tab == 2) ...[
                 const SizedBox(height: 12),
-                const SectionTitle(
-                    title: 'টিকিট',
-                    subtitle:
-                        'ক্যাশ সেটল, কনট্রিবিউশন ও ফ্লায়ার জমা আলাদা পেজে।'),
+                SectionTitle(
+                    title: tr('Ticket'),
+                    subtitle: tr(
+                        'Cash settlement, contributions and flyer payments are on a separate page.')),
                 PaperCard(
                   child: Column(
                     children: [
                       KvRow(
-                          label: 'আসল খরচ',
+                          label: tr('Actual cost'),
                           value: formatBdt(summary.actualCost)),
                       KvRow(
-                          label: 'এজেন্সি শেয়ার',
+                          label: tr('Agency share'),
                           value: formatBdt(summary.agencyShare)),
                       KvRow(
-                          label: 'ফ্লায়ার বাকি',
+                          label: tr('Due from flyers'),
                           value: formatBdt(summary.flyerDue)),
                       KvRow(
-                          label: 'টিকিট পরিশোধ',
+                          label: tr('Ticket paid'),
                           value: formatBdt(summary.ticketPaid)),
                       KvRow(
-                          label: 'টিকিট বাকি',
+                          label: tr('Ticket due'),
                           value: formatBdt(summary.ticketDue),
                           valueColor: summary.ticketDue > 0
                               ? AppColors.danger
                               : AppColors.ok),
                       if (summary.ticketRefundDue > 0)
                         KvRow(
-                            label: 'টিকিট রিফান্ড',
+                            label: tr('Ticket refund'),
                             value: formatBdt(summary.ticketRefundDue)),
                       KvRow(
-                          label: 'শিপমেন্ট বিল',
+                          label: tr('Shipment charges'),
                           value: formatBdt(summary.revenue)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
                 AppButton(
-                  label: 'টিকিট ও কনট্রিবিউশন',
+                  label: tr('Ticket and contributions'),
                   kind: AppButtonKind.current,
                   onPressed: () async {
                     await Navigator.of(context).push(MaterialPageRoute<void>(
@@ -192,10 +196,9 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
               ],
               if (_tab == 1) ...[
                 const SizedBox(height: 16),
-                const SectionTitle(title: 'ফ্লায়ার'),
+                SectionTitle(title: tr('Flyers')),
                 if (detail.flyerDetails.isEmpty)
-                  const EmptyNote(
-                      title: 'ফ্লায়ার নেই', body: 'নিচ থেকে একজন যোগ করুন।'),
+                  EmptyNote(title: tr('No flyers'), body: tr('Add one below.')),
                 for (final flyer in detail.flyerDetails) ...[
                   PaperCard(
                     child: Column(
@@ -208,21 +211,22 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                             style: const TextStyle(color: AppColors.muted)),
                         for (final settlement in summary.settlements
                             .where((item) => item.name == flyer.name))
-                          Text(
-                              'কনট্রিবিউশন ${formatBdt(settlement.contribution)} · পেইড ${formatBdt(settlement.paidAmount)}'),
+                          Text(tr('Contribution {contribution} · Paid {paid}', {
+                            'contribution': formatBdt(settlement.contribution),
+                            'paid': formatBdt(settlement.paidAmount)
+                          })),
                       ],
                     ),
                   ),
                   const SizedBox(height: 8),
                 ],
                 if (_flyerNames.isEmpty)
-                  const Text('যোগ করার মতো সক্রিয় ফ্লায়ার নেই।',
-                      style: TextStyle(color: AppColors.muted))
+                  Text(tr('No active flyers left to add.'),
+                      style: const TextStyle(color: AppColors.muted))
                 else ...[
                   DropdownButtonFormField<String>(
                     initialValue: _assign,
-                    decoration:
-                        const InputDecoration(labelText: 'ফ্লায়ার যোগ করুন'),
+                    decoration: InputDecoration(labelText: tr('Add flyer')),
                     items: [
                       for (final name in _flyerNames)
                         DropdownMenuItem(value: name, child: Text(name))
@@ -231,7 +235,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   AppButton(
-                      label: 'ফ্লাইটে যোগ করুন',
+                      label: tr('Add to flight'),
                       busy: _busy,
                       onPressed: _assign == null ? null : _assignFlyer),
                 ],
@@ -239,12 +243,13 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
               if (_tab == 0) ...[
                 const SizedBox(height: 16),
                 SectionTitle(
-                    title: 'বুকিং',
-                    subtitle: '${detail.bookings.length}টি শিপমেন্ট'),
+                    title: tr('Bookings'),
+                    subtitle: trn(detail.bookings.length, '{n} shipment',
+                        '{n} shipments')),
                 if (detail.bookings.isEmpty)
-                  const EmptyNote(
-                      title: 'বুকিং নেই',
-                      body: 'শিপমেন্ট ইনটেক থেকে এই ফ্লাইট বেছে নিন।'),
+                  EmptyNote(
+                      title: tr('No bookings'),
+                      body: tr('Choose this flight from shipment intake.')),
                 for (final booking in detail.bookings) ...[
                   _Booking(
                       row: booking,
@@ -273,8 +278,11 @@ class _Booking extends StatelessWidget {
   Widget build(BuildContext context) {
     return DirectoryTile(
       title: row.code,
-      subtitle:
-          '${row.supplierName ?? row.supplierCode} · ${formatKg(row.effectiveKg)} · বাকি ${formatBdt(row.dueAmount)}',
+      subtitle: tr('{supplier} · {kg} · {due} due', {
+        'supplier': row.supplierName ?? row.supplierCode,
+        'kg': formatKg(row.effectiveKg),
+        'due': formatBdt(row.dueAmount)
+      }),
       badge: banglaStatus(row.status, row.statusLabel),
       onTap: onOpen,
     );

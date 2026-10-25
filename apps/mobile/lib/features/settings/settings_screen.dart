@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/workspace.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
@@ -93,7 +94,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveRate() async {
     final rate = double.tryParse(_rate.text.trim());
     if (rate == null || rate <= 0) {
-      setState(() => _error = 'আসল CNY রেট লিখুন। খালি বা ০ সেভ হবে না।');
+      setState(() => _error =
+          tr('Enter the real CNY rate. Blank or 0 will not be saved.'));
       return;
     }
     setState(() {
@@ -122,7 +124,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final setup = _setup;
     final settings = _settings;
     return Scaffold(
-        appBar: const BackTitle(title: 'সেটিংস'),
+        appBar: BackTitle(title: tr('Settings')),
         body: RefreshIndicator(
             onRefresh: _load,
             child: ListView(
@@ -130,15 +132,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 padding:
                     const EdgeInsets.fromLTRB(pageGutter, 12, pageGutter, 32),
                 children: [
-                  const Text('পেমেন্ট, এক্সচেঞ্জ রেট ও আপনার টিম',
-                      style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                  Text(tr('Payments, exchange rate and your team'),
+                      style: const TextStyle(
+                          color: AppColors.muted, fontSize: 13)),
                   const SizedBox(height: 24),
                   if (_loading && setup == null)
                     const LinearProgressIndicator(),
                   if (_error != null)
                     ErrorNote(message: _error!, onRetry: _load),
                   if (setup != null && settings != null) ...[
-                    const SectionTitle(title: 'এক্সচেঞ্জ রেট'),
+                    SectionTitle(title: tr('Exchange rate')),
                     PaperCard(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,8 +158,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         fontSize: 17))),
                           ]),
                           const SizedBox(height: 6),
-                          const Text('নতুন লেনদেনে এই রেট ব্যবহার হবে।',
-                              style: TextStyle(
+                          Text(tr('New transactions use this rate.'),
+                              style: const TextStyle(
                                   color: AppColors.muted, fontSize: 12)),
                           const SizedBox(height: 16),
                           Row(
@@ -167,11 +170,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         controller: _rate,
                                         keyboardType: const TextInputType
                                             .numberWithOptions(decimal: true),
-                                        decoration: const InputDecoration(
-                                            labelText: 'প্রতি CNY-তে BDT'))),
+                                        decoration: InputDecoration(
+                                            labelText: tr('BDT per CNY')))),
                                 const SizedBox(width: 12),
                                 AppButton(
-                                    label: 'সেভ',
+                                    label: tr('Save rate'),
                                     expand: false,
                                     busy: _busy,
                                     onPressed: _saveRate),
@@ -179,11 +182,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ])),
                     const SizedBox(height: 24),
                     SectionTitle(
-                        title: 'পেমেন্ট মেথড',
-                        subtitle: 'Customer link-এ প্রদর্শিত হবে',
+                        title: tr('Payment methods'),
+                        subtitle: tr('Shown on the customer link'),
                         action: TextButton.icon(
                             icon: const Icon(Icons.add_rounded, size: 17),
-                            label: const Text('নতুন'),
+                            label: Text(tr('New')),
                             onPressed: () async {
                               final saved = await Navigator.of(context)
                                   .push<bool>(MaterialPageRoute(
@@ -192,9 +195,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               if (saved == true && mounted) await _load();
                             })),
                     if (_methods.isEmpty)
-                      const EmptyNote(
-                          title: 'মেথড নেই',
-                          body: 'বিকাশ, ব্যাংক বা ওয়ালেটের তথ্য যোগ করুন।')
+                      EmptyNote(
+                          title: tr('No methods'),
+                          body: tr('Add bKash, bank or wallet details.'))
                     else
                       SurfaceGroup(children: [
                         for (final method in _methods)
@@ -213,12 +216,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       fontSize: 12, color: AppColors.muted))),
                       ]),
                     const SizedBox(height: 24),
-                    const SectionTitle(title: 'টিম ও অপারেশন'),
+                    SectionTitle(title: tr('Team and operations')),
                     SurfaceGroup(children: [
                       MenuRow(
-                          title: 'স্টাফ ব্যবস্থাপনা',
-                          subtitle:
-                              '${_staff.where((person) => person.active).length} জন সক্রিয় · অ্যাক্সেস ও পাসওয়ার্ড',
+                          title: tr('Staff management'),
+                          subtitle: tr(
+                              '{count} active · Access and passwords', {
+                            'count':
+                                _staff.where((person) => person.active).length
+                          }),
                           icon: Icons.people_outline_rounded,
                           onTap: _openStaff),
                       Padding(
@@ -229,7 +235,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const SizedBox(width: 14),
                             Expanded(
                                 child: Text(
-                                    'ওজনের পার্থক্য ${settings.threshold} kg ছাড়ালে সতর্কতা',
+                                    tr('Alert when the weight difference exceeds {kg} kg',
+                                        {'kg': settings.threshold}),
                                     style: const TextStyle(fontSize: 13))),
                           ])),
                     ]),
@@ -241,11 +248,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 horizontal: 16, vertical: 4),
                             leading: const Icon(Icons.checklist_rounded,
                                 color: AppColors.muted, size: 22),
-                            title: const Text('সিস্টেম সেটআপ',
-                                style: TextStyle(
+                            title: Text(tr('System setup'),
+                                style: const TextStyle(
                                     fontSize: 14, fontWeight: FontWeight.w500)),
-                            subtitle: const Text('সংযোগ ও প্রয়োজনীয় সেটিংস',
-                                style: TextStyle(
+                            subtitle: Text(
+                                tr('Connections and required settings'),
+                                style: const TextStyle(
                                     fontSize: 12, color: AppColors.muted)),
                             childrenPadding:
                                 const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -253,25 +261,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             collapsedShape: const Border(),
                             children: [
                               _Check(
-                                  label: 'CNY রেট নিশ্চিত',
+                                  label: tr('CNY rate confirmed'),
                                   ok: setup.rateConfirmed),
                               _Check(
-                                  label: 'ফান্ড অ্যাকাউন্ট ${setup.accounts}',
+                                  label: tr('Fund accounts: {n}',
+                                      {'n': setup.accounts}),
                                   ok: setup.accounts > 0),
                               _Check(
-                                  label: 'পেমেন্ট মেথড ${setup.paymentMethods}',
+                                  label: tr('Payment methods: {n}',
+                                      {'n': setup.paymentMethods}),
                                   ok: setup.paymentMethods > 0),
                               _Check(
-                                  label: 'সক্রিয় স্টাফ ${setup.users}',
+                                  label: tr(
+                                      'Active staff: {n}', {'n': setup.users}),
                                   ok: setup.users > 0),
                               _Check(
-                                  label: 'স্টোরেজ',
+                                  label: tr('Storage'),
                                   ok: setup.storageConfigured),
                               _Check(
-                                  label: 'মিডিয়া ক্লিনআপ',
+                                  label: tr('Media cleanup'),
                                   ok: setup.cleanupEnabled),
                               if (setup.lastCleanupAt != null)
-                                Text('শেষ ক্লিনআপ ${setup.lastCleanupAt}',
+                                Text(
+                                    tr('Last cleanup {at}',
+                                        {'at': setup.lastCleanupAt}),
                                     style: const TextStyle(
                                         color: AppColors.muted, fontSize: 12)),
                             ])),

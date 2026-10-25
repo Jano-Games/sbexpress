@@ -9,18 +9,23 @@ class HubNotice {
   final String text;
 
   factory HubNotice.fromJson(Map<String, Object?> json) {
-    return HubNotice(tag: requiredString(json, 'tag'), text: requiredString(json, 'text'));
+    return HubNotice(
+        tag: requiredString(json, 'tag'), text: requiredString(json, 'text'));
   }
 }
 
 bool hubNoticeAllowed(HubNotice notice) {
   if (notice.tag != 'WEIGHT' && notice.tag != 'FLIGHT') return false;
-  if (notice.text.contains('৳') || notice.text.contains('¥')) return false;
+  if (notice.text.contains('\u09F3') || notice.text.contains('¥')) return false;
   return true;
 }
 
 class HubIncoming {
-  const HubIncoming({required this.kg, required this.count, required this.flightCode, required this.flightDate});
+  const HubIncoming(
+      {required this.kg,
+      required this.count,
+      required this.flightCode,
+      required this.flightDate});
 
   final double kg;
   final int count;
@@ -59,23 +64,33 @@ class HubDashboard {
   final List<HubFlight> upcomingFlights;
 
   factory HubDashboard.fromJson(Map<String, Object?> json) {
-    final notices = [for (final item in requiredMapList(json, 'notices')) HubNotice.fromJson(item)].where(hubNoticeAllowed).toList();
+    final notices = [
+      for (final item in requiredMapList(json, 'notices'))
+        HubNotice.fromJson(item)
+    ].where(hubNoticeAllowed).toList();
     return HubDashboard(
       todayLabel: requiredString(json, 'todayLabel'),
       atHubCount: requiredInt(json, 'atHubCount'),
       incoming: HubIncoming.fromJson(asJsonMap(json['incoming'], 'incoming')),
       openTodoCount: requiredInt(json, 'openTodoCount'),
       notices: notices,
-      toProcess: [for (final item in requiredMapList(json, 'toProcess')) OperationalShipment.fromJson(item)],
+      toProcess: [
+        for (final item in requiredMapList(json, 'toProcess'))
+          OperationalShipment.fromJson(item)
+      ],
       upcomingFlights: json.containsKey('upcomingFlights')
-          ? [for (final item in requiredMapList(json, 'upcomingFlights')) HubFlight.fromJson(item)]
+          ? [
+              for (final item in requiredMapList(json, 'upcomingFlights'))
+                HubFlight.fromJson(item)
+            ]
           : const [],
     );
   }
 }
 
 class DashboardCounts {
-  const DashboardCounts({required this.reviewCount, required this.openTodoCount});
+  const DashboardCounts(
+      {required this.reviewCount, required this.openTodoCount});
 
   final int reviewCount;
   final int openTodoCount;

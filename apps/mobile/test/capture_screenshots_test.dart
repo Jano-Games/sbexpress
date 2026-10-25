@@ -1,6 +1,7 @@
 import 'support/screen_fixtures.dart';
 import 'package:sbexpress/features/admin/admin_shipment_screen.dart';
 import 'package:sbexpress/features/flights/flight_detail_screen.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -44,15 +45,22 @@ import 'package:sbexpress/features/finance/reconciliation_screen.dart';
 import 'package:sbexpress/features/finance/transfer_screen.dart';
 import 'package:sbexpress/features/flights/flight_money_screen.dart';
 import 'package:sbexpress/features/flights/flights_screen.dart';
+import 'package:sbexpress/features/flights/ticket_import_screen.dart';
 import 'package:sbexpress/features/settings/pay_method_form_screen.dart';
 import 'package:sbexpress/features/settings/staff_screen.dart';
 import 'package:sbexpress/features/settings/settings_screen.dart';
 import 'package:sbexpress/features/intake/intake_screen.dart';
+import 'package:sbexpress/l10n/l10n.dart';
 import 'package:sbexpress/theme/app_theme.dart';
 
 void main() {
   testWidgets('optional screenshot capture', (tester) async {
     if (Platform.environment['CAPTURE_SCREENSHOTS'] != '1') return;
+    final previousLanguage = appLanguage.value;
+    addTearDown(() => appLanguage.value = previousLanguage);
+    appLanguage.value = Platform.environment['CAPTURE_LANGUAGE'] == 'bn'
+        ? AppLanguage.bn
+        : AppLanguage.en;
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -137,9 +145,9 @@ void main() {
     await tester.tap(find.text('SH-18 · bKash'));
     await tester.pumpAndSettle();
     await _saveShot(tester, '04b-review-detail');
-    await tester.tap(find.byTooltip('পিছনে'));
+    await tester.tap(find.byTooltip(tr('Back')));
     await tester.pumpAndSettle();
-    expect(find.text('যাচাইয়ের অপেক্ষায়'), findsOneWidget);
+    expect(find.text(tr('Awaiting review')), findsOneWidget);
     expect(find.byKey(const Key('review-approve')), findsNothing);
     await _shot(
         tester,
@@ -204,17 +212,17 @@ void main() {
         find.byType(SettingsScreen));
     await _shot(tester, _scoped(scope, const IntakeScreen()), '22-intake',
         find.byType(IntakeScreen));
-    await tester.tap(find.text('কাস্টমার বেছে নিন'));
+    await tester.tap(find.text(tr('Choose a customer')));
     await tester.pumpAndSettle();
     await _saveShot(tester, '22b-customer-picker');
-    await tester.tap(find.byTooltip('বন্ধ করুন'));
+    await tester.tap(find.byTooltip(tr('Close')));
     await tester.pumpAndSettle();
     await _shot(tester, _scoped(scope, const FinanceScreen()),
         '23-finance-accounts', find.byType(FinanceScreen));
-    await tester.tap(find.text('রিপোর্ট'));
+    await tester.tap(find.text(tr('Reports')));
     await tester.pumpAndSettle();
     await _saveShot(tester, '23b-finance-reports');
-    await tester.tap(find.text('লেনদেন'));
+    await tester.tap(find.text(tr('Transactions')));
     await tester.pumpAndSettle();
     await _saveShot(tester, '23c-finance-actions');
     await _shot(
@@ -222,14 +230,14 @@ void main() {
         _scoped(scope, const AdminShipmentScreen(code: 'SH-18')),
         '24-shipment-detail',
         find.byType(AdminShipmentScreen));
-    await tester.tap(find.text('বিল'));
+    await tester.tap(find.text(tr('Bill')));
     await tester.pumpAndSettle();
     await _saveShot(tester, '24b-shipment-billing');
-    await tester.ensureVisible(find.text('পেমেন্ট'));
-    await tester.tap(find.text('পেমেন্ট'));
+    await tester.ensureVisible(find.text(tr('Payment')));
+    await tester.tap(find.text(tr('Payment')));
     await tester.pumpAndSettle();
     await _saveShot(tester, '24c-shipment-payment');
-    await tester.tap(find.text('শেয়ার লিংক'));
+    await tester.tap(find.text(tr('Share link')));
     await tester.pumpAndSettle();
     await _saveShot(tester, '24d-shipment-share');
     await _shot(tester, _scoped(scope, const FlightDetailScreen(code: 'BG305')),
@@ -239,6 +247,18 @@ void main() {
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
         '26-customer-detail',
         find.byType(CustomerDetailScreen));
+    await _shot(
+        tester,
+        _scoped(scope,
+            TicketImportScreen(pickPdf: () async => utf8.encode('%PDF-1.4'))),
+        '28-ticket-import',
+        find.byType(TicketImportScreen));
+    await tester.tap(find.byKey(const Key('ticket-pick')));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '28b-ticket-review');
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pumpAndSettle();
+    await _saveShot(tester, '28c-ticket-flights');
     tester.view.physicalSize = const Size(320, 700);
     _textScale = 1.3;
     for (final entry in <String, Widget>{
@@ -263,7 +283,7 @@ void main() {
     }
     await _shot(tester, _scoped(scope, const IntakeScreen()),
         '27-compact-booking', find.byType(IntakeScreen));
-    await tester.tap(find.text('কাস্টমার বেছে নিন'));
+    await tester.tap(find.text(tr('Choose a customer')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Nila Store'));
     await tester.pumpAndSettle();

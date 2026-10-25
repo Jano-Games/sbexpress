@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../json_read.dart';
 
 /// Keys the hub UI must not read. The branch snapshot may still send
@@ -69,7 +70,8 @@ class LastMileBooking {
 }
 
 class ShipmentLogEntry {
-  const ShipmentLogEntry({required this.actor, required this.message, required this.at});
+  const ShipmentLogEntry(
+      {required this.actor, required this.message, required this.at});
 
   final String actor;
   final String message;
@@ -85,7 +87,10 @@ class ShipmentLogEntry {
 }
 
 class DeviceUnit {
-  const DeviceUnit({required this.model, required this.serial, required this.serialPhotoRef});
+  const DeviceUnit(
+      {required this.model,
+      required this.serial,
+      required this.serialPhotoRef});
 
   final String model;
   final String serial;
@@ -96,8 +101,11 @@ class DeviceUnit {
   factory DeviceUnit.fromJson(Map<String, Object?> json) {
     return DeviceUnit(
       model: json.containsKey('model') ? asString(json['model'], 'model') : '',
-      serial: json.containsKey('serial') ? asString(json['serial'], 'serial') : '',
-      serialPhotoRef: json.containsKey('serialPhotoRef') ? asNullableString(json['serialPhotoRef'], 'serialPhotoRef') : null,
+      serial:
+          json.containsKey('serial') ? asString(json['serial'], 'serial') : '',
+      serialPhotoRef: json.containsKey('serialPhotoRef')
+          ? asNullableString(json['serialPhotoRef'], 'serialPhotoRef')
+          : null,
     );
   }
 
@@ -109,16 +117,21 @@ class DeviceUnit {
 }
 
 class HubDeviceLine {
-  const HubDeviceLine({required this.category, required this.count, required this.units});
+  const HubDeviceLine(
+      {required this.category, required this.count, required this.units});
 
   final String category;
   final int count;
   final List<DeviceUnit> units;
 
   factory HubDeviceLine.fromJson(Map<String, Object?> json) {
-    final units = json.containsKey('units') ? asMapList(json['units'], 'units') : const <Map<String, Object?>>[];
+    final units = json.containsKey('units')
+        ? asMapList(json['units'], 'units')
+        : const <Map<String, Object?>>[];
     return HubDeviceLine(
-      category: json.containsKey('category') ? asString(json['category'], 'category') : '',
+      category: json.containsKey('category')
+          ? asString(json['category'], 'category')
+          : '',
       count: json.containsKey('count') ? asInt(json['count'], 'count') : 0,
       units: [for (final unit in units) DeviceUnit.fromJson(unit)],
     );
@@ -147,12 +160,18 @@ class AdminDeviceLine {
   final List<DeviceUnit> units;
 
   factory AdminDeviceLine.fromJson(Map<String, Object?> json) {
-    final units = json.containsKey('units') ? asMapList(json['units'], 'units') : const <Map<String, Object?>>[];
+    final units = json.containsKey('units')
+        ? asMapList(json['units'], 'units')
+        : const <Map<String, Object?>>[];
     return AdminDeviceLine(
-      category: json.containsKey('category') ? asString(json['category'], 'category') : '',
+      category: json.containsKey('category')
+          ? asString(json['category'], 'category')
+          : '',
       count: json.containsKey('count') ? asInt(json['count'], 'count') : 0,
       rate: json.containsKey('rate') ? asDouble(json['rate'], 'rate') : 0,
-      currency: json.containsKey('currency') ? asString(json['currency'], 'currency') : 'BDT',
+      currency: json.containsKey('currency')
+          ? asString(json['currency'], 'currency')
+          : 'BDT',
       units: [for (final unit in units) DeviceUnit.fromJson(unit)],
     );
   }
@@ -212,7 +231,9 @@ class OperationalShipment {
       statusIndex: requiredInt(json, 'statusIndex'),
       statusLabel: requiredString(json, 'statusLabel'),
       exception: requiredNullableString(json, 'exception'),
-      exceptionReason: json.containsKey('exceptionReason') ? asString(json['exceptionReason'], 'exceptionReason') : '',
+      exceptionReason: json.containsKey('exceptionReason')
+          ? asString(json['exceptionReason'], 'exceptionReason')
+          : '',
       date: requiredString(json, 'date'),
     );
   }
@@ -278,7 +299,8 @@ class HubShipmentDetail extends OperationalShipment {
 
   int get deviceCount => devices.fold(0, (sum, line) => sum + line.count);
 
-  int get devicePhotoCount => devices.fold(0, (sum, line) => sum + line.units.where((unit) => unit.hasPhoto).length);
+  int get devicePhotoCount => devices.fold(
+      0, (sum, line) => sum + line.units.where((unit) => unit.hasPhoto).length);
 
   bool get hasCourierRef => lastMile != null && lastMile!.ref.trim().isNotEmpty;
 
@@ -306,10 +328,18 @@ class HubShipmentDetail extends OperationalShipment {
       photosCount: requiredInt(json, 'photosCount'),
       hasVideo: requiredBool(json, 'hasVideo'),
       serials: requiredStringList(json, 'serials'),
-      devices: [for (final item in requiredMapList(json, 'pcsItems')) HubDeviceLine.fromJson(item)],
-      lastMile: LastMileBooking.fromNullable(json.containsKey('lastMile') ? json['lastMile'] : throw const FormatException('Missing lastMile')),
+      devices: [
+        for (final item in requiredMapList(json, 'pcsItems'))
+          HubDeviceLine.fromJson(item)
+      ],
+      lastMile: LastMileBooking.fromNullable(json.containsKey('lastMile')
+          ? json['lastMile']
+          : throw const FormatException('Missing lastMile')),
       flyerName: requiredNullableString(json, 'flyerName'),
-      log: [for (final item in requiredMapList(json, 'log')) ShipmentLogEntry.fromJson(item)],
+      log: [
+        for (final item in requiredMapList(json, 'log'))
+          ShipmentLogEntry.fromJson(item)
+      ],
     );
   }
 
@@ -360,7 +390,11 @@ class InvoiceSnapshot {
 }
 
 class AdminPayment {
-  const AdminPayment({required this.method, required this.amount, required this.at, required this.reference});
+  const AdminPayment(
+      {required this.method,
+      required this.amount,
+      required this.at,
+      required this.reference});
 
   final String method;
   final double amount;
@@ -372,7 +406,9 @@ class AdminPayment {
       method: requiredString(json, 'method'),
       amount: requiredDouble(json, 'amount'),
       at: requiredString(json, 'at'),
-      reference: json.containsKey('reference') ? asString(json['reference'], 'reference') : '',
+      reference: json.containsKey('reference')
+          ? asString(json['reference'], 'reference')
+          : '',
     );
   }
 }
@@ -512,7 +548,9 @@ class AdminShipmentDetail extends AdminShipment {
 
   factory AdminShipmentDetail.fromJson(Map<String, Object?> json) {
     final row = AdminShipment.fromJson(json);
-    final invoiceValue = json.containsKey('invoice') ? json['invoice'] : throw const FormatException('Missing invoice');
+    final invoiceValue = json.containsKey('invoice')
+        ? json['invoice']
+        : throw const FormatException('Missing invoice');
     return AdminShipmentDetail(
       code: row.code,
       supplierCode: row.supplierCode,
@@ -547,12 +585,25 @@ class AdminShipmentDetail extends AdminShipment {
       packedAt: requiredNullableString(json, 'packedAt'),
       photosCount: requiredInt(json, 'photosCount'),
       hasVideo: requiredBool(json, 'hasVideo'),
-      devices: [for (final item in requiredMapList(json, 'pcsItems')) AdminDeviceLine.fromJson(item)],
-      lastMile: LastMileBooking.fromNullable(json.containsKey('lastMile') ? json['lastMile'] : throw const FormatException('Missing lastMile')),
+      devices: [
+        for (final item in requiredMapList(json, 'pcsItems'))
+          AdminDeviceLine.fromJson(item)
+      ],
+      lastMile: LastMileBooking.fromNullable(json.containsKey('lastMile')
+          ? json['lastMile']
+          : throw const FormatException('Missing lastMile')),
       flyerName: requiredNullableString(json, 'flyerName'),
-      log: [for (final item in requiredMapList(json, 'log')) ShipmentLogEntry.fromJson(item)],
-      invoice: invoiceValue == null ? null : InvoiceSnapshot.fromJson(asJsonMap(invoiceValue, 'invoice')),
-      payments: [for (final item in requiredMapList(json, 'payments')) AdminPayment.fromJson(item)],
+      log: [
+        for (final item in requiredMapList(json, 'log'))
+          ShipmentLogEntry.fromJson(item)
+      ],
+      invoice: invoiceValue == null
+          ? null
+          : InvoiceSnapshot.fromJson(asJsonMap(invoiceValue, 'invoice')),
+      payments: [
+        for (final item in requiredMapList(json, 'payments'))
+          AdminPayment.fromJson(item)
+      ],
     );
   }
 }
@@ -560,23 +611,23 @@ class AdminShipmentDetail extends AdminShipment {
 String banglaStatus(String status, String apiLabel) {
   switch (status) {
     case 'pending':
-      return 'অপেক্ষমাণ';
+      return tr('Pending');
     case 'received_cn_hub':
-      return 'চায়না হাবে এসেছে';
+      return tr('Arrived at China hub');
     case 'ready_for_shipment':
-      return 'পাঠানোর জন্য প্রস্তুত';
+      return tr('Ready for shipment');
     case 'in_transit':
-      return 'পথে আছে';
+      return tr('In transit');
     case 'customs_cleared':
-      return 'কাস্টমস ক্লিয়ার';
+      return tr('Customs cleared');
     case 'received_bd_hub':
-      return 'ঢাকা হাবে';
+      return tr('At Dhaka hub');
     case 'ready_for_last_mile':
-      return 'লাস্ট মাইলের জন্য প্রস্তুত';
+      return tr('Ready for last mile');
     case 'out_for_delivery':
-      return 'ডেলিভারিতে বেরিয়েছে';
+      return tr('Out for delivery');
     case 'delivered':
-      return 'ডেলিভারি হয়েছে';
+      return tr('Delivered');
     default:
       return apiLabel;
   }

@@ -7,6 +7,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import 'flight_detail_screen.dart';
 import 'flight_form_screen.dart';
+import 'ticket_import_screen.dart';
+import '../../l10n/l10n.dart';
 
 class FlightsScreen extends StatefulWidget {
   const FlightsScreen({super.key, this.root = false});
@@ -56,6 +58,12 @@ class _FlightsScreenState extends State<FlightsScreen> {
     if (created == true && mounted) await _load();
   }
 
+  Future<void> _importTicket() async {
+    final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const TicketImportScreen()));
+    if (created == true && mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = _rows
@@ -63,18 +71,28 @@ class _FlightsScreenState extends State<FlightsScreen> {
         .toList();
     return WorkspaceScaffold(
         root: widget.root,
-        title: 'ফ্লাইট',
-        subtitle: 'সময়সূচি ও ক্যাপাসিটি',
+        title: tr('Flights'),
+        subtitle: tr('Schedule and capacity'),
         onRefresh: _load,
         actions: [
+          IconButton(
+              key: const Key('flights-import-ticket'),
+              tooltip: tr('Import ticket'),
+              onPressed: _importTicket,
+              icon: const Icon(Icons.upload_file_rounded)),
           TextButton.icon(
               onPressed: _create,
               icon: const Icon(Icons.add_rounded, size: 19),
-              label: const Text('নতুন')),
+              label: Text(tr('New'))),
           const SizedBox(width: 8)
         ],
         toolbar: ScreenTabs(
-            labels: const ['আসছে', 'উড়েছে', 'শেষ', 'সব'],
+            labels: [
+              tr('Upcoming'),
+              tr('Departed'),
+              tr('Completed'),
+              tr('All')
+            ],
             index: const ['upcoming', 'departed', 'completed', 'all']
                 .indexOf(_filter),
             onChanged: (i) => setState(() => _filter =
@@ -83,11 +101,12 @@ class _FlightsScreenState extends State<FlightsScreen> {
           if (_loading) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && _error == null && visible.isEmpty)
-            const EmptyNote(
-                title: 'এই ফিল্টারে ফ্লাইট নেই',
-                body: 'নতুন ফ্লাইট যোগ করলে এখানে দেখা যাবে।'),
+            EmptyNote(
+                title: tr('No flights in this filter'),
+                body: tr('New flights will appear here.')),
           if (visible.isNotEmpty) ...[
-            SectionTitle(title: '${visible.length}টি ফ্লাইট'),
+            SectionTitle(
+                title: trn(visible.length, '{n} flight', '{n} flights')),
             SurfaceGroup(children: [
               for (final row in visible)
                 _FlightCard(
@@ -145,16 +164,21 @@ class _FlightCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
                 row.flyers.isEmpty
-                    ? 'ফ্লায়ার অ্যাসাইন করা হয়নি'
+                    ? tr('No flyer assigned')
                     : row.flyers.join(', '),
                 style: const TextStyle(fontSize: 13)),
             Text(
-                '${row.shipmentCount} শিপমেন্ট · মোবাইল ${row.mobiles} · ল্যাপটপ ${row.laptops}',
+                trn(
+                    row.shipmentCount,
+                    '{n} shipment · Mobiles {mobiles} · Laptops {laptops}',
+                    '{n} shipments · Mobiles {mobiles} · Laptops {laptops}',
+                    {'mobiles': row.mobiles, 'laptops': row.laptops}),
                 style: const TextStyle(fontSize: 12, color: AppColors.muted)),
             if (row.scheduleNeedsConfirmation)
-              const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text('তারিখ পেরিয়েছে · স্ট্যাটাস নিশ্চিত করুন',
-                      style: TextStyle(color: AppColors.danger, fontSize: 12))),
+              Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(tr('Date has passed · Confirm the status'),
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 12))),
           ])));
 }

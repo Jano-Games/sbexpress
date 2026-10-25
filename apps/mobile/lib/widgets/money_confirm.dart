@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/app_colors.dart';
 
 /// Stops a money-moving action until the operator confirms the exact effect.
-Future<bool> confirmMoney(BuildContext context, {required String title, required String body}) async {
+Future<bool> confirmMoney(BuildContext context,
+    {required String title, required String body}) async {
   final answer = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(title),
       content: Text(body),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('ফিরে যান')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(tr('Go back'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('নিশ্চিত'),
+          child: Text(tr('Confirm')),
         ),
       ],
     ),
@@ -32,14 +36,17 @@ Future<String?> askReason(BuildContext context, {required String title}) async {
       content: TextField(
         controller: controller,
         maxLength: 200,
-        decoration: const InputDecoration(labelText: 'কারণ', helperText: 'কমপক্ষে ৩ অক্ষর'),
+        decoration: InputDecoration(
+            labelText: tr('Reason'), helperText: tr('At least 3 characters')),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('ফিরে যান')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(tr('Go back'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
           onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-          child: const Text('নিশ্চিত'),
+          child: Text(tr('Confirm')),
         ),
       ],
     ),

@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../api/api_client.dart';
 import '../models/ledger_actions.dart';
 import '../json_read.dart';
@@ -12,12 +13,18 @@ class ShipmentRepository {
 
   Future<List<OperationalShipment>> listHub() async {
     final json = await api.getJson('/api/shipments');
-    return [for (final row in requiredMapList(json, 'shipments')) OperationalShipment.fromJson(row)];
+    return [
+      for (final row in requiredMapList(json, 'shipments'))
+        OperationalShipment.fromJson(row)
+    ];
   }
 
   Future<List<AdminShipment>> listAdmin() async {
     final json = await api.getJson('/api/shipments');
-    return [for (final row in requiredMapList(json, 'shipments')) AdminShipment.fromJson(row)];
+    return [
+      for (final row in requiredMapList(json, 'shipments'))
+        AdminShipment.fromJson(row)
+    ];
   }
 
   Future<HubShipmentDetail> hubDetail(String code) async {
@@ -27,14 +34,17 @@ class ShipmentRepository {
 
   Future<AdminShipmentDetail> adminDetail(String code) async {
     final json = await api.getJson(_path(code));
-    return AdminShipmentDetail.fromJson(asJsonMap(json['shipment'], 'shipment'));
+    return AdminShipmentDetail.fromJson(
+        asJsonMap(json['shipment'], 'shipment'));
   }
 
   Future<void> advance(String code) => api.postJson('${_path(code)}/advance');
 
-  Future<void> weigh(String code, double kg) => api.postJson('${_path(code)}/weigh', body: {'kg': kg});
+  Future<void> weigh(String code, double kg) =>
+      api.postJson('${_path(code)}/weigh', body: {'kg': kg});
 
-  Future<void> pack(String code, int count) => api.postJson('${_path(code)}/pack', body: {'count': count});
+  Future<void> pack(String code, int count) =>
+      api.postJson('${_path(code)}/pack', body: {'count': count});
 
   Future<void> bookLastMile({
     required String code,
@@ -54,11 +64,14 @@ class ShipmentRepository {
   Future<void> dispatch(String code) => api.postJson('${_path(code)}/dispatch');
 
   Future<void> handover(String code, String confirmation) {
-    return api.postJson('${_path(code)}/handover', body: {'confirmation': confirmation});
+    return api.postJson('${_path(code)}/handover',
+        body: {'confirmation': confirmation});
   }
 
-  Future<void> setException(String code, {required String type, required String reason}) {
-    return api.postJson('${_path(code)}/exception', body: {'type': type, 'reason': reason});
+  Future<void> setException(String code,
+      {required String type, required String reason}) {
+    return api.postJson('${_path(code)}/exception',
+        body: {'type': type, 'reason': reason});
   }
 
   Future<String> create(IntakeDraft draft) async {
@@ -81,7 +94,11 @@ class ShipmentRepository {
   }) async {
     final json = await api.postJson(
       '${_path(code)}/invoice',
-      body: invoiceIssueBody(document, revisionReason: revisionReason, confirmFree: confirmFree, state: state, pricingMode: pricingMode),
+      body: invoiceIssueBody(document,
+          revisionReason: revisionReason,
+          confirmFree: confirmFree,
+          state: state,
+          pricingMode: pricingMode),
       idempotent: true,
     );
     return requiredString(json, 'number');
@@ -89,7 +106,10 @@ class ShipmentRepository {
 
   /// Records money already received into a real ledger account. The amount and
   /// account name are chosen by the operator; nothing is filled in for them.
-  Future<void> recordPayment(String code, {required double amount, required String accountName, String currency = 'BDT'}) {
+  Future<void> recordPayment(String code,
+      {required double amount,
+      required String accountName,
+      String currency = 'BDT'}) {
     return api.postJson('${_path(code)}/payments', idempotent: true, body: {
       ...moneyPayload(amount, currency: currency),
       'method': accountName,
@@ -102,11 +122,17 @@ class ShipmentRepository {
 
   Future<List<CreditNoteRecord>> creditNotes(String code) async {
     final json = await api.getJson('${_path(code)}/invoice-history');
-    return [for (final row in requiredMapList(json, 'creditNotes')) CreditNoteRecord.fromJson(row)];
+    return [
+      for (final row in requiredMapList(json, 'creditNotes'))
+        CreditNoteRecord.fromJson(row)
+    ];
   }
 
-  Future<void> createCreditNote(String code, {required double amount, required String reason}) {
-    return api.postJson('${_path(code)}/after-sales', idempotent: true, body: {'amount': roundMoney(amount), 'reason': reason});
+  Future<void> createCreditNote(String code,
+      {required double amount, required String reason}) {
+    return api.postJson('${_path(code)}/after-sales',
+        idempotent: true,
+        body: {'amount': roundMoney(amount), 'reason': reason});
   }
 
   Future<ShipmentCostSheet> costSheet(String code) async {
@@ -115,19 +141,26 @@ class ShipmentRepository {
   }
 
   Future<void> recordCost(String code, Map<String, Object?> body) {
-    return api.postJson('${_path(code)}/expenses', idempotent: true, body: body);
+    return api.postJson('${_path(code)}/expenses',
+        idempotent: true, body: body);
   }
 
   Future<void> voidCost(String code, String costId, String reason) {
-    return api.postJson('${_path(code)}/costs/${Uri.encodeComponent(costId)}/void', idempotent: true, body: {'reason': reason});
+    return api.postJson(
+        '${_path(code)}/costs/${Uri.encodeComponent(costId)}/void',
+        idempotent: true,
+        body: {'reason': reason});
   }
 
-  Future<TrackingLink> shareTracking(String code, {int days = 7, String scope = 'tracking_only'}) async {
+  Future<TrackingLink> shareTracking(String code,
+      {int days = 7, String scope = 'tracking_only'}) async {
     final json = await api.postJson('${_path(code)}/track-link', body: {
       'scope': scope,
       'days': days,
     });
-    return TrackingLink(url: requiredString(json, 'url'), expiresAt: requiredString(json, 'expiresAt'));
+    return TrackingLink(
+        url: requiredString(json, 'url'),
+        expiresAt: requiredString(json, 'expiresAt'));
   }
 
   String _path(String code) => '/api/shipments/${Uri.encodeComponent(code)}';
@@ -153,10 +186,11 @@ Map<String, Object?> shipmentExpenseBody({
   String? costField,
 }) {
   if (paymentTiming == 'later' && (costId != null || costField != null)) {
-    throw const FormatException('বকেয়া খরচ মিটাতে অ্যাকাউন্ট বেছে নিন।');
+    throw FormatException(tr('Choose an account to settle a due cost.'));
   }
-  if (paymentTiming == 'now' && (accountName == null || accountName.trim().isEmpty)) {
-    throw const FormatException('যে অ্যাকাউন্ট থেকে টাকা যাবে সেটা বেছে নিন।');
+  if (paymentTiming == 'now' &&
+      (accountName == null || accountName.trim().isEmpty)) {
+    throw FormatException(tr('Choose the account the money will come from.'));
   }
   return {
     'category': category,

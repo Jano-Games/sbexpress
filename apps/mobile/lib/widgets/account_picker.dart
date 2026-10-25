@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/models/finance_snapshot.dart';
+import '../l10n/l10n.dart';
 import '../theme/app_colors.dart';
 
 class AccountPicker extends StatelessWidget {
@@ -14,8 +15,8 @@ class AccountPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (accounts.isEmpty) {
-      return const Text('অ্যাকাউন্ট নেই। আগে ফাইন্যান্সে একটি ফান্ড যোগ করুন।',
-          style: TextStyle(color: AppColors.muted));
+      return Text(tr('No accounts yet. Add a fund in Finance first.'),
+          style: const TextStyle(color: AppColors.muted));
     }
     final value =
         accounts.any((account) => account.name == selected) ? selected : null;
@@ -25,8 +26,8 @@ class AccountPicker extends StatelessWidget {
             key: ValueKey(value),
             initialValue: value,
             isExpanded: true,
-            hint: const Text('অ্যাকাউন্ট বেছে নিন',
-                style: TextStyle(
+            hint: Text(tr('Choose an account'),
+                style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                     color: AppColors.muted)),

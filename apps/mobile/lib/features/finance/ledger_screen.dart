@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/ledger_actions.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -50,16 +51,17 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   Future<void> _reverse(LedgerEntry entry) async {
-    final reason = await askReason(context, title: 'এন্ট্রি বাতিল');
+    final reason = await askReason(context, title: tr('Reverse entry'));
     if (reason == null || !mounted) return;
     if (reason.length < 3) {
-      setState(() => _error = 'বাতিলের কারণ কমপক্ষে ৩ অক্ষর।');
+      setState(() => _error = tr('The reason must be at least 3 characters.'));
       return;
     }
     final ok = await confirmMoney(context,
-        title: 'লেজার বাতিল',
-        body:
-            '${entry.description} উল্টে দেওয়া হবে। টাকা আগের অ্যাকাউন্টে ফিরবে।');
+        title: tr('Reverse ledger entry'),
+        body: tr(
+            '{description} will be reversed. The money returns to the original account.',
+            {'description': entry.description}));
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -78,15 +80,16 @@ class _LedgerScreenState extends State<LedgerScreen> {
   Widget build(BuildContext context) {
     final seen = <String>{};
     return WorkspaceScaffold(
-        title: 'লেজার',
+        title: tr('Ledger'),
         root: false,
         onRefresh: _load,
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'সাম্প্রতিক ৫০টি লাইন। ট্রান্সফারের দুই পাশ একবার বাতিল হয়।',
-                  style: TextStyle(
+                  tr(
+                      'The latest 50 lines. Both sides of a transfer are reversed together.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (_loading && _entries.isEmpty)
             const LinearProgressIndicator(
@@ -96,7 +99,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
             const SizedBox(height: 12),
           ],
           if (!_loading && _entries.isEmpty)
-            const EmptyNote(title: 'লাইন নেই', body: 'টাকা নড়লে এখানে আসবে।'),
+            EmptyNote(
+                title: tr('No lines'),
+                body:
+                    tr('Money movements appear here when they are recorded.')),
           for (final entry in _entries) ...[
             PaperCard(
               child: Column(
@@ -113,7 +119,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       seen.add('${entry.reversalKind}:${entry.recordId}')) ...[
                     const SizedBox(height: 8),
                     AppButton(
-                        label: 'বাতিল',
+                        label: tr('Reverse'),
                         kind: AppButtonKind.danger,
                         busy: _busy,
                         onPressed: () => _reverse(entry)),

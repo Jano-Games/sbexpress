@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../data/share_bytes.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
@@ -41,7 +42,7 @@ class PdfBytesScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(pageGutter, 12, pageGutter, 16),
             child: AppButton(
-              label: 'শেয়ার',
+              label: tr('Share'),
               kind: AppButtonKind.teal,
               onPressed: data.isEmpty
                   ? null
@@ -60,14 +61,14 @@ class PdfBytesScreen extends StatelessWidget {
 
   Widget _pages(Uint8List data) {
     if (data.isEmpty) {
-      return const Center(
-          child:
-              Text('এই PDF খালি।', style: TextStyle(color: AppColors.muted)));
+      return Center(
+          child: Text(tr('This PDF is empty.'),
+              style: const TextStyle(color: AppColors.muted)));
     }
     // Widget tests have no PDFium. The release and debug APKs use the viewer.
     if (Platform.environment['FLUTTER_TEST'] == 'true') {
       return Center(
-          child: Text('PDF ${data.length} বাইট',
+          child: Text(trn(data.length, 'PDF {n} byte', 'PDF {n} bytes'),
               style: const TextStyle(color: AppColors.muted)));
     }
     return PdfViewer.data(data, sourceName: filename);

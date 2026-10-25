@@ -10,6 +10,7 @@ import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import 'money_format.dart';
@@ -126,9 +127,9 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
     final detail = _detail;
     return WorkspaceScaffold(
         title: widget.code,
-        subtitle: 'শিপমেন্টের তথ্য ও হিসাব',
+        subtitle: tr('Shipment details and finance'),
         toolbar: ScreenTabs(
-            labels: const ['সারসংক্ষেপ', 'বিল', 'ছবি'],
+            labels: [tr('Summary'), tr('Bill'), tr('Photos')],
             index: _tab,
             onChanged: (i) => setState(() => _tab = i)),
         children: [
@@ -191,39 +192,40 @@ class _Summary extends StatelessWidget {
           Text(detail.description,
               style: const TextStyle(color: AppColors.muted)),
           const Divider(),
-          KvRow(label: 'কাস্টমার কোড', value: detail.supplierCode),
+          KvRow(label: tr('Customer code'), value: detail.supplierCode),
           KvRow(
-              label: 'ফ্লাইট', value: detail.flightCode ?? 'অ্যাসাইন করা হয়নি'),
+              label: tr('Flight'),
+              value: detail.flightCode ?? tr('Not assigned')),
           if (detail.flightDate != null)
-            KvRow(label: 'ফ্লাইটের তারিখ', value: detail.flightDate!),
+            KvRow(label: tr('Flight date'), value: detail.flightDate!),
           KvRow(
-              label: 'ফ্লায়ার',
-              value: detail.flyerName ?? 'অ্যাসাইন করা হয়নি'),
+              label: tr('Flyer'),
+              value: detail.flyerName ?? tr('Not assigned')),
         ])),
         const SizedBox(height: 24),
-        const SectionTitle(title: 'হ্যান্ডলিং ও ডেলিভারি'),
+        SectionTitle(title: tr('Handling and delivery')),
         PaperCard(
             child: Column(children: [
-          KvRow(label: 'বুকিংয়ের ওজন', value: formatKg(detail.bookedKg)),
+          KvRow(label: tr('Booked weight'), value: formatKg(detail.bookedKg)),
           KvRow(
-              label: 'মাপা ওজন',
+              label: tr('Measured weight'),
               value: detail.weighedKg == null
-                  ? 'এখনও মাপা হয়নি'
+                  ? tr('Not weighed yet')
                   : formatKg(detail.weighedKg!)),
           KvRow(
-              label: 'প্যাকিং',
+              label: tr('Packing'),
               value: detail.packedAt == null
-                  ? 'বাকি'
-                  : '${detail.packageCount} প্যাকেজ'),
+                  ? tr('Not packed')
+                  : trn(detail.packageCount, '{n} package', '{n} packages')),
           KvRow(
-              label: 'কুরিয়ার',
-              value: detail.lastMile?.courier ?? 'বুক করা হয়নি'),
+              label: tr('Courier'),
+              value: detail.lastMile?.courier ?? tr('Not booked')),
           if (detail.lastMile != null)
-            KvRow(label: 'রেফারেন্স', value: detail.lastMile!.ref),
+            KvRow(label: tr('Reference'), value: detail.lastMile!.ref),
         ])),
         const SizedBox(height: 20),
         AppButton(
-            label: 'Tracking link শেয়ার',
+            label: tr('Share tracking link'),
             icon: Icons.link_rounded,
             kind: AppButtonKind.quiet,
             onPressed: onShare),
@@ -238,7 +240,7 @@ class _Summary extends StatelessWidget {
                         const TextStyle(fontSize: 12, color: AppColors.muted)),
                 const SizedBox(height: 12),
                 AppButton(
-                    label: 'লিংক কপি',
+                    label: tr('Copy link'),
                     icon: Icons.copy_rounded,
                     kind: AppButtonKind.quiet,
                     onPressed: () =>
@@ -246,8 +248,8 @@ class _Summary extends StatelessWidget {
               ])),
         ],
         const SizedBox(height: 10),
-        const Text('ইনভয়েসসহ লিংকের জন্য বিল ট্যাব খুলুন।',
-            style: TextStyle(color: AppColors.muted, fontSize: 12)),
+        Text(tr('For a link with the invoice, open the Bill tab.'),
+            style: const TextStyle(color: AppColors.muted, fontSize: 12)),
       ]);
 }
 
@@ -259,9 +261,10 @@ class _Bill extends StatelessWidget {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Expanded(
-              child: Text('বকেয়া',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12))),
+          Expanded(
+              child: Text(tr('Amount due'),
+                  style:
+                      const TextStyle(color: AppColors.muted, fontSize: 12))),
           StatusPill(
               label: payStatusLabel(detail.payStatus),
               tone: payTone(detail.payStatus))
@@ -274,13 +277,13 @@ class _Bill extends StatelessWidget {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
               child: AmountLabel(
-                  label: 'মোট বিল',
+                  label: tr('Total bill'),
                   value: formatBdt(detail.billAmount),
                   size: 17)),
           const SizedBox(width: 12),
           Expanded(
               child: AmountLabel(
-                  label: 'পেইড',
+                  label: tr('Paid'),
                   value: formatBdt(detail.paidAmount),
                   size: 17)),
         ]),
@@ -288,27 +291,29 @@ class _Bill extends StatelessWidget {
         ExpansionTile(
             tilePadding: EdgeInsets.zero,
             childrenPadding: EdgeInsets.zero,
-            title: const Text('চার্জ ও পেমেন্টের বিবরণ',
-                style: TextStyle(fontSize: 13)),
+            title: Text(tr('Charge and payment details'),
+                style: const TextStyle(fontSize: 13)),
             shape: const Border(),
             collapsedShape: const Border(),
             children: [
-              KvRow(label: 'চার্জ', value: formatBdt(detail.charge)),
-              KvRow(label: 'ছাড়', value: formatBdt(detail.discountAmount)),
+              KvRow(label: tr('Charge'), value: formatBdt(detail.charge)),
               KvRow(
-                  label: 'প্রতি kg রেট',
+                  label: tr('Discount'),
+                  value: formatBdt(detail.discountAmount)),
+              KvRow(
+                  label: tr('Rate per kg'),
                   value:
                       '${detail.chargeCurrency} ${detail.chargeRate.toStringAsFixed(2)}'),
-              KvRow(label: 'মেথড', value: detail.payMethod ?? '—'),
+              KvRow(label: tr('Method'), value: detail.payMethod ?? '—'),
               KvRow(
-                  label: 'টার্ম',
+                  label: tr('Terms'),
                   value: paymentTermsLabel(detail.paymentTerms)),
-              if (detail.freeOfCharge) const Text('ফ্রি অব চার্জ'),
+              if (detail.freeOfCharge) Text(tr('Free of charge')),
               if (detail.invoice != null)
                 KvRow(
-                    label: 'ইনভয়েস',
+                    label: tr('Invoice'),
                     value:
-                        '${detail.invoice!.number}${detail.invoice!.needsReview ? ' · রিভিউ দরকার' : ''}'),
+                        '${detail.invoice!.number}${detail.invoice!.needsReview ? ' · ${tr('Needs review')}' : ''}'),
               for (final payment in detail.payments)
                 KvRow(label: payment.method, value: formatBdt(payment.amount)),
             ]),
@@ -333,19 +338,19 @@ class _Photos extends StatelessWidget {
     final upload = photos;
     return Column(
       children: [
-        const Text(
-            'IMEI ছবি এই তালিকায় আসে না এবং কাস্টমারের সাথে শেয়ার হয় না।',
-            style: TextStyle(color: AppColors.muted, height: 1.35)),
+        Text(
+            tr('IMEI photos are not listed here and are never shared with the customer.'),
+            style: const TextStyle(color: AppColors.muted, height: 1.35)),
         const SizedBox(height: 8),
         if (list != null && !list.configured)
-          const ErrorNote(
-              message:
-                  'স্টোরেজ এখনো তৈরি হয়নি। অ্যাডমিন স্টোরেজ সেটআপ শেষ করলে আপলোড চালু হবে।'),
+          ErrorNote(
+              message: tr(
+                  'Storage is not set up yet. Uploads will turn on once an admin finishes storage setup.')),
         Row(
           children: [
             Expanded(
                 child: AppButton(
-                    label: 'ক্যামেরা',
+                    label: tr('Camera'),
                     kind: AppButtonKind.quiet,
                     onPressed: list?.configured == false
                         ? null
@@ -353,7 +358,7 @@ class _Photos extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
                 child: AppButton(
-                    label: 'গ্যালারি',
+                    label: tr('Gallery'),
                     kind: AppButtonKind.quiet,
                     onPressed: list?.configured == false
                         ? null
@@ -362,8 +367,8 @@ class _Photos extends StatelessWidget {
         ),
         if (upload != null && upload.prepared != null) ...[
           const SizedBox(height: 8),
-          const Text(locationStrippedNote,
-              style: TextStyle(color: AppColors.muted)),
+          Text(locationStrippedNote,
+              style: const TextStyle(color: AppColors.muted)),
         ],
         if (upload != null && upload.busy)
           Padding(
@@ -379,13 +384,15 @@ class _Photos extends StatelessWidget {
               style: const TextStyle(color: AppColors.danger, height: 1.35)),
           const SizedBox(height: 8),
           AppButton(
-              label: 'একই ছবি আবার পাঠান',
+              label: tr('Send the same photo again'),
               kind: AppButtonKind.teal,
               onPressed: upload.retry),
         ],
         const SizedBox(height: 12),
         if (list == null || list.media.isEmpty)
-          const EmptyNote(title: 'ছবি নেই', body: 'যোগ করলে এখানে দেখা যাবে।')
+          EmptyNote(
+              title: tr('No photos'),
+              body: tr('Photos you add will appear here.'))
         else
           for (final item in list.media) ...[
             PaperCard(
@@ -394,12 +401,16 @@ class _Photos extends StatelessWidget {
                 children: [
                   Text(item.name,
                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(item.shared ? 'কাস্টমার দেখতে পাবে' : 'শুধু স্টাফ',
+                  Text(
+                      item.shared
+                          ? tr('Visible to customer')
+                          : tr('Staff only'),
                       style: const TextStyle(color: AppColors.muted)),
                   const SizedBox(height: 8),
                   AppButton(
-                    label:
-                        item.shared ? 'শেয়ার বন্ধ' : 'কাস্টমারের সাথে শেয়ার',
+                    label: item.shared
+                        ? tr('Stop sharing')
+                        : tr('Share with customer'),
                     kind: AppButtonKind.teal,
                     onPressed: () => onToggle(item, !item.shared),
                   ),

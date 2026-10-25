@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
@@ -31,11 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _email.text.trim();
     final password = _password.text;
     if (!email.contains('@') || !email.contains('.')) {
-      setState(() => _error = 'সঠিক ইমেইল দিন।');
+      setState(() => _error = tr('Enter a valid email.'));
       return;
     }
     if (password.isEmpty) {
-      setState(() => _error = 'পাসওয়ার্ড দিন।');
+      setState(() => _error = tr('Enter your password.'));
       return;
     }
     setState(() {
@@ -69,20 +70,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                      const Text('লগইন করুন',
-                          style: TextStyle(
+                      Text(tr('Sign in'),
+                          style: const TextStyle(
                               fontSize: 24,
                               height: 1.3,
                               fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      const Text(
-                          'স্টাফ ইমেইল ও পাসওয়ার্ড দিন। হাব না অ্যাডমিন — অ্যাকাউন্ট থেকেই ঠিক হবে।',
-                          style: TextStyle(
+                      Text(tr('Enter your staff email and password. Your account decides whether you get hub or admin.'),
+                          style: const TextStyle(
                               color: AppColors.muted,
                               fontSize: 14,
                               height: 1.55)),
                       const SizedBox(height: 22),
-                      const _FieldLabel('ইমেইল'),
+                      _FieldLabel(tr('Email')),
                       TextField(
                           key: const Key('login-email'),
                           controller: _email,
@@ -93,12 +93,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             AutofillHints.username,
                             AutofillHints.email
                           ],
-                          decoration: const InputDecoration(
-                              hintText: 'আপনার ইমেইল',
-                              prefixIcon:
-                                  Icon(Icons.mail_outline_rounded, size: 20))),
+                          decoration: InputDecoration(
+                              hintText: tr('Your email'),
+                              prefixIcon: const Icon(Icons.mail_outline_rounded,
+                                  size: 20))),
                       const SizedBox(height: 16),
-                      const _FieldLabel('পাসওয়ার্ড'),
+                      _FieldLabel(tr('Password')),
                       TextField(
                           key: const Key('login-password'),
                           controller: _password,
@@ -112,8 +112,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   size: 20),
                               suffixIcon: IconButton(
                                   tooltip: _obscure
-                                      ? 'পাসওয়ার্ড দেখুন'
-                                      : 'পাসওয়ার্ড লুকান',
+                                      ? tr('Show password')
+                                      : tr('Hide password'),
                                   onPressed: () =>
                                       setState(() => _obscure = !_obscure),
                                   icon: Icon(
@@ -128,21 +128,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 22),
                       AppButton(
                           key: const Key('login-submit'),
-                          label: 'লগইন করুন',
+                          label: tr('Sign in'),
                           icon: Icons.arrow_forward_rounded,
                           busy: _busy,
                           onPressed: _submit),
                       const SizedBox(height: 28),
-                      const Row(
+                      Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.shield_outlined,
+                            const Icon(Icons.shield_outlined,
                                 color: AppColors.muted, size: 16),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Flexible(
                                 child: Text(
-                                    'পাসওয়ার্ড ভুলে গেলে অ্যাডমিনকে জানান',
-                                    style: TextStyle(
+                                    tr('Forgot your password? Tell an admin.'),
+                                    style: const TextStyle(
                                         color: AppColors.muted, fontSize: 13))),
                           ]),
                     ]))),
@@ -195,7 +195,7 @@ class _Hero extends StatelessWidget {
                       const BrandLockup(onDark: true),
                       const SizedBox(height: 32),
                       Row(children: [
-                        place('চীন', 'চেংদু'),
+                        place(tr('China'), tr('Chengdu')),
                         Expanded(
                             child: SizedBox(
                                 height: 36,
@@ -220,11 +220,11 @@ class _Hero extends StatelessWidget {
                                               size: 19,
                                               color: AppColors.primary)),
                                     ]))),
-                        place('বাংলাদেশ', 'ঢাকা', end: true),
+                        place(tr('Bangladesh'), tr('Dhaka'), end: true),
                       ]),
                       const SizedBox(height: 28),
-                      const Text('এয়ার কার্গোর সব কাজ,\nএক অ্যাপে।',
-                          style: TextStyle(
+                      Text(tr('All your air cargo work,\nin one app.'),
+                          style: const TextStyle(
                               fontSize: 25,
                               height: 1.35,
                               fontWeight: FontWeight.w700,

@@ -7,6 +7,7 @@ import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
@@ -106,30 +107,33 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'IMEI ছবি',
+        title: tr('IMEI photos'),
         root: false,
         onRefresh: _load,
         subtitle: widget.code,
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'প্রতিটি ডিভাইসের সিরিয়াল ছবি আলাদা। কাস্টমারের সাথে শেয়ার হয় না।',
-                  style: TextStyle(
+                  tr(
+                      'Each device has its own serial photo. It is not shared with the customer.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (_loading)
             const LinearProgressIndicator(
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && _units.isEmpty)
-            const EmptyNote(
-                title: 'ডিভাইস নেই',
-                body: 'ইনটেকে মোবাইল, ল্যাপটপ বা ড্রোন দিলে এখানে ইউনিট আসবে।'),
+            EmptyNote(
+                title: tr('No devices'),
+                body: tr(
+                    'Units appear here when intake includes mobiles, laptops or drones.')),
           for (final unit in _units) ...[
             DirectoryTile(
               title: unit.model.isEmpty ? unit.category : unit.model,
-              subtitle: unit.serial.isEmpty ? 'সিরিয়াল লেখা নেই' : unit.serial,
-              badge: unit.hasPhoto ? 'ছবি আছে' : 'ছবি নেই',
+              subtitle:
+                  unit.serial.isEmpty ? tr('No serial recorded') : unit.serial,
+              badge: unit.hasPhoto ? tr('Has photo') : tr('No photo'),
               onTap: () async {
                 await Navigator.of(context).push(MaterialPageRoute<void>(
                     builder: (_) =>
@@ -175,7 +179,7 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
         if (!mounted) return;
         setState(() {
           if (_photos?.done == true) {
-            _saved = 'ছবি সেভ হয়েছে। কাস্টমার এটি দেখতে পাবে না।';
+            _saved = tr('Photo saved. The customer cannot see it.');
           }
         });
       });
@@ -216,16 +220,17 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           const _GuideFrame(),
           const SizedBox(height: 12),
-          const PaperCard(
+          PaperCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('১. ডায়ালারে *#06# চাপুন, অথবা বক্সের লেবেল খুলুন।'),
-                SizedBox(height: 6),
-                Text('২. নম্বরটা ফ্রেমের ভিতরে রাখুন। সরাসরি আলো এড়ান।'),
-                SizedBox(height: 6),
-                Text(
-                    '৩. ছবি JPEG হবে, লোকেশন মুছে যাবে, এবং কাস্টমার লিংকে যাবে না।'),
+                Text(tr('1. Dial *#06#, or open the label on the box.')),
+                const SizedBox(height: 6),
+                Text(tr(
+                    '2. Keep the number inside the frame. Avoid direct light.')),
+                const SizedBox(height: 6),
+                Text(tr(
+                    '3. The photo is saved as JPEG, its location is removed, and it stays out of customer links.')),
               ],
             ),
           ),
@@ -234,13 +239,13 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
             children: [
               Expanded(
                   child: AppButton(
-                      label: 'ক্যামেরা',
+                      label: tr('Camera'),
                       kind: AppButtonKind.current,
                       onPressed: () => _pick(ImageSource.camera))),
               const SizedBox(width: 8),
               Expanded(
                   child: AppButton(
-                      label: 'গ্যালারি',
+                      label: tr('Gallery'),
                       kind: AppButtonKind.quiet,
                       onPressed: () => _pick(ImageSource.gallery))),
             ],
@@ -254,19 +259,20 @@ class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
           ],
           if (upload?.prepared != null) ...[
             const SizedBox(height: 8),
-            const Text(locationStrippedNote,
-                style: TextStyle(color: AppColors.muted)),
+            Text(locationStrippedNote,
+                style: const TextStyle(color: AppColors.muted)),
           ],
           if (upload?.error != null) ...[
             const SizedBox(height: 8),
             Text(upload!.error!,
                 style: const TextStyle(color: AppColors.danger, height: 1.35)),
             const SizedBox(height: 8),
-            AppButton(label: 'একই ছবি আবার পাঠান', onPressed: upload.retry),
+            AppButton(
+                label: tr('Resend the same photo'), onPressed: upload.retry),
           ],
           if (_saved != null) ...[
             const SizedBox(height: 12),
-            EmptyNote(title: 'সেভ হয়েছে', body: _saved!),
+            EmptyNote(title: tr('Saved'), body: _saved!),
           ],
         ]);
   }
@@ -285,13 +291,13 @@ class _GuideFrame extends StatelessWidget {
             borderRadius: BorderRadius.circular(cardRadius)),
         child: CustomPaint(
           painter: _FramePainter(),
-          child: const Center(
+          child: Center(
             child: Padding(
-              padding: EdgeInsets.all(36),
+              padding: const EdgeInsets.all(36),
               child: Text(
-                'IMEI\nএখানে',
+                'IMEI\n${tr('here')}',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.w700,

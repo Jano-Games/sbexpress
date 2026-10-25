@@ -7,6 +7,7 @@ import '../../data/models/flight.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
 import '../../data/repositories/dashboard_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../flights/hub_flights_screen.dart';
@@ -74,14 +75,15 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
     final today = FlightDay.parse(DateTime.now().toIso8601String());
     final dayLabel = today == null
         ? null
-        : '${today.weekday}বার · ${today.day} ${today.month}';
+        : '${today.weekdayName} · ${today.day} ${today.month}';
     return WorkspaceScaffold(
-        title: 'ঢাকা হাব',
+        title: tr('Dhaka hub'),
         subtitle: data == null
-            ? dayLabel ?? 'আজকের পার্সেল ও ডেলিভারির প্রস্তুতি'
+            ? dayLabel ?? tr("Preparing today's parcels and deliveries")
             : [
                 if (dayLabel != null) dayLabel,
-                'হাবে ${data.atHubCount}টি শিপমেন্ট'
+                trn(data.atHubCount, '{n} shipment at the hub',
+                    '{n} shipments at the hub')
               ].join(' · '),
         root: true,
         onRefresh: _load,
@@ -120,10 +122,10 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
           controller: _query,
           onChanged: (_) => setState(() {}),
           textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-              hintText: 'হাবের শিপমেন্ট খুঁজুন — কোড বা পণ্য',
-              prefixIcon: Icon(Icons.search_rounded, size: 21),
-              enabledBorder: OutlineInputBorder(
+          decoration: InputDecoration(
+              hintText: tr('Search hub shipments — code or cargo'),
+              prefixIcon: const Icon(Icons.search_rounded, size: 21),
+              enabledBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(14)),
                   borderSide: BorderSide(color: AppColors.line)))),
       const SizedBox(height: 14),
@@ -141,9 +143,9 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
       if (data.upcomingFlights.isNotEmpty) ...[
         const SizedBox(height: 22),
         SectionTitle(
-            title: 'আসন্ন ফ্লাইট',
+            title: tr('Upcoming flights'),
             action: TextButton(
-                onPressed: _openFlights, child: const Text('সব দেখুন'))),
+                onPressed: _openFlights, child: Text(tr('See all')))),
         SizedBox(
             // The strip scrolls sideways, so its height must fit the card at
             // the user's text size.
@@ -164,26 +166,26 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
       const SizedBox(height: 22),
       SectionTitle(
           title: _step == null
-              ? 'প্রসেসিং-এর অপেক্ষায়'
-              : '${_stepName(_step!)} বাকি',
+              ? tr('Awaiting processing')
+              : tr('{step} pending', {'step': _stepName(_step!)}),
           action: _step != null
               ? TextButton(
                   onPressed: () => setState(() => _step = null),
-                  child: const Text('সব দেখান'))
+                  child: Text(tr('Show all')))
               : widget.onOpenShipments == null
                   ? null
                   : TextButton(
                       onPressed: widget.onOpenShipments,
-                      child: const Text('সব দেখুন'))),
+                      child: Text(tr('See all')))),
       if (queue.isEmpty)
         EmptyNote(
             icon: Icons.task_alt_rounded,
             title: query.isNotEmpty || _step != null
-                ? 'মিলছে এমন শিপমেন্ট নেই'
-                : 'হাবে অপেক্ষমাণ শিপমেন্ট নেই',
+                ? tr('No matching shipments')
+                : tr('No shipments waiting at the hub'),
             body: query.isNotEmpty || _step != null
-                ? 'অন্য কোড লিখুন বা ফিল্টার সরান।'
-                : 'ঢাকা হাবে এলে এখানে দেখা যাবে।')
+                ? tr('Try another code or clear the filter.')
+                : tr('Shipments appear here when they reach the Dhaka hub.'))
       else
         SurfaceGroup(children: [
           for (final row in queue)
@@ -194,7 +196,7 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
         ]),
       if (notices.isNotEmpty) ...[
         const SizedBox(height: 22),
-        const SectionTitle(title: 'নজর দিন'),
+        SectionTitle(title: tr('Needs attention')),
         SurfaceGroup(children: [
           for (final notice in notices) _NoticeRow(notice: notice),
         ]),
@@ -225,7 +227,7 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
 }
 
 String _stepName(HubListStep step) =>
-    step == HubListStep.deliveryChain ? 'ডেলিভারি' : hubListStepLabel(step);
+    step == HubListStep.deliveryChain ? tr('Delivery') : hubListStepLabel(step);
 
 class _TodayHero extends StatelessWidget {
   const _TodayHero(
@@ -254,21 +256,23 @@ class _TodayHero extends StatelessWidget {
             boxShadow: cardShadow),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Expanded(
-                child: Text('আজকের কাজ',
-                    key: Key('hub-today-title'),
-                    style:
-                        TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+            Expanded(
+                child: Text(tr("Today's tasks"),
+                    key: const Key('hub-today-title'),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700))),
             const SizedBox(width: 12),
             StatusPill(
                 key: const Key('hub-today-remaining'),
-                label: done ? 'সব শেষ' : '${counts.remaining}টি বাকি',
+                label: done
+                    ? tr('All done')
+                    : tr('{n} left', {'n': counts.remaining}),
                 tone: done ? ChipTone.green : ChipTone.amber),
           ]),
           if (done) ...[
             const SizedBox(height: 4),
-            const Text('আজ হাবে বাকি ধাপ নেই',
-                style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            Text(tr('No hub steps left today'),
+                style: const TextStyle(color: AppColors.muted, fontSize: 13)),
           ],
           const SizedBox(height: 14),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -276,21 +280,21 @@ class _TodayHero extends StatelessWidget {
               (
                 const Key('hub-count-weigh'),
                 HubListStep.weigh,
-                'ওজন',
+                tr('Weigh'),
                 Icons.scale_outlined,
                 counts.weigh
               ),
               (
                 const Key('hub-count-pack'),
                 HubListStep.pack,
-                'প্যাক',
+                tr('Pack'),
                 Icons.inventory_2_outlined,
                 counts.pack
               ),
               (
                 const Key('hub-count-delivery'),
                 HubListStep.deliveryChain,
-                'ডেলিভারি',
+                tr('Delivery'),
                 Icons.local_shipping_outlined,
                 counts.deliveryChain
               ),
@@ -311,7 +315,8 @@ class _TodayHero extends StatelessWidget {
             const SizedBox(height: 14),
             AppButton(
                 key: const Key('hub-today-now'),
-                label: 'শুরু করুন — ${next!.code} ${_stepName(earliest)}',
+                label: tr('Start — {code} · {step}',
+                    {'code': next!.code, 'step': _stepName(earliest)}),
                 icon: Icons.arrow_forward_rounded,
                 onPressed: () => onStart(next!.code)),
           ],
@@ -381,9 +386,9 @@ class _StepTile extends StatelessWidget {
                                           color: AppColors.accentStrong,
                                           borderRadius:
                                               BorderRadius.circular(999)),
-                                      child: const Text('এখন',
+                                      child: Text(tr('Now'),
                                           textScaler: TextScaler.noScaling,
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                               fontSize: 11,
                                               height: 1.4,
                                               fontWeight: FontWeight.w700,
@@ -464,7 +469,8 @@ class _QueueRow extends StatelessWidget {
                               style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w700)),
                           StatusPill(
-                              label: '${_stepName(step)} বাকি',
+                              label: tr(
+                                  '{step} pending', {'step': _stepName(step)}),
                               tone: now ? ChipTone.amber : ChipTone.neutral),
                         ]),
                     const SizedBox(height: 2),
@@ -505,10 +511,13 @@ class _NoticeRow extends StatelessWidget {
     final over = match != null && !match.group(5)!.startsWith('-');
     final title = match == null
         ? notice.text
-        : '${match.group(1)} — ওজন বুকিংয়ের চেয়ে ${over ? 'বেশি' : 'কম'}';
+        : over
+            ? tr('{code} — heavier than booked', {'code': match.group(1)})
+            : tr('{code} — lighter than booked', {'code': match.group(1)});
     final body = match == null
         ? null
-        : 'মাপা ${match.group(3)} kg · বুকিং ${match.group(4)} kg';
+        : tr('Weighed {weighed} kg · booked {booked} kg',
+            {'weighed': match.group(3), 'booked': match.group(4)});
     return Padding(
         padding: const EdgeInsets.all(14),
         child: Row(children: [
@@ -549,7 +558,9 @@ class _Incoming extends StatelessWidget {
       Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('আসছে ${incoming.count}টি শিপমেন্ট · ${formatKg(incoming.kg)}',
+        Text(
+            trn(incoming.count, '{n} shipment incoming · {kg}',
+                '{n} shipments incoming · {kg}', {'kg': formatKg(incoming.kg)}),
             style: const TextStyle(fontWeight: FontWeight.w600)),
         if (flight != null)
           Text(flight,

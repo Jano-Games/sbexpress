@@ -7,6 +7,7 @@ import '../../data/models/finance_snapshot.dart';
 import '../../data/models/workspace.dart';
 import '../../data/money_payload.dart';
 import '../../data/share_bytes.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../pdf/pdf_bytes_screen.dart';
 import '../../widgets/money_confirm.dart';
@@ -95,12 +96,13 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
     final invoice = _invoice;
     if (invoice == null) return;
     if (invoice.lines.isEmpty) {
-      setState(() => _error = 'বিলের লাইন নেই। লাইন সম্পাদনা থেকে চার্জ বসান।');
+      setState(() => _error =
+          tr('The bill has no lines. Add charges in Lines and discount.'));
       return;
     }
     if (invoice.total == 0 && !_confirmFree) {
       setState(
-          () => _error = 'শূন্য বিল ইস্যু করতে ফ্রি অব চার্জ নিশ্চিত করুন।');
+          () => _error = tr('Confirm free of charge to issue a zero bill.'));
       return;
     }
     setState(() {
@@ -195,14 +197,18 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
     final amount = parseMoney(_amount.text);
     if (account == null || amount == null || amount <= 0) {
       setState(() =>
-          _error = 'অ্যাকাউন্ট বেছে নিন এবং যে টাকা এসেছে সেই অঙ্ক লিখুন।');
+          _error = tr('Choose an account and enter the amount received.'));
       return;
     }
     final chosen = account;
     final ok = await confirmMoney(context,
-        title: 'টাকা জমা',
-        body:
-            '${formatMoney(amount, chosen.currency)} ${chosen.name}-এ এই শিপমেন্টের জমা হিসেবে ঢুকবে।');
+        title: tr('Record payment'),
+        body: tr(
+            '{amount} will be added to {account} as a payment for this shipment.',
+            {
+              'amount': formatMoney(amount, chosen.currency),
+              'account': chosen.name
+            }));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -238,32 +244,34 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
         if (invoice != null) ...[
           const SizedBox(height: 20),
           ScreenTabs(
-              labels: const ['ইনভয়েস', 'পেমেন্ট', 'শেয়ার লিংক'],
+              labels: [tr('Invoice'), tr('Payment'), tr('Share link')],
               index: _section,
               onChanged: (i) => setState(() => _section = i)),
           const SizedBox(height: 16),
           if (_section == 0) ...[
             const SizedBox(height: 12),
-            const SectionTitle(
-                title: 'ইনভয়েস',
-                subtitle:
-                    'লাইন ও ছাড় সম্পাদনা থেকে বদলানো যায়। ইস্যুর আগে মোট দেখে নিন।'),
+            SectionTitle(
+                title: tr('Invoice'),
+                subtitle: tr(
+                    'Edit lines and discount to change it. Check the total before issuing.')),
             PaperCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(invoice.number,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text(invoice.issued ? 'ইস্যু হয়েছে' : invoice.state,
+                  Text(invoice.issued ? tr('Invoice issued') : invoice.state,
                       style: const TextStyle(color: AppColors.muted)),
                   const SizedBox(height: 8),
-                  if (invoice.lines.isEmpty) const Text('এখনো কোনো লাইন নেই।'),
+                  if (invoice.lines.isEmpty) Text(tr('No lines yet.')),
                   for (final line in invoice.lines)
                     KvRow(label: line.label, value: formatBdt(line.amount)),
-                  KvRow(label: 'ছাড়', value: formatBdt(invoice.discount)),
-                  KvRow(label: 'মোট', value: formatBdt(invoice.total)),
                   KvRow(
-                      label: 'বাকি',
+                      label: tr('Discount'),
+                      value: formatBdt(invoice.discount)),
+                  KvRow(label: tr('Total'), value: formatBdt(invoice.total)),
+                  KvRow(
+                      label: tr('Balance due'),
                       value: formatBdt(invoice.dueAmount),
                       valueColor: invoice.dueAmount > 0
                           ? AppColors.danger
@@ -276,27 +284,28 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
               if (invoice.needsReview || invoice.saved)
                 TextField(
                     controller: _reason,
-                    decoration: const InputDecoration(
-                        labelText: 'রিভিশনের কারণ',
-                        helperText: 'ইস্যু করা বিল বদলালে কারণ লাগে')),
+                    decoration: InputDecoration(
+                        labelText: tr('Revision reason'),
+                        helperText:
+                            tr('Changing an issued bill needs a reason'))),
               if (invoice.total == 0) ...[
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   value: _confirmFree,
                   onChanged: (value) =>
                       setState(() => _confirmFree = value ?? false),
-                  title: const Text('এই শিপমেন্ট ফ্রি অব চার্জ'),
+                  title: Text(tr('This shipment is free of charge')),
                 ),
               ],
               AppButton(
-                  label: 'হিসাবের লাইন ইস্যু',
+                  label: tr('Issue invoice'),
                   kind: AppButtonKind.current,
                   busy: _busy,
                   onPressed: invoice.lines.isEmpty ? null : _issue),
             ],
             const SizedBox(height: 8),
             AppButton(
-              label: 'লাইন ও ছাড়',
+              label: tr('Lines and discount'),
               kind: AppButtonKind.teal,
               onPressed: () async {
                 await Navigator.of(context).push(MaterialPageRoute<void>(
@@ -306,19 +315,19 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
             ),
             const SizedBox(height: 8),
             AppButton(
-                label: 'PDF দেখুন',
+                label: tr('View PDF'),
                 kind: AppButtonKind.quiet,
                 busy: _busy,
                 onPressed: _viewPdf),
             const SizedBox(height: 8),
             AppButton(
-                label: 'PDF শেয়ার',
+                label: tr('Share PDF'),
                 kind: AppButtonKind.quiet,
                 busy: _busy,
                 onPressed: _pdf),
             const SizedBox(height: 8),
             AppButton(
-              label: 'খরচ',
+              label: tr('Costs'),
               kind: AppButtonKind.quiet,
               onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -326,7 +335,7 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
             ),
             const SizedBox(height: 8),
             AppButton(
-              label: 'ক্রেডিট নোট',
+              label: tr('Credit note'),
               kind: AppButtonKind.quiet,
               onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -335,14 +344,14 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
           ],
           if (_section == 2) ...[
             const SizedBox(height: 12),
-            const SectionTitle(
-                title: 'শেয়ার',
-                subtitle: 'কাস্টমারের জন্য লিংকের মেয়াদ বেছে নিন।'),
+            SectionTitle(
+                title: tr('Share'),
+                subtitle: tr('Choose how long the customer link stays valid.')),
             ChoiceChips(
-              options: const [
-                (value: '7', label: '৭ দিন'),
-                (value: '14', label: '১৪ দিন'),
-                (value: '30', label: '৩০ দিন')
+              options: [
+                (value: '7', label: tr('7 days')),
+                (value: '14', label: tr('14 days')),
+                (value: '30', label: tr('30 days'))
               ],
               selected: '$_days',
               onSelected: (value) => setState(() => _days = int.parse(value)),
@@ -350,15 +359,14 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
             const SizedBox(height: 8),
             SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('ইনভয়েস যুক্ত করুন'),
-                subtitle:
-                    const Text('ট্র্যাকিংয়ের সঙ্গে বিল ও পেমেন্ট দেখা যাবে'),
+                title: Text(tr('Include invoice')),
+                subtitle: Text(tr('Shows the bill and payments with tracking')),
                 value: _includeInvoice,
                 onChanged: _busy
                     ? null
                     : (value) => setState(() => _includeInvoice = value)),
             AppButton(
-                label: 'শেয়ার লিংক তৈরি করুন',
+                label: tr('Create share link'),
                 icon: Icons.link_rounded,
                 busy: _busy,
                 onPressed: () =>
@@ -372,7 +380,7 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
                     Text(_link!, style: const TextStyle(height: 1.35)),
                     const SizedBox(height: 8),
                     AppButton(
-                        label: 'লিংক কপি',
+                        label: tr('Copy link'),
                         kind: AppButtonKind.quiet,
                         onPressed: () =>
                             Clipboard.setData(ClipboardData(text: _link!))),
@@ -383,19 +391,19 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
           ],
           if (_section == 1) ...[
             const SizedBox(height: 16),
-            const SectionTitle(
-                title: 'টাকা জমা',
-                subtitle:
-                    'যে অ্যাকাউন্টে টাকা ঢুকেছে এবং যে অঙ্ক এসেছে, সেটাই লিখুন।'),
+            SectionTitle(
+                title: tr('Record payment'),
+                subtitle: tr(
+                    'Enter the account the money reached and the amount that arrived.')),
             if (_accounts.isEmpty)
-              const EmptyNote(
-                  title: 'রিসিভিং অ্যাকাউন্ট নেই',
-                  body:
-                      'সেটিংসে বিকাশ বা ব্যাংক যোগ করলে ফান্ড তৈরি হয়। তারপর এখান থেকে জমা দেওয়া যাবে।')
+              EmptyNote(
+                  title: tr('No receiving accounts'),
+                  body: tr(
+                      'Add bKash or a bank in Settings to create a fund. Then you can record payments here.'))
             else if (widget.dueAmount <= 0 && invoice.dueAmount <= 0)
-              const EmptyNote(
-                  title: 'বকেয়া নেই',
-                  body: 'এই শিপমেন্টে আর জমা দেওয়ার মতো বাকি নেই।')
+              EmptyNote(
+                  title: tr('Nothing due'),
+                  body: tr('Nothing is left to collect on this shipment.'))
             else ...[
               AccountPicker(
                   accounts: _accounts,
@@ -408,17 +416,23 @@ class _ShipmentMoneyPanelState extends State<ShipmentMoneyPanel> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText:
-                      'প্রাপ্ত অঙ্ক (${_selectedAccount?.currency ?? 'BDT'})',
+                  labelText: tr('Amount received ({currency})',
+                      {'currency': _selectedAccount?.currency ?? 'BDT'}),
                   helperText: _selectedAccount == null ||
                           _selectedAccount!.currency == 'BDT'
-                      ? 'বাকি ${formatBdt(invoice.dueAmount)}। অঙ্ক BDT।'
-                      : '${_selectedAccount!.currency}-এ লিখুন। বাকি ${formatBdt(invoice.dueAmount)} BDT; সেভ করা রেটে রূপান্তর হবে।',
+                      ? tr('{due} due. Amount in BDT.',
+                          {'due': formatBdt(invoice.dueAmount)})
+                      : tr(
+                          'Enter in {currency}. {due} BDT due; converted at the saved rate.',
+                          {
+                              'currency': _selectedAccount!.currency,
+                              'due': formatBdt(invoice.dueAmount)
+                            }),
                 ),
               ),
               const SizedBox(height: 8),
               AppButton(
-                  label: 'জমা সেভ করুন',
+                  label: tr('Save payment'),
                   kind: AppButtonKind.current,
                   busy: _busy,
                   onPressed: _pay),

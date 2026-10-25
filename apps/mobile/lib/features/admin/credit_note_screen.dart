@@ -4,6 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/ledger_actions.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -69,13 +70,15 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
         amount <= 0 ||
         reason.isEmpty ||
         reason.length > 200) {
-      setState(() => _error = 'ধনাত্মক অঙ্ক ও ১–২০০ অক্ষরের কারণ দিন।');
+      setState(() => _error =
+          tr('Enter a positive amount and a reason of 1–200 characters.'));
       return;
     }
     final ok = await confirmMoney(context,
-        title: 'ক্রেডিট নোট',
-        body:
-            '${formatBdt(amount)} বিল থেকে কমবে। বেশি পেমেন্ট থাকলে কাস্টমার ক্রেডিটে যাবে।');
+        title: tr('Credit note'),
+        body: tr(
+            '{amount} will come off the bill. Any overpayment goes to customer credit.',
+            {'amount': formatBdt(amount)}));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -99,21 +102,22 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'ক্রেডিট নোট',
+        title: tr('Credit note'),
         root: false,
         subtitle: widget.code,
         footer: ActionFooter(
             child: AppButton(
-                label: 'ক্রেডিট নোট সেভ',
+                label: tr('Save credit note'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'ইস্যু করা বিল কমায়। ইনভয়েস এডিট করে মোট কমালেও নোট তৈরি হয়।',
-                  style: TextStyle(
+                  tr(
+                      'Reduces an issued bill. Lowering the total by editing the invoice also creates a note.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (_loading && _notes.isEmpty)
             const LinearProgressIndicator(
@@ -123,8 +127,9 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
             const SizedBox(height: 12),
           ],
           if (_notes.isEmpty && !_loading)
-            const EmptyNote(
-                title: 'নোট নেই', body: 'বিল কমালে এখানে নম্বর দেখা যাবে।')
+            EmptyNote(
+                title: tr('No credit notes'),
+                body: tr('Note numbers appear here when a bill is reduced.'))
           else
             for (final note in _notes) ...[
               PaperCard(
@@ -137,29 +142,30 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
                         style: const TextStyle(
                             color: AppColors.muted, height: 1.35)),
                     const SizedBox(height: 6),
-                    KvRow(label: 'অঙ্ক', value: formatBdt(note.amount)),
+                    KvRow(label: tr('Amount'), value: formatBdt(note.amount)),
                     KvRow(
-                        label: 'আগের মোট',
+                        label: tr('Previous total'),
                         value: formatBdt(note.previousTotal)),
                     KvRow(
-                        label: 'নতুন মোট', value: formatBdt(note.revisedTotal)),
+                        label: tr('New total'),
+                        value: formatBdt(note.revisedTotal)),
                   ],
                 ),
               ),
               const SizedBox(height: 8),
             ],
           const SizedBox(height: 8),
-          const SectionTitle(title: 'নতুন নোট'),
+          SectionTitle(title: tr('New note')),
           TextField(
               controller: _amount,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'অঙ্ক (BDT)')),
+              decoration: InputDecoration(labelText: tr('Amount (BDT)'))),
           const SizedBox(height: 8),
           TextField(
               controller: _reason,
               maxLength: 200,
-              decoration: const InputDecoration(labelText: 'কারণ')),
+              decoration: InputDecoration(labelText: tr('Reason'))),
         ]);
   }
 }

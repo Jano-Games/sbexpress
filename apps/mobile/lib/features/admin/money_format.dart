@@ -1,3 +1,5 @@
+import '../../l10n/l10n.dart';
+
 /// Ticket and settlement cash is stored in BDT. A CNY fund is debited or credited at the saved rate.
 String bdtFundMovement({
   required double amountBdt,
@@ -6,11 +8,23 @@ String bdtFundMovement({
   required bool intoAccount,
 }) {
   final amount = formatBdt(amountBdt);
+  final args = {
+    'amount': amount,
+    'account': accountName,
+    'currency': accountCurrency,
+  };
   if (accountCurrency == 'BDT') {
-    return intoAccount ? '$amount $accountName-এ ঢুকবে।' : '$amount $accountName থেকে যাবে।';
+    return intoAccount
+        ? tr('{amount} goes into {account}.', args)
+        : tr('{amount} goes out of {account}.', args);
   }
-  final direction = intoAccount ? 'ঢুকবে' : 'কাটবে';
-  return '$amount $accountName-এ $direction। অঙ্কটি BDT; $accountCurrency ব্যালেন্স সেভ করা রেটে বদলাবে।';
+  return intoAccount
+      ? tr(
+          '{amount} goes into {account}. The amount is in BDT; the {currency} balance changes at the saved rate.',
+          args)
+      : tr(
+          '{amount} is deducted from {account}. The amount is in BDT; the {currency} balance changes at the saved rate.',
+          args);
 }
 
 String formatMoney(double value, String currency) {
@@ -27,7 +41,7 @@ String formatBdt(double value) {
   final fixed = value.abs().toStringAsFixed(2);
   final parts = fixed.split('.');
   final grouped = _groupIn(parts[0]);
-  final text = '৳$grouped.${parts[1]}';
+  final text = '\u09F3$grouped.${parts[1]}';
   return negative ? '-$text' : text;
 }
 
@@ -47,15 +61,15 @@ String _groupIn(String digits) {
 String payStatusLabel(String status) {
   switch (status) {
     case 'paid':
-      return 'পেইড';
+      return tr('Paid');
     case 'partial':
-      return 'আংশিক';
+      return tr('Partial');
     case 'unpaid':
-      return 'বাকি';
+      return tr('Unpaid');
     case 'cod':
       return 'COD';
     case 'monthly':
-      return 'মাসিক';
+      return tr('Monthly');
     default:
       return status;
   }
@@ -64,11 +78,11 @@ String payStatusLabel(String status) {
 String paymentTermsLabel(String terms) {
   switch (terms) {
     case 'invoice':
-      return 'ইনভয়েস';
+      return tr('Invoice');
     case 'cod':
       return 'COD';
     case 'monthly':
-      return 'মাসিক';
+      return tr('Monthly');
     default:
       return terms;
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/l10n.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 
@@ -143,7 +144,10 @@ class CapacityBar extends StatelessWidget {
             child: Text('${booked.toStringAsFixed(1)} / ${kg(space)} kg',
                 style: const TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w600, height: 1.3))),
-        Text(over ? '${kg(-left)} kg বেশি' : '${kg(left)} kg খালি',
+        Text(
+            over
+                ? tr('{kg} kg over', {'kg': kg(-left)})
+                : tr('{kg} kg free', {'kg': kg(left)}),
             style: TextStyle(
                 fontSize: 13,
                 height: 1.3,
@@ -475,7 +479,10 @@ class StepBars extends StatelessWidget {
     }
 
     return Semantics(
-        label: 'ধাপ ${(done + (current ? 1 : 0)).clamp(0, total)}/$total',
+        label: tr('Step {step}/{total}', {
+          'step': (done + (current ? 1 : 0)).clamp(0, total),
+          'total': total
+        }),
         excludeSemantics: true,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           for (var i = 0; i < total; i++) ...[
@@ -486,7 +493,7 @@ class StepBars extends StatelessWidget {
   }
 }
 
-/// Small grey chip with an icon, e.g. "2টি শিপমেন্ট".
+/// Small grey chip with an icon, e.g. "2 shipments".
 class InfoChip extends StatelessWidget {
   const InfoChip(
       {super.key,
@@ -581,7 +588,7 @@ class ErrorNote extends StatelessWidget {
                     onPressed: onRetry,
                     style:
                         TextButton.styleFrom(foregroundColor: AppColors.danger),
-                    child: const Text('আবার চেষ্টা')))
+                    child: Text(tr('Try again'))))
           else
             const SizedBox(height: 8),
         ]),
@@ -640,6 +647,49 @@ class SectionTitle extends StatelessWidget {
       ]));
 }
 
+/// Text for narrow tiles and tabs. It wraps between words, never inside one:
+/// when the longest word is wider than the space, the text shrinks until it
+/// fits. English labels such as "Transactions" need this at large font sizes.
+class WordFitText extends StatelessWidget {
+  const WordFitText(this.text,
+      {super.key, this.style, this.textAlign, this.maxLines});
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) =>
+      LayoutBuilder(builder: (context, constraints) {
+        final resolved = DefaultTextStyle.of(context).style.merge(style);
+        var shrink = 1.0;
+        if (constraints.hasBoundedWidth) {
+          for (final word in text.split(RegExp(r'\s+'))) {
+            if (word.isEmpty) continue;
+            final painter = TextPainter(
+                text: TextSpan(text: word, style: resolved),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1)
+              ..layout();
+            if (painter.width > constraints.maxWidth) {
+              final fit = constraints.maxWidth / painter.width * 0.97;
+              if (fit < shrink) shrink = fit;
+            }
+            painter.dispose();
+          }
+        }
+        return Text(text,
+            textAlign: textAlign,
+            maxLines: maxLines,
+            overflow: maxLines == null ? null : TextOverflow.ellipsis,
+            style: shrink < 1
+                ? resolved.copyWith(
+                    fontSize: (resolved.fontSize ?? 14) * shrink)
+                : style);
+      });
+}
+
 class QuickAction extends StatelessWidget {
   const QuickAction(
       {super.key,
@@ -670,7 +720,7 @@ class QuickAction extends StatelessWidget {
                           borderRadius: BorderRadius.circular(15)),
                       child: Icon(icon, color: colors.foreground, size: 23)),
                   const SizedBox(height: 7),
-                  Text(label,
+                  WordFitText(label,
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       style: const TextStyle(
@@ -693,8 +743,10 @@ class AppBottomNav extends StatelessWidget {
   final bool admin;
 
   /// Hub tabs. Flights sit beside shipments so the hub sees what is landing.
-  static const labels = ['হোম', 'শিপমেন্ট', 'ফ্লাইট', 'কাজ', 'আরও'];
-  static const adminLabels = ['হোম', 'শিপমেন্ট', 'ফ্লাইট', 'হিসাব', 'আরও'];
+  static List<String> get labels =>
+      [tr('Home'), tr('Shipments'), tr('Flights'), tr('Tasks'), tr('More')];
+  static List<String> get adminLabels =>
+      [tr('Home'), tr('Shipments'), tr('Flights'), tr('Finance'), tr('More')];
   @override
   Widget build(BuildContext context) {
     final names = admin ? adminLabels : labels;
@@ -807,7 +859,7 @@ class BackTitle extends StatelessWidget implements PreferredSizeWidget {
       leading: IconButton(
           onPressed: onBack ?? () => Navigator.of(context).maybePop(),
           icon: const SbxIcon(SbxIconKind.back, color: AppColors.ink),
-          tooltip: 'পিছনে'));
+          tooltip: tr('Back')));
 }
 
 class _AppBarTitle extends StatelessWidget {
@@ -910,13 +962,18 @@ class AmountLabel extends StatelessWidget {
         Text(label,
             style: const TextStyle(fontSize: 13, color: AppColors.muted)),
         const SizedBox(height: 3),
-        Text(value,
-            style: TextStyle(
-                fontSize: size,
-                fontWeight: FontWeight.w700,
-                height: 1.3,
-                color: color ?? AppColors.ink,
-                fontFeatures: const [FontFeature.tabularFigures()])),
+        // An amount stays on one line and shrinks rather than splitting.
+        FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(value,
+                maxLines: 1,
+                style: TextStyle(
+                    fontSize: size,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                    color: color ?? AppColors.ink,
+                    fontFeatures: const [FontFeature.tabularFigures()]))),
       ]);
 }
 
@@ -978,7 +1035,7 @@ class WorkspaceScaffold extends StatelessWidget {
               actions: [...?actions, const SizedBox(width: 8)])
           : AppBar(
               leading: IconButton(
-                  tooltip: 'পিছনে',
+                  tooltip: tr('Back'),
                   icon: const Icon(Icons.arrow_back_rounded, size: 22),
                   onPressed: () => Navigator.of(context).maybePop()),
               title: _AppBarTitle(title: title, subtitle: subtitle),
@@ -1051,7 +1108,7 @@ class ScreenTabs extends StatelessWidget {
                             constraints: const BoxConstraints(minHeight: 40),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 4, vertical: 8),
-                            child: Text(labels[i],
+                            child: WordFitText(labels[i],
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                     fontSize: 14,

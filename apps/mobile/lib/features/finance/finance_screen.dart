@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
@@ -67,11 +68,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final data = _data;
     return WorkspaceScaffold(
         root: widget.root,
-        title: 'হিসাব',
-        subtitle: 'BDT ও CNY · রিপোর্ট BDT-তে',
+        title: tr('Finance'),
+        subtitle: tr('BDT and CNY · reports in BDT'),
         onRefresh: _load,
         toolbar: ScreenTabs(
-            labels: const ['অ্যাকাউন্ট', 'রিপোর্ট', 'লেনদেন'],
+            labels: [tr('Accounts'), tr('Reports'), tr('Transactions')],
             index: _section,
             onChanged: (i) => setState(() => _section = i)),
         children: [
@@ -84,9 +85,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('মোট অ্যাকাউন্ট ব্যালেন্স · BDT',
-                          style:
-                              TextStyle(fontSize: 13, color: AppColors.muted)),
+                      Text(tr('Total account balance · BDT'),
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.muted)),
                       const SizedBox(height: 2),
                       Text(formatBdt(data.cash.worth),
                           style: const TextStyle(
@@ -101,14 +102,14 @@ class _FinanceScreenState extends State<FinanceScreen> {
                               children: [
                             Expanded(
                                 child: AmountLabel(
-                                    label: 'টাকা · BDT',
+                                    label: tr('Taka · BDT'),
                                     value: formatBdt(data.cash.bdt),
                                     size: 18)),
                             const VerticalDivider(
                                 width: 28, color: AppColors.lineSoft),
                             Expanded(
                                 child: AmountLabel(
-                                    label: 'ইউয়ান · CNY',
+                                    label: tr('Yuan · CNY'),
                                     value:
                                         '¥${data.cash.cny.toStringAsFixed(2)}',
                                     size: 18)),
@@ -118,37 +119,37 @@ class _FinanceScreenState extends State<FinanceScreen> {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                   child: QuickAction(
-                      label: 'ট্রান্সফার',
+                      label: tr('Transfer'),
                       icon: Icons.swap_horiz_rounded,
                       onTap: () => _open(const TransferScreen()))),
               Expanded(
                   child: QuickAction(
-                      label: 'জমা / খরচ',
+                      label: tr('Deposit / expense'),
                       icon: Icons.add_card_outlined,
                       onTap: () => _open(const OfficeEntryScreen()))),
               Expanded(
                   child: QuickAction(
-                      label: 'মিলিয়ে দেখা',
+                      label: tr('Reconcile'),
                       icon: Icons.rule_rounded,
                       onTap: () => _open(const ReconciliationScreen()))),
               Expanded(
                   child: QuickAction(
-                      label: 'লেজার',
+                      label: tr('Ledger'),
                       icon: Icons.receipt_long_outlined,
                       onTap: () => _open(const LedgerScreen()))),
             ]),
             const SizedBox(height: 22),
             SectionTitle(
-                title: 'আপনার অ্যাকাউন্ট',
+                title: tr('Your accounts'),
                 action: TextButton.icon(
                     onPressed: () => _open(const FundAccountScreen()),
                     icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('নতুন'))),
+                    label: Text(tr('New')))),
             if (data.accounts.isEmpty)
-              const EmptyNote(
+              EmptyNote(
                   icon: Icons.account_balance_outlined,
-                  title: 'অ্যাকাউন্ট নেই',
-                  body: 'ব্যাংক, ক্যাশ বা ওয়ালেট অ্যাকাউন্ট যোগ করুন।')
+                  title: tr('No accounts'),
+                  body: tr('Add a bank, cash or wallet account.'))
             else
               SurfaceGroup(children: [
                 for (final account in data.accounts)
@@ -191,16 +192,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
               ]),
             const SizedBox(height: 16),
             _CashFlowCard(
-                title: _period == 'week' ? 'এই সপ্তাহ' : 'সর্বমোট',
+                title: _period == 'week' ? tr('This week') : tr('All time'),
                 received: data.received,
                 expenses: data.expenses,
                 net: data.net),
           ],
           if (data != null && _section == 1) ...[
             ChoiceChips(
-                options: const [
-                  (value: 'week', label: 'এই সপ্তাহ'),
-                  (value: 'all', label: 'সর্বমোট')
+                options: [
+                  (value: 'week', label: tr('This week')),
+                  (value: 'all', label: tr('All time'))
                 ],
                 selected: _period,
                 onSelected: (value) {
@@ -209,88 +210,92 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 }),
             if (_loading) const LinearProgressIndicator(),
             const SizedBox(height: 16),
-            FormSection(title: 'ক্যাশ ফ্লো', children: [
+            FormSection(title: tr('Cash flow'), children: [
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                     child: AmountLabel(
-                        label: 'জমা', value: formatBdt(data.received))),
+                        label: tr('Deposits'),
+                        value: formatBdt(data.received))),
                 const SizedBox(width: 16),
                 Expanded(
                     child: AmountLabel(
-                        label: 'ব্যয়', value: formatBdt(data.expenses)))
+                        label: tr('Expenses'), value: formatBdt(data.expenses)))
               ]),
               const Divider(height: 28),
-              KvRow(label: 'নেট ক্যাশ', value: formatBdt(data.net)),
+              KvRow(label: tr('Net cash'), value: formatBdt(data.net)),
               KvRow(
-                  label: 'এক্সচেঞ্জ রেট',
+                  label: tr('Exchange rate'),
                   value: '1 CNY = ${formatBdt(data.rate)}'),
             ]),
-            FormSection(title: 'পাওনা ও পরিশোধযোগ্য', children: [
+            FormSection(title: tr('Receivables and payables'), children: [
               KvRow(
-                  label: 'কাস্টমারের কাছে পাওনা',
+                  label: tr('Customer receivables'),
                   value: formatBdt(data.receivables.total)),
               KvRow(
-                  label: 'ফ্লায়ারের কাছে পাওনা',
+                  label: tr('Flyer receivables'),
                   value: formatBdt(data.flyerReceivables)),
               const Divider(height: 20),
               KvRow(
-                  label: 'টিকিট বাবদ দিতে হবে',
+                  label: tr('Flight tickets to pay'),
                   value: formatBdt(data.ticketPayables)),
               KvRow(
-                  label: 'অন্যান্য খরচ বাকি',
+                  label: tr('Other costs to pay'),
                   value: formatBdt(data.costPayables)),
             ]),
             FormSection(
-                title: 'বুকিংয়ের ফলাফল',
-                caption: 'নির্বাচিত সময়ের বিল ও খরচ',
+                title: tr('Booking results'),
+                caption: tr('Billing and costs for the selected period'),
                 children: [
                   KvRow(
-                      label: 'শিপমেন্ট',
+                      label: tr('Shipments'),
                       value: '${data.results.shipmentCount}'),
-                  KvRow(label: 'বিল', value: formatBdt(data.results.billing)),
-                  KvRow(label: 'খরচ', value: formatBdt(data.results.costs)),
+                  KvRow(
+                      label: tr('Billed'),
+                      value: formatBdt(data.results.billing)),
+                  KvRow(
+                      label: tr('Costs'), value: formatBdt(data.results.costs)),
                   const Divider(height: 20),
                   KvRow(
-                      label: 'বুকিং প্রফিট',
+                      label: tr('Booking profit'),
                       value: formatBdt(data.results.profit),
                       valueColor: data.results.profit < 0
                           ? AppColors.danger
                           : AppColors.ok),
                   KvRow(
-                      label: 'মার্জিন',
+                      label: tr('Margin'),
                       value: data.results.marginPct == null
                           ? '—'
                           : '${data.results.marginPct!.toStringAsFixed(0)}%'),
                 ]),
-            const Text(
-                'শুরুর ব্যালেন্স ও মূলধন ক্যাশ জমায় থাকে; প্রফিটে যোগ হয় না।',
-                style: TextStyle(fontSize: 12, color: AppColors.muted)),
+            Text(
+                tr('Opening balances and capital count as cash received, not profit.'),
+                style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           ],
           if (_section == 2) ...[
-            const SectionTitle(title: 'নতুন লেনদেন'),
+            SectionTitle(title: tr('New transaction')),
             SurfaceGroup(children: [
               MenuRow(
-                  title: 'অ্যাকাউন্ট ট্রান্সফার',
-                  subtitle: 'নিজস্ব অ্যাকাউন্টের মধ্যে টাকা সরান',
+                  title: tr('Account transfer'),
+                  subtitle: tr('Move money between your own accounts'),
                   icon: Icons.swap_horiz_rounded,
                   onTap: () => _open(const TransferScreen())),
               MenuRow(
-                  title: 'জমা বা খরচ',
-                  subtitle: 'অফিসের আয়, ব্যয় ও মূলধন',
+                  title: tr('Deposit or expense'),
+                  subtitle: tr('Office income, expenses and capital'),
                   icon: Icons.add_card_outlined,
                   onTap: () => _open(const OfficeEntryScreen())),
             ]),
             const SizedBox(height: 24),
-            const SectionTitle(title: 'যাচাই ও ইতিহাস'),
+            SectionTitle(title: tr('Review and history')),
             SurfaceGroup(children: [
               MenuRow(
-                  title: 'পেমেন্ট যাচাই',
-                  subtitle: 'কাস্টমারের পাঠানো রসিদ দেখুন',
+                  title: tr('Payment review'),
+                  subtitle: tr('Check receipts sent by customers'),
                   icon: Icons.fact_check_outlined,
                   onTap: () => _open(const PaymentReviewScreen())),
               MenuRow(
-                  title: 'লেনদেনের লেজার',
-                  subtitle: 'জমা, খরচ ও ট্রান্সফারের ইতিহাস',
+                  title: tr('Transaction ledger'),
+                  subtitle: tr('History of deposits, expenses and transfers'),
                   icon: Icons.receipt_long_outlined,
                   onTap: () => _open(const LedgerScreen())),
             ]),
@@ -338,7 +343,10 @@ class _CashFlowCard extends StatelessWidget {
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
       const SizedBox(height: 12),
       Semantics(
-          label: 'জমা ${formatBdt(received)}, ব্যয় ${formatBdt(expenses)}',
+          label: tr('Deposits {received}, expenses {expenses}', {
+            'received': formatBdt(received),
+            'expenses': formatBdt(expenses)
+          }),
           excludeSemantics: true,
           child: SizedBox(
               height: 10,
@@ -358,13 +366,14 @@ class _CashFlowCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(5)))),
               ]))),
       const SizedBox(height: 10),
-      line(AppColors.primary, 'জমা হয়েছে', received),
-      line(AppColors.accent, 'ব্যয়', expenses),
+      line(AppColors.primary, tr('Money received'), received),
+      line(AppColors.accent, tr('Expenses'), expenses),
       const Divider(height: 18),
       Row(children: [
-        const Expanded(
-            child: Text('নেট ক্যাশ',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+        Expanded(
+            child: Text(tr('Net cash'),
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700))),
         Text(formatBdt(net),
             style: TextStyle(
                 fontSize: 15,

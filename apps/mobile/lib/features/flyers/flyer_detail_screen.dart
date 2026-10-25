@@ -11,6 +11,7 @@ import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../flights/flight_detail_screen.dart';
@@ -165,7 +166,8 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     final bytes = await file.readAsBytes();
     if (!mounted) return;
     if (bytes.length > imageUploadMaxBytes) {
-      setState(() => _error = 'PDF ১০ MB-এর বেশি। আরও ছোট ফাইল দিন।');
+      setState(
+          () => _error = tr('The PDF is over 10 MB. Choose a smaller file.'));
       return;
     }
     setState(() => _busy = true);
@@ -223,7 +225,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
             ],
             if (flyer != null) ...[
               ScreenTabs(
-                  labels: const ['প্রোফাইল', 'ফ্লাইট', 'ডকুমেন্ট'],
+                  labels: [tr('Profile'), tr('Flights'), tr('Documents')],
                   index: _tab,
                   onChanged: (i) => setState(() => _tab = i)),
               const SizedBox(height: 20),
@@ -240,7 +242,9 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                           '${flyer.university} · ${flyer.program} · ${flyer.batch}'),
                       Text('BD ${flyer.bdPhone} · CN ${flyer.cnPhone}'),
                       Text('WeChat ${flyer.wechat}'),
-                      Text('ইমার্জেন্সি ${flyer.emergencyContact}',
+                      Text(
+                          tr('Emergency {contact}',
+                              {'contact': flyer.emergencyContact}),
                           style: const TextStyle(color: AppColors.muted)),
                       const SizedBox(height: 8),
                       Wrap(
@@ -249,33 +253,38 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                         children: [
                           StatusPill(
                               label: flyer.docStudentId
-                                  ? 'স্টুডেন্ট আইডি'
-                                  : 'আইডি বাকি',
+                                  ? tr('Student ID')
+                                  : tr('ID pending'),
                               tone: flyer.docStudentId
                                   ? ChipTone.green
                                   : ChipTone.amber),
                           StatusPill(
-                              label: flyer.docVisa ? 'ভিসা' : 'ভিসা বাকি',
+                              label: flyer.docVisa
+                                  ? tr('Visa')
+                                  : tr('Visa pending'),
                               tone: flyer.docVisa
                                   ? ChipTone.green
                                   : ChipTone.amber),
                           StatusPill(
                               label: flyer.docAdmission
-                                  ? 'অ্যাডমিশন'
-                                  : 'অ্যাডমিশন বাকি',
+                                  ? tr('Admission')
+                                  : tr('Admission pending'),
                               tone: flyer.docAdmission
                                   ? ChipTone.green
                                   : ChipTone.neutral),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text('মোট বুকড ${flyer.totalKg.toStringAsFixed(1)} kg'),
+                      Text(tr('Total booked {kg} kg',
+                          {'kg': flyer.totalKg.toStringAsFixed(1)})),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 AppButton(
-                  label: flyer.archived ? 'আবার সক্রিয় করুন' : 'আর্কাইভ করুন',
+                  label: flyer.archived
+                      ? tr('Reactivate flyer')
+                      : tr('Archive flyer'),
                   kind: flyer.archived
                       ? AppButtonKind.teal
                       : AppButtonKind.danger,
@@ -285,11 +294,12 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
               ],
               if (_tab == 1) ...[
                 const SizedBox(height: 16),
-                const SectionTitle(title: 'ফ্লাইট'),
+                SectionTitle(title: tr('Flights')),
                 if (flyer.flights.isEmpty)
-                  const EmptyNote(
-                      title: 'ফ্লাইট নেই',
-                      body: 'ফ্লাইট তৈরি বা অ্যাসাইন করলে এখানে আসবে।'),
+                  EmptyNote(
+                      title: tr('No flights'),
+                      body:
+                          tr('Flights appear here once created or assigned.')),
                 for (final flight in flyer.flights) ...[
                   DirectoryTile(
                     title: displayFlightCode(flight.code),
@@ -306,17 +316,16 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
               ],
               if (_tab == 2) ...[
                 const SizedBox(height: 8),
-                const SectionTitle(
-                    title: 'ডকুমেন্ট',
-                    subtitle:
-                        'আইডি, ভিসা ও অন্যান্য ট্রাভেল ডকুমেন্ট যোগ করুন।'),
+                SectionTitle(
+                    title: tr('Documents'),
+                    subtitle: tr('Add ID, visa and other travel documents.')),
                 if (documents != null && !documents.configured)
-                  const ErrorNote(
-                      message:
-                          'স্টোরেজ এখনো তৈরি হয়নি। সেটআপ শেষ না হওয়া পর্যন্ত আপলোড বন্ধ।'),
+                  ErrorNote(
+                      message: tr(
+                          'Storage is not set up yet. Uploads are off until setup is complete.')),
                 DropdownButtonFormField<String>(
                   initialValue: _kind,
-                  decoration: const InputDecoration(labelText: 'ধরন'),
+                  decoration: InputDecoration(labelText: tr('Type')),
                   items: [
                     for (final entry in flyerDocumentKinds.entries)
                       DropdownMenuItem(
@@ -331,7 +340,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                   children: [
                     Expanded(
                         child: AppButton(
-                            label: 'ক্যামেরা',
+                            label: tr('Camera'),
                             kind: AppButtonKind.quiet,
                             onPressed: documents?.configured == false
                                 ? null
@@ -339,7 +348,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                         child: AppButton(
-                            label: 'গ্যালারি',
+                            label: tr('Gallery'),
                             kind: AppButtonKind.quiet,
                             onPressed: documents?.configured == false
                                 ? null
@@ -348,7 +357,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 AppButton(
-                    label: 'PDF আপলোড',
+                    label: tr('Upload PDF'),
                     kind: AppButtonKind.teal,
                     busy: _busy,
                     onPressed:
@@ -366,13 +375,14 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                   Text(upload!.error!,
                       style: const TextStyle(color: AppColors.danger)),
                   AppButton(
-                      label: 'একই ছবি আবার পাঠান', onPressed: upload.retry),
+                      label: tr('Send the same photo again'),
+                      onPressed: upload.retry),
                 ],
                 const SizedBox(height: 12),
                 if (documents == null || documents.documents.isEmpty)
-                  const EmptyNote(
-                      title: 'ডকুমেন্ট নেই',
-                      body: 'যাচাই করা ফাইল এখানে থাকবে।')
+                  EmptyNote(
+                      title: tr('No documents'),
+                      body: tr('Verified files will appear here.'))
                 else
                   for (final document in documents.documents) ...[
                     PaperCard(
@@ -388,22 +398,22 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                           const SizedBox(height: 8),
                           if (document.isPdf) ...[
                             AppButton(
-                                label: 'অ্যাপে দেখুন',
+                                label: tr('View in app'),
                                 kind: AppButtonKind.teal,
                                 busy: _busy,
                                 onPressed: () => _viewDocument(document)),
                             const SizedBox(height: 8),
                           ],
                           AppButton(
-                              label: 'শেয়ার',
+                              label: tr('Share'),
                               kind: AppButtonKind.quiet,
                               busy: _busy,
                               onPressed: () => _shareDocument(document)),
                           const SizedBox(height: 8),
                           AppButton(
                             label: document.verified
-                                ? 'যাচাই তুলে নিন'
-                                : 'যাচাই করুন',
+                                ? tr('Remove verification')
+                                : tr('Mark verified'),
                             kind: document.verified
                                 ? AppButtonKind.quiet
                                 : AppButtonKind.teal,

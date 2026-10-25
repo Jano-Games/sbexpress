@@ -5,6 +5,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../shipments/shipment_process_screen.dart';
@@ -63,12 +64,14 @@ class _HubFlightsScreenState extends State<HubFlightsScreen> {
             : data.arrived;
     return WorkspaceScaffold(
         root: widget.root,
-        title: 'ফ্লাইট',
-        subtitle: 'চেংদু থেকে ঢাকায় যা আসছে',
+        title: tr('Flights'),
+        subtitle: tr('Arriving in Dhaka from Chengdu'),
         onRefresh: _load,
         toolbar: ScreenTabs(labels: [
-          data == null ? 'আসন্ন' : 'আসন্ন · ${data.upcoming.length}',
-          'এসে গেছে'
+          data == null
+              ? tr('Coming up')
+              : tr('Coming up · {n}', {'n': data.upcoming.length}),
+          tr('Arrived')
         ], index: _tab, onChanged: (i) => setState(() => _tab = i)),
         children: [
           if (_loading && data == null) const LinearProgressIndicator(),
@@ -81,11 +84,11 @@ class _HubFlightsScreenState extends State<HubFlightsScreen> {
             EmptyNote(
                 icon: Icons.flight_outlined,
                 title: _tab == 0
-                    ? 'আসন্ন ফ্লাইট নেই'
-                    : 'সম্প্রতি কোনো ফ্লাইট আসেনি',
+                    ? tr('No upcoming flights')
+                    : tr('No flights arrived recently'),
                 body: _tab == 0
-                    ? 'নতুন ফ্লাইট বুক হলে এখানে দেখা যাবে।'
-                    : 'ফ্লাইট শেষ হলে এখানে থাকবে।'),
+                    ? tr('New flights appear here once booked.')
+                    : tr('Completed flights are listed here.')),
           for (var i = 0; i < rows.length; i++) ...[
             HubFlightCard(
                 flight: rows[i],
@@ -114,15 +117,19 @@ class _ScheduleSummary extends StatelessWidget {
           child: Row(children: [
         Expanded(
             child: AmountLabel(
-                label: 'ফ্লাইট', value: '${data.upcoming.length}টি', size: 19)),
+                label: tr('Flights'),
+                value: tr('{n}', {'n': data.upcoming.length}),
+                size: 19)),
         const VerticalDivider(width: 24, color: AppColors.lineSoft),
         Expanded(
             child: AmountLabel(
-                label: 'শিপমেন্ট', value: '${data.shipmentCount}টি', size: 19)),
+                label: tr('Shipments'),
+                value: tr('{n}', {'n': data.shipmentCount}),
+                size: 19)),
         const VerticalDivider(width: 24, color: AppColors.lineSoft),
         Expanded(
-            child:
-                AmountLabel(label: 'মোট ওজন', value: _kg(data.kg), size: 19)),
+            child: AmountLabel(
+                label: tr('Total weight'), value: _kg(data.kg), size: 19)),
       ])));
 }
 
@@ -179,31 +186,35 @@ class HubFlightCard extends StatelessWidget {
           Wrap(spacing: 8, runSpacing: 8, children: [
             InfoChip(
                 icon: Icons.inventory_2_outlined,
-                label: '${flight.shipmentCount}টি শিপমেন্ট'),
+                label:
+                    trn(flight.shipmentCount, '{n} shipment', '{n} shipments')),
             InfoChip(icon: Icons.scale_outlined, label: _kg(flight.kg)),
             InfoChip(
                 icon: Icons.person_outline_rounded,
                 label: flight.flyers.isEmpty
-                    ? 'ফ্লায়ার ঠিক হয়নি'
+                    ? tr('Flyer not set')
                     : flight.flyers.join(', '),
                 muted: flight.flyers.isEmpty),
             if (flight.receivedCount > 0)
               InfoChip(
                   icon: Icons.check_circle_outline_rounded,
-                  label: 'হাবে ${flight.receivedCount}/${flight.shipmentCount}',
+                  label: tr('At hub {received}/{total}', {
+                    'received': flight.receivedCount,
+                    'total': flight.shipmentCount
+                  }),
                   tone: ChipTone.green),
           ]),
           if (next) ...[
             const SizedBox(height: 10),
-            const Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
               Flexible(
-                  child: Text('কী কী আসছে দেখুন',
+                  child: Text(tr("See what's coming"),
                       textAlign: TextAlign.right,
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppColors.primary))),
-              Icon(Icons.chevron_right_rounded,
+              const Icon(Icons.chevron_right_rounded,
                   size: 20, color: AppColors.primary),
             ]),
           ],
@@ -227,7 +238,8 @@ class HubFlightStripCard extends StatelessWidget {
     final day = FlightDay.parse(flight.date);
     final when = [
       if (day != null) '${day.day} ${day.month}',
-      if (_isClock(flight.arrTime)) 'নামবে ${flight.arrTime}',
+      if (_isClock(flight.arrTime))
+        tr('Lands {time}', {'time': flight.arrTime}),
     ].join(' · ');
     return SizedBox(
         width: 236,
@@ -270,7 +282,11 @@ class HubFlightStripCard extends StatelessWidget {
               Row(children: [
                 Expanded(
                     child: Text(
-                        '${flight.shipmentCount}টি শিপমেন্ট · ${_kg(flight.kg)}',
+                        [
+                          trn(flight.shipmentCount, '{n} shipment',
+                              '{n} shipments'),
+                          _kg(flight.kg)
+                        ].join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -285,7 +301,7 @@ class HubFlightStripCard extends StatelessWidget {
                 ],
                 if (flight.status == 'departed') ...[
                   const SizedBox(width: 6),
-                  const StatusPill(label: 'পথে', tone: ChipTone.amber),
+                  StatusPill(label: tr('En route'), tone: ChipTone.amber),
                 ],
               ]),
             ])));
@@ -340,10 +356,10 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
     final badge = flight == null ? null : flightBadge(flight, day);
     return Scaffold(
       appBar: BackTitle(
-          title: flight?.displayCode ?? 'ফ্লাইট',
+          title: flight?.displayCode ?? tr('Flight'),
           subtitle: day == null
               ? null
-              : '${day.weekday}বার · ${day.day} ${day.month}',
+              : '${day.weekdayName} · ${day.day} ${day.month}',
           actions: [
             if (badge != null)
               Center(
@@ -366,30 +382,30 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                   Row(children: [
                     Expanded(
                         child: MetricTile(
-                            label: 'শিপমেন্ট',
-                            value: '${flight.shipmentCount}টি')),
+                            label: tr('Shipments'),
+                            value: tr('{n}', {'n': flight.shipmentCount}))),
                     const SizedBox(width: 10),
                     Expanded(
                         child: MetricTile(
-                            label: 'মোট ওজন', value: _kg(flight.kg))),
+                            label: tr('Total weight'), value: _kg(flight.kg))),
                     const SizedBox(width: 10),
                     Expanded(
                         child: MetricTile(
-                            label: 'হাবে এসেছে',
+                            label: tr('Reached hub'),
                             value:
                                 '${flight.receivedCount}/${flight.shipmentCount}')),
                   ]),
                   const SizedBox(height: 22),
                   SectionTitle(
-                      title: 'এই ফ্লাইটে আসছে',
-                      action: Text('${flight.shipments.length}টি',
+                      title: tr('On this flight'),
+                      action: Text(tr('{n}', {'n': flight.shipments.length}),
                           style: const TextStyle(
                               fontSize: 13, color: AppColors.muted))),
                   if (flight.shipments.isEmpty)
-                    const EmptyNote(
+                    EmptyNote(
                         icon: Icons.inventory_2_outlined,
-                        title: 'এই ফ্লাইটে শিপমেন্ট নেই',
-                        body: 'বুকিং হলে এখানে দেখা যাবে।')
+                        title: tr('No shipments on this flight'),
+                        body: tr('Shipments appear here once booked.'))
                   else
                     SurfaceGroup(children: [
                       for (final row in flight.shipments)
@@ -397,9 +413,9 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                     ]),
                   if (flight.status != 'completed') ...[
                     const SizedBox(height: 14),
-                    const HintNote(
-                        text:
-                            'কাস্টমস ক্লিয়ার হলে প্রতিটি শিপমেন্ট খুলে "হাবে গ্রহণ করুন" চাপুন — তারপর ওজনের ধাপ শুরু হবে।'),
+                    HintNote(
+                        text: tr(
+                            'Once customs clears, open each shipment and tap "Receive at hub" — the weighing step starts next.')),
                   ],
                 ],
               ])),
@@ -424,36 +440,38 @@ class _RouteCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           _Endpoint(
-              city: banglaPlace(flight.from, fallback: 'চীন'),
+              city: banglaPlace(flight.from, fallback: tr('China')),
               time: flight.depTime,
-              note: 'ছাড়বে'),
+              note: tr('Departs')),
           Expanded(
               child: Column(children: [
             const _DashedPlane(size: 34),
             const SizedBox(height: 4),
             Text(
-                flight.stopLabel == null ? 'সরাসরি' : 'via ${flight.stopLabel}',
+                flight.stopLabel == null
+                    ? tr('Direct')
+                    : 'via ${flight.stopLabel}',
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           ])),
           _Endpoint(
-              city: banglaPlace(flight.to, fallback: 'ঢাকা'),
+              city: banglaPlace(flight.to, fallback: tr('Dhaka')),
               time: flight.arrTime,
-              note: 'পৌঁছাবে',
+              note: tr('Arrives'),
               end: true),
         ]),
         if (flight.scheduleNeedsConfirmation) ...[
           const SizedBox(height: 12),
-          const StatusPill(
-              label: 'তারিখ পেরিয়েছে — অ্যাডমিন আপডেট করেননি',
+          StatusPill(
+              label: tr('Date has passed — not updated by admin'),
               tone: ChipTone.amber),
         ],
         const Divider(height: 28),
         if (flight.flyerDetails.isEmpty)
-          const Text('এই ফ্লাইটে এখনো ফ্লায়ার ঠিক হয়নি',
-              style: TextStyle(color: AppColors.muted))
+          Text(tr('No flyer assigned to this flight yet'),
+              style: const TextStyle(color: AppColors.muted))
         else
           for (final flyer in flight.flyerDetails)
             Padding(
@@ -476,14 +494,16 @@ class _RouteCard extends StatelessWidget {
                                 fontSize: 15, fontWeight: FontWeight.w600)),
                         Text(
                             _hasPhone(flyer.bdPhone)
-                                ? 'ফ্লায়ার · ${flyer.bdPhone}'
-                                : 'ফ্লায়ার · লাগেজে আনছেন',
+                                ? tr(
+                                    'Flyer · {phone}', {'phone': flyer.bdPhone})
+                                : tr('Flyer · carrying in luggage'),
                             style: const TextStyle(
                                 fontSize: 13, color: AppColors.muted)),
                       ])),
                   if (_hasPhone(flyer.bdPhone))
                     IconButton.filledTonal(
-                        tooltip: '${flyer.name}-এর নম্বর কপি করুন',
+                        tooltip:
+                            tr("Copy {name}'s number", {'name': flyer.name}),
                         style: IconButton.styleFrom(
                             backgroundColor: AppColors.primarySoft,
                             foregroundColor: AppColors.primary),
@@ -492,8 +512,7 @@ class _RouteCard extends StatelessWidget {
                               ClipboardData(text: flyer.bdPhone));
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('নম্বর কপি হয়েছে')));
+                                SnackBar(content: Text(tr('Number copied'))));
                           }
                         },
                         icon: const Icon(Icons.call_outlined, size: 20)),
@@ -610,11 +629,12 @@ class FlightRouteLine extends StatelessWidget {
 
     return Row(children: [
       Flexible(
-          child:
-              end(flight.depTime, banglaPlace(flight.from, fallback: 'চীন'))),
+          child: end(
+              flight.depTime, banglaPlace(flight.from, fallback: tr('China')))),
       const Expanded(child: _DashedPlane(size: 18)),
       Flexible(
-          child: end(flight.arrTime, banglaPlace(flight.to, fallback: 'ঢাকা'),
+          child: end(
+              flight.arrTime, banglaPlace(flight.to, fallback: tr('Dhaka')),
               right: true)),
     ]);
   }
@@ -641,7 +661,7 @@ class _DashedPlane extends StatelessWidget {
             child: Icon(Icons.flight_rounded,
                 size: size * 0.55,
                 color: AppColors.primary,
-                semanticLabel: 'ফ্লাইট')),
+                semanticLabel: tr('Flight'))),
       ]));
 }
 
@@ -697,16 +717,16 @@ class FlightDateBlock extends StatelessWidget {
 /// Status label and tone for a hub flight row.
 (String, ChipTone) flightBadge(HubFlight flight, FlightDay? day,
     {bool next = false}) {
-  if (flight.status == 'completed') return ('এসে গেছে', ChipTone.green);
-  if (flight.status == 'departed') return ('পথে আছে', ChipTone.amber);
+  if (flight.status == 'completed') return (tr('Arrived'), ChipTone.green);
+  if (flight.status == 'departed') return (tr('On the way'), ChipTone.amber);
   if (flight.scheduleNeedsConfirmation) {
-    return ('তারিখ আপডেট হয়নি', ChipTone.amber);
+    return (tr('Date not updated'), ChipTone.amber);
   }
-  if (!flight.timesKnown) return ('সময় নিশ্চিত নয়', ChipTone.amber);
+  if (!flight.timesKnown) return (tr('Time not confirmed'), ChipTone.amber);
   final when = day?.relativeLabel;
   if (next) {
     return (
-      when == null ? 'পরের ফ্লাইট' : 'পরের ফ্লাইট · $when',
+      when == null ? tr('Up next') : tr('Next flight · {when}', {'when': when}),
       ChipTone.blue
     );
   }
@@ -714,23 +734,24 @@ class FlightDateBlock extends StatelessWidget {
 }
 
 const _placeNames = {
-  'chengdu': 'চেংদু',
-  'ctu': 'চেংদু',
-  'tfu': 'চেংদু',
-  'dhaka': 'ঢাকা',
-  'dac': 'ঢাকা',
-  'kunming': 'কুনমিং',
-  'kmg': 'কুনমিং',
-  'guangzhou': 'গুয়াংজু',
-  'can': 'গুয়াংজু',
-  'chittagong': 'চট্টগ্রাম',
-  'cgp': 'চট্টগ্রাম',
+  'chengdu': 'Chengdu',
+  'ctu': 'Chengdu',
+  'tfu': 'Chengdu',
+  'dhaka': 'Dhaka',
+  'dac': 'Dhaka',
+  'kunming': 'Kunming',
+  'kmg': 'Kunming',
+  'guangzhou': 'Guangzhou',
+  'can': 'Guangzhou',
+  'chittagong': 'Chattogram',
+  'cgp': 'Chattogram',
 };
 
 /// Bangla name for common airports; other places stay as the server sent them.
 String banglaPlace(String? place, {required String fallback}) {
   if (place == null || place.trim().isEmpty) return fallback;
-  return _placeNames[place.trim().toLowerCase()] ?? place.trim();
+  final name = _placeNames[place.trim().toLowerCase()];
+  return name == null ? place.trim() : tr(name);
 }
 
 bool _isClock(String value) => RegExp(r'^\d{1,2}:\d{2}').hasMatch(value.trim());

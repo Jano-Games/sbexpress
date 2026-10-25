@@ -6,6 +6,7 @@ import '../../data/models/flight.dart';
 import '../../data/models/session_user.dart';
 import '../../data/models/shipment.dart';
 import '../../data/repositories/shipment_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
@@ -76,19 +77,19 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
   List<OperationalShipment> get _rows => _isHub ? _hub : _admin;
 
   List<({String value, String label})> get _filters => _isHub
-      ? const [
-          (value: 'all', label: 'সব'),
-          (value: 'weigh', label: 'ওজন'),
-          (value: 'pack', label: 'প্যাক'),
-          (value: 'delivery', label: 'ডেলিভারি'),
-          (value: 'moving', label: 'আসছে'),
-          (value: 'delivered', label: 'শেষ'),
+      ? [
+          (value: 'all', label: tr('All')),
+          (value: 'weigh', label: tr('Weigh')),
+          (value: 'pack', label: tr('Pack')),
+          (value: 'delivery', label: tr('Delivery')),
+          (value: 'moving', label: tr('Incoming')),
+          (value: 'delivered', label: tr('Finished')),
         ]
-      : const [
-          (value: 'all', label: 'সব'),
-          (value: 'hub', label: 'হাবে'),
-          (value: 'moving', label: 'পথে'),
-          (value: 'delivered', label: 'ডেলিভারি'),
+      : [
+          (value: 'all', label: tr('All')),
+          (value: 'hub', label: tr('At hub')),
+          (value: 'moving', label: tr('En route')),
+          (value: 'delivered', label: tr('Deliveries')),
         ];
 
   @override
@@ -99,10 +100,11 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
     final moving = _hub.where(_moving).length;
     return WorkspaceScaffold(
         root: true,
-        title: 'শিপমেন্ট',
+        title: tr('Shipments'),
         subtitle: _isHub
-            ? 'ঢাকা হাবে $atHubটি · আসছে $movingটি'
-            : 'বুকিং থেকে ডেলিভারি',
+            ? tr('{atHub} at Dhaka hub · {moving} incoming',
+                {'atHub': atHub, 'moving': moving})
+            : tr('From booking to delivery'),
         onRefresh: _load,
         actions: _isHub
             ? null
@@ -115,7 +117,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         shape: const StadiumBorder()),
                     icon: const Icon(Icons.add_rounded, size: 19),
-                    label: const Text('নতুন'),
+                    label: Text(tr('New')),
                     onPressed: () async {
                       await Navigator.of(context).push(MaterialPageRoute<void>(
                           builder: (_) => const IntakeScreen()));
@@ -128,10 +130,10 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
               controller: _query,
               onChanged: (_) => setState(() {}),
               textInputAction: TextInputAction.search,
-              decoration: const InputDecoration(
-                  hintText: 'কোড, কাস্টমার বা পণ্য খুঁজুন',
-                  prefixIcon: Icon(Icons.search_rounded, size: 21),
-                  enabledBorder: OutlineInputBorder(
+              decoration: InputDecoration(
+                  hintText: tr('Search code, customer or cargo'),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 21),
+                  enabledBorder: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(14)),
                       borderSide: BorderSide(color: AppColors.line)))),
           const SizedBox(height: 4),
@@ -155,10 +157,10 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
           if (_loading) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && _error == null && visible.isEmpty)
-            const EmptyNote(
+            EmptyNote(
                 icon: Icons.search_off_rounded,
-                title: 'শিপমেন্ট পাওয়া যায়নি',
-                body: 'অন্য শব্দ বা ফিল্টার দিয়ে খুঁজুন।'),
+                title: tr('No shipments found'),
+                body: tr('Try another word or filter.')),
           if (visible.isNotEmpty)
             ...(_isHub ? _hubGroups(visible) : _adminList(visible)),
         ]);
@@ -167,7 +169,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
   List<Widget> _hubGroups(List<OperationalShipment> visible) {
     final groups = <(String, List<OperationalShipment>)>[
       (
-        'হাবে প্রসেসিং',
+        tr('Processing at hub'),
         [
           for (final row in visible)
             if (hubListStep(row) == HubListStep.weigh ||
@@ -176,21 +178,21 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
         ]
       ),
       (
-        'ডেলিভারির জন্য প্রস্তুত',
+        tr('Ready for delivery'),
         [
           for (final row in visible)
             if (hubListStep(row) == HubListStep.deliveryChain) row
         ]
       ),
       (
-        'আসছে',
+        tr('Incoming'),
         [
           for (final row in visible)
             if (_moving(row)) row
         ]
       ),
       (
-        'অন্যান্য',
+        tr('Other'),
         [
           for (final row in visible)
             if (hubListStep(row) == HubListStep.none && !_moving(row)) row
@@ -211,7 +213,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
   }
 
   List<Widget> _adminList(List<OperationalShipment> visible) => [
-        _GroupHeader(title: 'শিপমেন্ট', count: visible.length),
+        _GroupHeader(title: tr('Shipments'), count: visible.length),
         SurfaceGroup(children: [
           for (final row in visible)
             _AdminRow(row: row, onOpen: () => _open(row)),
@@ -350,7 +352,7 @@ class _GroupHeader extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppColors.inkSoft))),
-        Text('$countটি',
+        Text(tr('{n}', {'n': count}),
             style: const TextStyle(fontSize: 13, color: AppColors.muted)),
       ]));
 }
@@ -366,14 +368,14 @@ class _HubCard extends StatelessWidget {
     final step = hubListStep(row);
     final delta = row.weightDelta;
     final (done, next) = switch (step) {
-      HubListStep.weigh => (0, 'ওজন'),
-      HubListStep.pack => (1, 'প্যাক'),
-      HubListStep.deliveryChain => (2, 'কুরিয়ার'),
+      HubListStep.weigh => (0, tr('Weigh')),
+      HubListStep.pack => (1, tr('Pack')),
+      HubListStep.deliveryChain => (2, tr('Courier')),
       HubListStep.none => (0, null),
     };
     final kgLabel = row.weighedKg == null
-        ? 'বুকিং ${formatKg(row.bookedKg)}'
-        : 'মাপা ${formatKg(row.weighedKg!)}';
+        ? tr('Booked {kg}', {'kg': formatKg(row.bookedKg)})
+        : tr('Weighed {kg}', {'kg': formatKg(row.weighedKg!)});
     return PaperCard(
         onTap: onOpen,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -393,7 +395,7 @@ class _HubCard extends StatelessWidget {
           Text(
               [
                 if (row.description.isNotEmpty) row.description,
-                'কাস্টমার ${row.supplierCode}'
+                tr('Customer {code}', {'code': row.supplierCode})
               ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -404,8 +406,11 @@ class _HubCard extends StatelessWidget {
             if (delta != null)
               InfoChip(
                   icon: Icons.warning_amber_rounded,
-                  label:
-                      '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} kg ${delta > 0 ? 'বেশি' : 'কম'}',
+                  label: delta > 0
+                      ? tr('{delta} kg over',
+                          {'delta': '+${delta.toStringAsFixed(1)}'})
+                      : tr('{delta} kg under',
+                          {'delta': delta.toStringAsFixed(1)}),
                   tone: ChipTone.red),
             if (row.flightCode != null)
               InfoChip(
@@ -423,7 +428,8 @@ class _HubCard extends StatelessWidget {
               Expanded(
                   child: Text.rich(
                       TextSpan(
-                          text: 'ধাপ ${done + 1}/5 · পরের ধাপ ',
+                          text:
+                              tr('Step {step}/5 · next: ', {'step': done + 1}),
                           children: [
                             TextSpan(
                                 text: next,
@@ -433,8 +439,8 @@ class _HubCard extends StatelessWidget {
                           ]),
                       style: const TextStyle(
                           fontSize: 13, color: AppColors.muted))),
-              const Text('খুলুন',
-                  style: TextStyle(
+              Text(tr('Open'),
+                  style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primary)),
@@ -497,7 +503,7 @@ class _AdminRow extends StatelessWidget {
                             fontSize: 13, color: AppColors.muted)),
                     if (due > 0) ...[
                       const SizedBox(height: 2),
-                      Text('বাকি ${formatBdt(due)}',
+                      Text(tr('Due {amount}', {'amount': formatBdt(due)}),
                           style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,

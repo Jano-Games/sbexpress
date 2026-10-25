@@ -4,6 +4,7 @@ import '../../data/models/session_user.dart';
 import '../../app_scope.dart';
 import '../admin/payment_review_screen.dart';
 import '../../data/session/session_controller.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../customers/customers_screen.dart';
@@ -29,8 +30,8 @@ class MoreScreen extends StatelessWidget {
     };
     return WorkspaceScaffold(
         root: true,
-        title: 'আরও',
-        subtitle: 'টিম, পার্টনার ও ব্যবসার টুলস',
+        title: tr('More'),
+        subtitle: tr('Team, partners and business tools'),
         children: [
           PaperCard(
               padding: const EdgeInsets.all(14),
@@ -98,13 +99,51 @@ class MoreScreen extends StatelessWidget {
                     ])),
             const SizedBox(height: 12),
           ],
-          const SizedBox(height: 4),
+          const _LanguageCard(),
+          const SizedBox(height: 16),
           AppButton(
               onPressed: session.logout,
               icon: Icons.logout_rounded,
               kind: AppButtonKind.danger,
-              label: 'লগআউট'),
+              label: tr('Log out')),
         ]);
+  }
+}
+
+/// English or Bangla for this phone. Each option is written in its own
+/// language so anyone can find theirs.
+class _LanguageCard extends StatelessWidget {
+  const _LanguageCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = AppScope.of(context).language;
+    return PaperCard(
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          const IconBadge(Icons.translate_rounded),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Text(tr('Language'),
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600))),
+          ChoiceChips(
+              options: const [
+                (value: 'en', label: 'English'),
+                (value: 'bn', label: 'বাংলা'),
+              ],
+              selected: appLanguage.value.name,
+              onSelected: (value) {
+                final language =
+                    value == 'bn' ? AppLanguage.bn : AppLanguage.en;
+                if (language == appLanguage.value) return;
+                if (store != null) {
+                  store.save(language);
+                } else {
+                  appLanguage.value = language;
+                }
+              }),
+        ]));
   }
 }
 

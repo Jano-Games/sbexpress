@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/shipment.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
@@ -67,7 +68,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
   Widget build(BuildContext context) {
     final balance = _balance;
     return WorkspaceScaffold(
-        title: 'কাস্টমার ক্রেডিট',
+        title: tr('Customer credit'),
         root: false,
         subtitle: widget.code,
         children: [
@@ -82,19 +83,19 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (balance != null) ...[
             MetricTile(
-                label: 'ক্রেডিট ব্যালেন্স',
+                label: tr('Credit balance'),
                 value: formatBdt(balance),
                 tone: balance > 0 ? ChipTone.green : ChipTone.neutral),
             const SizedBox(height: 16),
             AppButton(
-              label: 'বিলে বসান',
+              label: tr('Apply to bill'),
               kind: AppButtonKind.current,
               onPressed: () => _open(ApplyCreditScreen(
                   code: widget.code, balance: balance, orders: widget.orders)),
             ),
             const SizedBox(height: 8),
             AppButton(
-              label: 'রিফান্ড',
+              label: tr('Refund'),
               kind: AppButtonKind.teal,
               onPressed: () => _open(
                   RefundCreditScreen(code: widget.code, balance: balance)),
@@ -138,15 +139,16 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
         amount == null ||
         amount <= 0 ||
         amount > widget.balance + 0.001) {
-      setState(
-          () => _error = 'শিপমেন্ট বেছে নিন এবং ক্রেডিটের মধ্যে অঙ্ক দিন।');
+      setState(() => _error =
+          tr('Choose a shipment and enter an amount within the credit.'));
       return;
     }
     final shipmentCode = code;
     final ok = await confirmMoney(context,
-        title: 'ক্রেডিট বসান',
-        body:
-            '${formatBdt(amount)} $shipmentCode-এর ইস্যু করা ইনভয়েসে বসবে। ড্রাফট বিলে বসবে না।');
+        title: tr('Apply credit'),
+        body: tr(
+            '{amount} will be applied to the issued invoice for {shipment}. Draft bills are not affected.',
+            {'amount': formatBdt(amount), 'shipment': shipmentCode}));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -169,11 +171,11 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'বিলে বসান',
+        title: tr('Apply to bill'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'বসান',
+                label: tr('Apply'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
@@ -181,17 +183,20 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
           Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'ব্যালেন্স ${formatBdt(widget.balance)}। ইস্যু করা ও রিভিউ-মুক্ত ইনভয়েসেই বসবে।',
+                  tr('Balance {amount}. Applies only to issued invoices that are not under review.',
+                      {'amount': formatBdt(widget.balance)}),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (widget.orders.isEmpty)
-            const EmptyNote(
-                title: 'শিপমেন্ট নেই',
-                body: 'ইনভয়েস ইস্যু হলে এখান থেকে বসানো যাবে।'),
+            EmptyNote(
+                title: tr('No shipments'),
+                body: tr(
+                    'Credit can be applied here once an invoice is issued.')),
           for (final order in widget.orders) ...[
             _OrderPick(
               title: order.code,
-              subtitle: 'বাকি ${formatBdt(order.dueAmount)}',
+              subtitle:
+                  tr('Due {amount}', {'amount': formatBdt(order.dueAmount)}),
               selected: _shipment == order.code,
               onTap: () => setState(() => _shipment = order.code),
             ),
@@ -201,7 +206,7 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
               controller: _amount,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'অঙ্ক')),
+              decoration: InputDecoration(labelText: tr('Amount'))),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!,
@@ -264,15 +269,17 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
         amount <= 0 ||
         amount > widget.balance + 0.001 ||
         reason.length < 3) {
-      setState(() =>
-          _error = 'অ্যাকাউন্ট, ক্রেডিটের মধ্যে অঙ্ক ও ৩ অক্ষরের কারণ দিন।');
+      setState(() => _error = tr(
+          'Choose an account, an amount within the credit and a reason of at least 3 characters.'));
       return;
     }
     final chosen = account;
     final ok = await confirmMoney(context,
-        title: 'ক্রেডিট রিফান্ড',
-        body:
-            '${formatMoney(amount, chosen.currency)} ${chosen.name} থেকে ফেরত যাবে।');
+        title: tr('Refund credit'),
+        body: tr('{amount} will be refunded from {account}.', {
+          'amount': formatMoney(amount, chosen.currency),
+          'account': chosen.name
+        }));
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -297,11 +304,11 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'রিফান্ড',
+        title: tr('Refund'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'রিফান্ড সেভ',
+                label: tr('Save refund'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
@@ -309,7 +316,8 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
           Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'ব্যালেন্স ${formatBdt(widget.balance)}। যে অ্যাকাউন্ট থেকে টাকা বের হবে সেটা বেছে নিন।',
+                  tr('Balance {amount}. Choose the account the money leaves from.',
+                      {'amount': formatBdt(widget.balance)}),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           AccountPicker(
@@ -320,11 +328,11 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
               controller: _amount,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'অঙ্ক')),
+              decoration: InputDecoration(labelText: tr('Amount'))),
           const SizedBox(height: 8),
           TextField(
               controller: _reason,
-              decoration: const InputDecoration(labelText: 'কারণ')),
+              decoration: InputDecoration(labelText: tr('Reason'))),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!,

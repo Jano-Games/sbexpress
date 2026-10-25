@@ -9,6 +9,7 @@ import '../../data/models/flight.dart';
 import '../../data/models/shipment.dart';
 import '../../data/models/workspace.dart';
 import '../../data/repositories/dashboard_repository.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../finance/finance_screen.dart';
@@ -74,10 +75,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final today = FlightDay.parse(DateTime.now().toIso8601String());
     return WorkspaceScaffold(
         root: true,
-        title: 'ওভারভিউ',
+        title: tr('Overview'),
         subtitle: today == null
             ? 'SBExpress'
-            : '${today.weekday}বার · ${today.day} ${today.month}',
+            : '${today.weekdayName} · ${today.day} ${today.month}',
         onRefresh: _load,
         actions: [
           FilledButton.tonalIcon(
@@ -89,19 +90,19 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   shape: const StadiumBorder()),
               onPressed: () => _push(const IntakeScreen()),
               icon: const Icon(Icons.add_rounded, size: 19),
-              label: const Text('শিপমেন্ট')),
+              label: Text(tr('Shipment'))),
         ],
         children: [
           if (_loading && data == null) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (data != null) ...[
-            const SectionTitle(title: 'আপনার করণীয়'),
+            SectionTitle(title: tr('Work to do')),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                   child: _TodoTile(
                       icon: Icons.receipt_long_outlined,
                       value: '${data.reviewCount}',
-                      label: 'রসিদ যাচাই',
+                      label: tr('Receipts to review'),
                       hot: data.reviewCount > 0,
                       onTap: _openReview)),
               const SizedBox(width: 10),
@@ -109,7 +110,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   child: _TodoTile(
                       icon: Icons.checklist_rounded,
                       value: '${data.openTodoCount}',
-                      label: 'খোলা কাজ',
+                      label: tr('Open tasks'),
                       onTap: () => _push(TasksScreen(
                           role: UserRole.admin,
                           tasks: AppScope.of(context).tasks)))),
@@ -118,17 +119,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   child: _TodoTile(
                       icon: Icons.inventory_2_outlined,
                       value: '${data.activeShipmentCount}',
-                      label: 'চলমান শিপমেন্ট',
+                      label: tr('Active shipments'),
                       onTap: _openShipments)),
             ]),
             const SizedBox(height: 16),
             _MoneyCard(data: data, onOpen: _openFinance),
             const SizedBox(height: 22),
             SectionTitle(
-                title: 'পরবর্তী ফ্লাইট',
+                title: tr('Next flight'),
                 action: TextButton(
                     onPressed: () => _push(const FlightsScreen()),
-                    child: const Text('সময়সূচি'))),
+                    child: Text(tr('Schedule')))),
             _NextFlight(
                 flight: data.nextFlight,
                 flyers: _flyersFor(data),
@@ -137,15 +138,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     : FlightDetailScreen(code: data.nextFlight!.code))),
             const SizedBox(height: 22),
             SectionTitle(
-                title: 'চলমান শিপমেন্ট',
-                subtitle: '${data.activeShipmentCount}টি ডেলিভারির অপেক্ষায়',
+                title: tr('Active shipments'),
+                subtitle: tr(
+                    '{n} awaiting delivery', {'n': data.activeShipmentCount}),
                 action: TextButton(
-                    onPressed: _openShipments, child: const Text('সব দেখুন'))),
+                    onPressed: _openShipments, child: Text(tr('View all')))),
             if (data.activeShipments.isEmpty)
-              const EmptyNote(
+              EmptyNote(
                   icon: Icons.inventory_2_outlined,
-                  title: 'চলমান শিপমেন্ট নেই',
-                  body: 'উপরের শিপমেন্ট বাটন থেকে নতুন বুকিং করুন।')
+                  title: tr('No active shipments'),
+                  body: tr(
+                      'Use the Shipment button above to make a new booking.'))
             else
               SurfaceGroup(children: [
                 for (final row in data.activeShipments.take(5))
@@ -155,7 +158,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ]),
             if (data.notices.isNotEmpty) ...[
               const SizedBox(height: 22),
-              const SectionTitle(title: 'নজর দিন'),
+              SectionTitle(title: tr('Needs attention')),
               SurfaceGroup(children: [
                 for (final notice in data.notices)
                   Padding(
@@ -238,8 +241,8 @@ class _TodoTile extends StatelessWidget {
             style: const TextStyle(
                 fontSize: 24, fontWeight: FontWeight.w700, height: 1.1)),
         const SizedBox(height: 4),
-        Text(label,
-            maxLines: 2,
+        WordFitText(label,
+            maxLines: 3,
             style: TextStyle(
                 fontSize: 13,
                 height: 1.3,
@@ -283,8 +286,8 @@ class _MoneyCard extends StatelessWidget {
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              const Text('এই সপ্তাহের হিসাব',
-                                  style: TextStyle(
+                              Text(tr('Finance this week'),
+                                  style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white)),
@@ -292,8 +295,8 @@ class _MoneyCard extends StatelessWidget {
                                   style: const TextStyle(
                                       fontSize: 12, color: _soft)),
                             ])),
-                        const Text('বিস্তারিত',
-                            style: TextStyle(
+                        Text(tr('Details'),
+                            style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white)),
@@ -301,8 +304,8 @@ class _MoneyCard extends StatelessWidget {
                             size: 18, color: Colors.white),
                       ]),
                       const SizedBox(height: 14),
-                      const Text('নেট ক্যাশ',
-                          style: TextStyle(fontSize: 13, color: _soft)),
+                      Text(tr('Net cash'),
+                          style: const TextStyle(fontSize: 13, color: _soft)),
                       Text(formatBdt(data.net),
                           style: const TextStyle(
                               fontSize: 30,
@@ -315,19 +318,20 @@ class _MoneyCard extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(children: [
                         Expanded(
-                            child:
-                                figure('জমা হয়েছে', formatBdt(data.received))),
+                            child: figure(
+                                tr('Received'), formatBdt(data.received))),
                         Expanded(
-                            child: figure('ব্যয়', formatBdt(data.expenses))),
+                            child: figure(
+                                tr('Expenses'), formatBdt(data.expenses))),
                       ]),
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(
-                            child:
-                                figure('বুকিং প্রফিট', formatBdt(data.profit))),
-                        Expanded(
                             child: figure(
-                                'কাস্টমারের বকেয়া', formatBdt(data.unpaid),
+                                tr('Booking profit'), formatBdt(data.profit))),
+                        Expanded(
+                            child: figure(tr('Customer balance due'),
+                                formatBdt(data.unpaid),
                                 color: data.unpaid > 0
                                     ? const Color(0xFFFFB3B0)
                                     : Colors.white)),
@@ -335,9 +339,9 @@ class _MoneyCard extends StatelessWidget {
                       const SizedBox(height: 14),
                       Wrap(spacing: 8, runSpacing: 8, children: [
                         _BalanceChip(
-                            label: 'টাকা', value: formatBdt(data.cashBdt)),
+                            label: tr('Taka'), value: formatBdt(data.cashBdt)),
                         _BalanceChip(
-                            label: 'ইউয়ান',
+                            label: tr('Yuan'),
                             value: '¥${data.cashCny.toStringAsFixed(2)}'),
                       ]),
                     ]))));
@@ -382,7 +386,7 @@ class _NextFlight extends StatelessWidget {
                     children: [
                   Text(
                       next == null
-                          ? 'আসন্ন ফ্লাইট নেই'
+                          ? tr('No upcoming flight')
                           : [
                               displayFlightCode(next.code),
                               if (day != null) '${day.day} ${day.month}'
@@ -391,10 +395,14 @@ class _NextFlight extends StatelessWidget {
                           fontSize: 16, fontWeight: FontWeight.w700)),
                   Text(
                       next == null
-                          ? 'সময়সূচি যোগ করতে ফ্লাইটের তালিকা খুলুন'
+                          ? tr('Open the flight list to add a schedule')
                           : flyers.isEmpty
-                              ? 'ফ্লায়ার ঠিক হয়নি'
-                              : 'ফ্লায়ার ${flyers.join(', ')}',
+                              ? tr('Flyer not assigned')
+                              : trn(
+                                  flyers.length,
+                                  'Flyer {names}',
+                                  'Flyers {names}',
+                                  {'names': flyers.join(', ')}),
                       style: const TextStyle(
                           fontSize: 13, color: AppColors.muted)),
                 ])),

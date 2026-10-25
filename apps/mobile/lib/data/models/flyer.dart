@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../json_read.dart';
 
 class FlyerSummary {
@@ -148,8 +149,13 @@ class FlyerDetail extends FlyerSummary {
       homeAddress: requiredString(json, 'homeAddress'),
       emergencyContact: requiredString(json, 'emergencyContact'),
       totalKg: requiredDouble(json, 'totalKg'),
-      flights: [for (final row in requiredMapList(json, 'flights')) FlyerFlight.fromJson(row)],
-      nextFlight: next == null ? null : FlyerFlight.fromJson(asJsonMap(next, 'nextFlight')),
+      flights: [
+        for (final row in requiredMapList(json, 'flights'))
+          FlyerFlight.fromJson(row)
+      ],
+      nextFlight: next == null
+          ? null
+          : FlyerFlight.fromJson(asJsonMap(next, 'nextFlight')),
     );
   }
 }
@@ -178,7 +184,9 @@ class FlyerDocument {
   final String? verifiedByName;
 
   bool get verified => verifiedAt != null;
-  bool get isPdf => contentType.toLowerCase().contains('pdf') || name.toLowerCase().endsWith('.pdf');
+  bool get isPdf =>
+      contentType.toLowerCase().contains('pdf') ||
+      name.toLowerCase().endsWith('.pdf');
 
   factory FlyerDocument.fromJson(Map<String, Object?> json) {
     return FlyerDocument(
@@ -204,20 +212,23 @@ class FlyerDocumentList {
   factory FlyerDocumentList.fromJson(Map<String, Object?> json) {
     return FlyerDocumentList(
       configured: requiredBool(json, 'configured'),
-      documents: [for (final row in requiredMapList(json, 'documents')) FlyerDocument.fromJson(row)],
+      documents: [
+        for (final row in requiredMapList(json, 'documents'))
+          FlyerDocument.fromJson(row)
+      ],
     );
   }
 }
 
-const flyerDocumentKinds = <String, String>{
-  'student_id': 'স্টুডেন্ট আইডি',
-  'visa': 'ভিসা',
-  'admission': 'অ্যাডমিশন',
-  'passport': 'পাসপোর্ট',
-  'nid': 'NID',
-  'ticket': 'টিকিট',
-  'other': 'অন্যান্য',
-};
+Map<String, String> get flyerDocumentKinds => <String, String>{
+      'student_id': tr('Student ID'),
+      'visa': tr('Visa'),
+      'admission': tr('Admission'),
+      'passport': tr('Passport'),
+      'nid': 'NID',
+      'ticket': tr('Ticket'),
+      'other': tr('Other'),
+    };
 
 class FlyerDraft {
   const FlyerDraft({
@@ -243,7 +254,10 @@ class FlyerDraft {
   final String? emergencyContact;
 
   Map<String, Object?> toJson() {
-    final body = <String, Object?>{'firstName': firstName, 'lastName': lastName};
+    final body = <String, Object?>{
+      'firstName': firstName,
+      'lastName': lastName
+    };
     void put(String key, String? value) {
       final text = value?.trim() ?? '';
       if (text.isNotEmpty) body[key] = text;

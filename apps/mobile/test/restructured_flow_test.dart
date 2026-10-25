@@ -200,7 +200,7 @@ void main() {
     await t.pumpWidget(app(const FlightDetailScreen(code: 'BG305')));
     await t.pumpAndSettle();
     expect(find.text('বুকিং নেই'), findsOneWidget);
-    await t.tap(find.text('ফ্লায়ার').first);
+    await t.tap(find.text('ফ্লায়ার').first);
     await t.pumpAndSettle();
     expect(find.text('Arif Rahman'), findsOneWidget);
     await t.tap(find.text('হিসাব'));

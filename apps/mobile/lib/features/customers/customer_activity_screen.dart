@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/customer_activity.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
@@ -58,17 +59,19 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
   }
 
   Future<void> _reverse(CustomerActivityEntry entry) async {
-    final reason = await askReason(context, title: 'এন্ট্রি বাতিল');
+    final reason = await askReason(context, title: tr('Reverse entry'));
     if (reason == null || !mounted) return;
     if (reason.length < 3) {
-      setState(() => _error = 'বাতিলের কারণ কমপক্ষে ৩ অক্ষর।');
+      setState(() => _error = tr('The reason must be at least 3 characters.'));
       return;
     }
     final ok = await confirmMoney(
       context,
-      title: 'হিসাব বাতিল',
-      body:
-          '${activityLabel(entry.label)} ${formatBdt(entry.amount)} উল্টে দেওয়া হবে।',
+      title: tr('Reverse transaction'),
+      body: tr('{label} {amount} will be reversed.', {
+        'label': activityLabel(entry.label),
+        'amount': formatBdt(entry.amount)
+      }),
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
@@ -90,7 +93,7 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
     final page = _page;
     final hasNext = page != null && page.page * page.limit < page.total;
     return WorkspaceScaffold(
-        title: 'অ্যাকাউন্ট হিসাব',
+        title: tr('Account activity'),
         root: false,
         onRefresh: _load,
         subtitle: widget.code,
@@ -98,7 +101,8 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
           Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  '${widget.name} · পেমেন্ট, অগ্রিম, ক্রেডিট ও রিফান্ড। মূল মুদ্রা আর BDT একসাথে।',
+                  tr('{name} · payments, advances, credit and refunds, in the original currency and BDT.',
+                      {'name': widget.name}),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (_loading && page == null)
@@ -109,7 +113,10 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
             const SizedBox(height: 12),
           ],
           if (page != null && page.entries.isEmpty)
-            const EmptyNote(title: 'হিসাব নেই', body: 'টাকা নড়লে এখানে আসবে।'),
+            EmptyNote(
+                title: tr('No activity'),
+                body:
+                    tr('Money movements appear here when they are recorded.')),
           if (page != null)
             for (final entry in page.entries) ...[
               PaperCard(
@@ -129,16 +136,17 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
                               color: AppColors.muted, height: 1.35)),
                     const SizedBox(height: 8),
                     KvRow(
-                        label: 'মূল',
+                        label: tr('Original'),
                         value: formatMoney(
                             _signedSource(entry), entry.sourceCurrency)),
                     KvRow(label: 'BDT', value: formatBdt(entry.amount)),
                     if (entry.sourceCurrency == 'CNY')
                       KvRow(
-                          label: 'রেট', value: '1 CNY = ${entry.sourceFxRate}'),
+                          label: tr('Rate'),
+                          value: '1 CNY = ${entry.sourceFxRate}'),
                     KvRow(
-                        label: 'অ্যাকাউন্ট',
-                        value: entry.accountName ?? 'ক্রেডিট ব্যালেন্স'),
+                        label: tr('Account'),
+                        value: entry.accountName ?? tr('Credit balance')),
                     if (entry.shipmentCode != null) ...[
                       const SizedBox(height: 8),
                       AppButton(
@@ -154,7 +162,7 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
                     if (entry.canReverse) ...[
                       const SizedBox(height: 8),
                       AppButton(
-                          label: 'বাতিল',
+                          label: tr('Reverse'),
                           kind: AppButtonKind.danger,
                           busy: _busy,
                           onPressed: () => _reverse(entry)),
@@ -166,14 +174,16 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
             ],
           if (page != null && page.total > 0) ...[
             const SizedBox(height: 8),
-            Text('${page.total} লাইন · পৃষ্ঠা ${page.page}',
+            Text(
+                trn(page.total, '{n} line · page {page}',
+                    '{n} lines · page {page}', {'page': page.page}),
                 style: const TextStyle(color: AppColors.muted)),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
                   child: AppButton(
-                    label: 'আগের',
+                    label: tr('Previous page'),
                     kind: AppButtonKind.quiet,
                     onPressed: page.page <= 1
                         ? null
@@ -186,7 +196,7 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: AppButton(
-                    label: 'পরের',
+                    label: tr('Next page'),
                     kind: AppButtonKind.quiet,
                     onPressed: hasNext
                         ? () {

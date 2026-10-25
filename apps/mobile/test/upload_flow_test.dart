@@ -13,8 +13,8 @@ PreparedImage sample() => PreparedImage(bytes: Uint8List.fromList([1, 2, 3]), fi
 void main() {
   test('upload errors name storage, network, expiry and format', () {
     expect(describeUploadError(const ApiException(status: 503, message: 'storage not configured', path: '/x')), contains('স্টোরেজ'));
-    expect(describeUploadError(const ApiException(status: 0, message: 'SocketException', path: '/x')), contains('নেটওয়ার্ক'));
-    expect(describeUploadError(const ApiException(status: 400, message: 'Upload reservation expired', path: '/x')), contains('মেয়াদ'));
+    expect(describeUploadError(const ApiException(status: 0, message: 'SocketException', path: '/x')), contains('নেটওয়ার্ক'));
+    expect(describeUploadError(const ApiException(status: 400, message: 'Upload reservation expired', path: '/x')), contains('মেয়াদ'));
     expect(describeUploadError(const FormatException('ফরম্যাট মেলেনি। JPEG দিন।')), contains('ফরম্যাট'));
     expect(describeUploadError(const ApiException(status: 500, message: 'nope', path: '/x')), isNot('try again'));
   });
@@ -44,7 +44,7 @@ void main() {
       upload: (_) async => throw const ApiException(status: 0, message: 'connection reset', path: '/put'),
     );
     expect(result.attached, isFalse);
-    expect(result.warning, contains('নেটওয়ার্ক'));
+    expect(result.warning, contains('নেটওয়ার্ক'));
     expect(paymentSubmissionAllowed(result), isTrue);
 
     final missing = await optionalScreenshot(image: null, upload: (_) async => 'nope');
@@ -80,7 +80,7 @@ void main() {
       },
     );
     await controller.select(PickedPhoto(bytes: img.encodeJpg(img.Image(width: 2, height: 2)), name: 'a.jpg', mime: 'image/jpeg'));
-    expect(controller.error, contains('নেটওয়ার্ক'));
+    expect(controller.error, contains('নেটওয়ার্ক'));
     expect(controller.prepared, isNotNull);
     final preparedSize = controller.prepared!.size;
     await controller.retry();

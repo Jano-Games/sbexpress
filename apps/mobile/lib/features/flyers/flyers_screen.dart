@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/flyer.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import 'flyer_detail_screen.dart';
@@ -67,14 +68,14 @@ class _FlyersScreenState extends State<FlyersScreen> {
           row,
     ];
     return WorkspaceScaffold(
-        title: 'ফ্লায়ার',
+        title: tr('Flyers'),
         root: false,
         onRefresh: _load,
         actions: [
           Padding(
               padding: const EdgeInsets.only(right: 12),
               child: AppButton(
-                  label: 'নতুন',
+                  label: tr('New'),
                   icon: Icons.add_rounded,
                   expand: false,
                   onPressed: () async {
@@ -87,15 +88,15 @@ class _FlyersScreenState extends State<FlyersScreen> {
         toolbar: TextField(
           controller: _query,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-              hintText: 'নাম বা ফোন খুঁজুন',
-              prefixIcon: Icon(Icons.search_rounded)),
+          decoration: InputDecoration(
+              hintText: tr('Search name or phone'),
+              prefixIcon: const Icon(Icons.search_rounded)),
         ),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
-              child: Text('প্রোফাইল ও ট্রাভেল ডকুমেন্ট',
-                  style: TextStyle(
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(tr('Profiles and travel documents'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           const SizedBox(height: 12),
           if (_loading)
@@ -103,16 +104,23 @@ class _FlyersScreenState extends State<FlyersScreen> {
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && _error == null && visible.isEmpty)
-            const EmptyNote(
-                title: 'ফ্লায়ার নেই',
-                body: 'নতুন প্রোফাইল যোগ করলে এখানে দেখা যাবে।'),
+            EmptyNote(
+                title: tr('No flyers'),
+                body: tr('New profiles will appear here.')),
           for (final row in visible) ...[
             DirectoryTile(
               title: row.name,
               icon: Icons.badge_outlined,
-              subtitle:
-                  '${row.bdPhone} · ${row.university}\nডকুমেন্ট ${row.verifiedDocumentCount}/${row.documentCount} যাচাই',
-              badge: row.docStudentId && row.docVisa ? 'যাচাই' : 'বাকি',
+              subtitle: [
+                '${row.bdPhone} · ${row.university}',
+                tr('{verified}/{total} documents verified', {
+                  'verified': row.verifiedDocumentCount,
+                  'total': row.documentCount
+                })
+              ].join('\n'),
+              badge: row.docStudentId && row.docVisa
+                  ? tr('Docs verified')
+                  : tr('Docs pending'),
               onTap: () async {
                 await Navigator.of(context).push(MaterialPageRoute<void>(
                     builder: (_) => FlyerDetailScreen(name: row.name)));

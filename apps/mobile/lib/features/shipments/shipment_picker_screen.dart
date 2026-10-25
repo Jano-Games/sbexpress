@@ -4,6 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/session_user.dart';
 import '../../data/models/shipment.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
@@ -80,9 +81,9 @@ class _ShipmentPickerScreenState extends State<ShipmentPickerScreen> {
           row,
     ];
     final title = switch (widget.target) {
-      ShipmentPickTarget.photos => 'ছবি',
-      ShipmentPickTarget.invoice => 'ইনভয়েস ও শেয়ার',
-      ShipmentPickTarget.imei => 'IMEI ছবি',
+      ShipmentPickTarget.photos => tr('Photos'),
+      ShipmentPickTarget.invoice => tr('Invoice & share'),
+      ShipmentPickTarget.imei => tr('IMEI photos'),
     };
     return WorkspaceScaffold(
         title: title,
@@ -93,21 +94,22 @@ class _ShipmentPickerScreenState extends State<ShipmentPickerScreen> {
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
                   _hub
-                      ? 'কাস্টমার কোড দিয়ে খুলুন। নাম এখানে নেই।'
-                      : 'যে শিপমেন্ট খুলবেন সেটা বেছে নিন।',
+                      ? tr('Open by customer code. Names are not shown here.')
+                      : tr('Choose the shipment to open.'),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           TextField(
               controller: _query,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(labelText: 'কোড')),
+              decoration: InputDecoration(labelText: tr('Code'))),
           const SizedBox(height: 12),
           if (_loading)
             const LinearProgressIndicator(
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && visible.isEmpty)
-            const EmptyNote(title: 'শিপমেন্ট নেই', body: 'তালিকা খালি।'),
+            EmptyNote(
+                title: tr('No shipments'), body: tr('The list is empty.')),
           for (final row in visible) ...[
             DirectoryTile(
               title: row.code,

@@ -4,6 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/shipment.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
@@ -72,14 +73,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
           row,
     ];
     return WorkspaceScaffold(
-        title: 'কাস্টমার',
+        title: tr('Customers'),
         root: false,
         onRefresh: _load,
         actions: [
           Padding(
               padding: const EdgeInsets.only(right: 12),
               child: AppButton(
-                  label: 'নতুন',
+                  label: tr('New'),
                   icon: Icons.add_rounded,
                   expand: false,
                   onPressed: () async {
@@ -92,14 +93,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
         toolbar: TextField(
             controller: _query,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-                hintText: 'নাম, কোড বা ফোন খুঁজুন',
-                prefixIcon: Icon(Icons.search_rounded))),
+            decoration: InputDecoration(
+                hintText: tr('Search name, code or phone'),
+                prefixIcon: const Icon(Icons.search_rounded))),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
-              child: Text('যোগাযোগ, শিপমেন্ট ও পাওনা',
-                  style: TextStyle(
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(tr('Contacts, shipments and receivables'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           const SizedBox(height: 12),
           if (_loading)
@@ -107,9 +108,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && _error == null && visible.isEmpty)
-            const EmptyNote(
-                title: 'কাস্টমার নেই',
-                body: 'নতুন কাস্টমার যোগ করলে এখানে দেখা যাবে।'),
+            EmptyNote(
+                title: tr('No customers'),
+                body: tr('New customers you add will appear here.')),
           for (final row in visible) ...[
             _CustomerCard(
               row: row,
@@ -153,7 +154,11 @@ class _CustomerCard extends StatelessWidget {
         Row(children: [
           Expanded(
               child: Text(
-                  '${row.orderCount} শিপমেন্ট · ${row.shippedKg.toStringAsFixed(1)} kg',
+                  trn(
+                      row.orderCount,
+                      '{n} shipment · {kg} kg',
+                      '{n} shipments · {kg} kg',
+                      {'kg': row.shippedKg.toStringAsFixed(1)}),
                   style:
                       const TextStyle(color: AppColors.muted, fontSize: 12))),
           const SizedBox(width: 8),
@@ -231,7 +236,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   title: detail.name,
                   subtitle: '${detail.code} · ${detail.phone}'),
               ScreenTabs(
-                  labels: const ['সারসংক্ষেপ', 'শিপমেন্ট', 'লেনদেন'],
+                  labels: [tr('Summary'), tr('Shipments'), tr('Transactions')],
                   index: _tab,
                   onChanged: (i) => setState(() => _tab = i)),
               const SizedBox(height: 20),
@@ -240,33 +245,35 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   child: Column(
                     children: [
                       KvRow(
-                          label: 'টার্ম',
+                          label: tr('Terms'),
                           value: detail.terms == 'monthly'
-                              ? 'মাসিক'
-                              : 'সাথে সাথে'),
-                      KvRow(label: 'ঠিকানা', value: detail.address),
-                      KvRow(label: 'বিল', value: formatBdt(detail.billed)),
-                      KvRow(label: 'পেইড', value: formatBdt(detail.paid)),
+                              ? tr('Monthly')
+                              : tr('Instant')),
+                      KvRow(label: tr('Address'), value: detail.address),
                       KvRow(
-                          label: 'বাকি',
+                          label: tr('Billed'), value: formatBdt(detail.billed)),
+                      KvRow(label: tr('Paid'), value: formatBdt(detail.paid)),
+                      KvRow(
+                          label: tr('Due'),
                           value: formatBdt(detail.balance),
                           valueColor: detail.balance > 0
                               ? AppColors.danger
                               : AppColors.ok),
                       KvRow(
-                          label: 'ক্রেডিট',
+                          label: tr('Credit'),
                           value: formatBdt(detail.creditBalance)),
                       KvRow(
-                          label: 'ছাড়',
+                          label: tr('Discount'),
                           value: formatBdt(detail.discountTotal)),
                       KvRow(
-                          label: 'দাম বাকি', value: '${detail.pricingPending}'),
+                          label: tr('Pricing pending'),
+                          value: '${detail.pricingPending}'),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 AppButton(
-                  label: 'মাসিক স্টেটমেন্ট',
+                  label: tr('Monthly statement'),
                   kind: AppButtonKind.teal,
                   onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -275,7 +282,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 AppButton(
-                  label: 'অ্যাকাউন্ট হিসাব',
+                  label: tr('Account activity'),
                   kind: AppButtonKind.quiet,
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -285,7 +292,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 AppButton(
-                  label: 'ক্রেডিট',
+                  label: tr('Credit'),
                   kind: AppButtonKind.quiet,
                   onPressed: () =>
                       Navigator.of(context).push(MaterialPageRoute<void>(
@@ -298,15 +305,18 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               ],
               if (_tab == 1) ...[
                 const SizedBox(height: 16),
-                const SectionTitle(title: 'শিপমেন্ট'),
+                SectionTitle(title: tr('Shipments')),
                 if (detail.orders.isEmpty)
-                  const EmptyNote(
-                      title: 'শিপমেন্ট নেই', body: 'ইনটেক করলে এখানে আসবে।'),
+                  EmptyNote(
+                      title: tr('No shipments'),
+                      body: tr('Shipments appear here after intake.')),
                 for (final order in detail.orders) ...[
                   DirectoryTile(
                     title: order.code,
                     subtitle:
-                        '${order.description} · ${formatKg(order.effectiveKg)} · বাকি ${formatBdt(order.dueAmount)}',
+                        '${order.description} · ${formatKg(order.effectiveKg)} · ${tr('Due {amount}', {
+                          'amount': formatBdt(order.dueAmount)
+                        })}',
                     badge: banglaStatus(order.status, order.statusLabel),
                     onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
@@ -317,11 +327,12 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 ],
               ],
               if (_tab == 2) ...[
-                const SectionTitle(title: 'সাম্প্রতিক পেমেন্ট'),
+                SectionTitle(title: tr('Recent payments')),
                 if (detail.payments.isEmpty)
-                  const EmptyNote(
-                      title: 'পেমেন্ট নেই',
-                      body: 'লেজারে টাকা ঢুকলে এখানে দেখা যাবে।'),
+                  EmptyNote(
+                      title: tr('No payments'),
+                      body: tr(
+                          'Payments appear here once money reaches the ledger.')),
                 for (final payment in detail.payments)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -330,7 +341,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                             '${payment.code} · ${payment.method} · ${formatBdt(payment.amount)}')),
                   ),
                 if (detail.invoices.isNotEmpty) ...[
-                  const SectionTitle(title: 'ইনভয়েস'),
+                  SectionTitle(title: tr('Invoices')),
                   for (final invoice in detail.invoices)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),

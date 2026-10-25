@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/flight.dart';
 import '../models/hub_flight.dart';
+import '../models/ticket_import.dart';
 import '../money_payload.dart';
 
 class FlightRepository {
@@ -17,6 +20,17 @@ class FlightRepository {
   Future<FlightDetail> detail(String code) async {
     final json = await api.getJson(_path(code));
     return FlightDetail.fromJson(asJsonMap(json['flight'], 'flight'));
+  }
+
+  /// Reads an e-ticket PDF into flight drafts; the file is not stored.
+  Future<TicketImport> readTicket(List<int> pdfBytes) async {
+    final json = await api.postJson('/api/flights/ticket', body: {'file': base64Encode(pdfBytes)});
+    return TicketImport.fromJson(json);
+  }
+
+  Future<String> createFromTicket(TicketFlightDraft draft, String flyer) async {
+    final json = await api.postJson('/api/flights', body: draft.toJson(flyer));
+    return requiredString(json, 'code');
   }
 
   /// Hub-safe schedule: no fare, ticket cost or booking revenue.

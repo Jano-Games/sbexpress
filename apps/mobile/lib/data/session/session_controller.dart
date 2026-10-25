@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../l10n/l10n.dart';
 import '../api/api_exception.dart';
 import '../json_read.dart';
 import '../models/session_user.dart';
@@ -41,7 +42,8 @@ class SessionController extends ChangeNotifier {
       if (error.status == 401 || error.status == 403) {
         await _clear();
       } else if (user != null) {
-        banner = 'সেশন যাচাই এখনো হয়নি। নেটওয়ার্ক ফিরলে আবার চেষ্টা হবে।';
+        banner = tr(
+            'Your session has not been checked yet. It will retry when the network is back.');
       } else {
         banner = error.message;
       }

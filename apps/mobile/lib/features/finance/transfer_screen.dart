@@ -4,6 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
@@ -80,8 +81,8 @@ class _TransferScreenState extends State<TransferScreen> {
         amount <= 0 ||
         note.isEmpty ||
         note.length > 200) {
-      setState(() =>
-          _error = 'আলাদা দুটি অ্যাকাউন্ট, অঙ্ক ও ১–২০০ অক্ষরের নোট দিন।');
+      setState(() => _error = tr(
+          'Choose two different accounts, an amount and a 1–200 character note.'));
       return;
     }
     final source = from;
@@ -90,15 +91,25 @@ class _TransferScreenState extends State<TransferScreen> {
     if (source.currency != dest.currency) {
       received = parseMoney(_received.text);
       if (received == null || received <= 0) {
-        setState(() =>
-            _error = '${dest.currency} অ্যাকাউন্টে যা ঢুকবে সেই অঙ্ক লিখুন।');
+        setState(() => _error = tr(
+            'Enter the amount arriving in the {currency} account.',
+            {'currency': dest.currency}));
         return;
       }
     }
     final body = received == null
-        ? '${formatMoney(amount, source.currency)} ${source.name} থেকে ${dest.name}-এ যাবে।'
-        : '${formatMoney(amount, source.currency)} ${source.name} ছাড়বে এবং ${formatMoney(received, dest.currency)} ${dest.name}-এ ঢুকবে।';
-    final ok = await confirmMoney(context, title: 'ট্রান্সফার', body: body);
+        ? tr('{amount} moves from {from} to {to}.', {
+            'amount': formatMoney(amount, source.currency),
+            'from': source.name,
+            'to': dest.name
+          })
+        : tr('{amount} leaves {from} and {received} arrives in {to}.', {
+            'amount': formatMoney(amount, source.currency),
+            'from': source.name,
+            'received': formatMoney(received, dest.currency),
+            'to': dest.name
+          });
+    final ok = await confirmMoney(context, title: tr('Transfer'), body: body);
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -127,34 +138,36 @@ class _TransferScreenState extends State<TransferScreen> {
     final to = _find(_to);
     final cross = from != null && to != null && from.currency != to.currency;
     return WorkspaceScaffold(
-        title: 'অ্যাকাউন্ট ট্রান্সফার',
+        title: tr('Account transfer'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'ট্রান্সফার সেভ',
+                label: tr('Save transfer'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _accounts.length < 2 ? null : _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
-              child: Text('এক ফান্ড থেকে অন্য ফান্ডে। প্রফিট বদলায় না।',
-                  style: TextStyle(
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr('From one fund to another. Profit does not change.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (_loading)
             const LinearProgressIndicator(
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_accounts.length < 2)
-            const EmptyNote(
-                title: 'দুটি অ্যাকাউন্ট লাগে',
-                body: 'পেমেন্ট মেথড বা ফান্ড যোগ করলে এখান থেকে সরানো যাবে।')
+            EmptyNote(
+                title: tr('Two accounts needed'),
+                body:
+                    tr('Add payment methods or funds to move money from here.'))
           else ...[
-            const SectionTitle(title: 'যেখান থেকে'),
+            SectionTitle(title: tr('From account')),
             AccountPicker(
                 accounts: _accounts,
                 selected: _from,
                 onSelected: (account) => setState(() => _from = account.name)),
-            const SectionTitle(title: 'যেখানে'),
+            SectionTitle(title: tr('To account')),
             AccountPicker(
                 accounts: _accounts,
                 selected: _to,
@@ -164,8 +177,9 @@ class _TransferScreenState extends State<TransferScreen> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                  labelText:
-                      'অঙ্ক${from == null ? '' : ' (${from.currency})'}'),
+                  labelText: from == null
+                      ? tr('Amount')
+                      : tr('Amount ({currency})', {'currency': from.currency})),
             ),
             if (cross) ...[
               const SizedBox(height: 8),
@@ -174,14 +188,15 @@ class _TransferScreenState extends State<TransferScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                    labelText: 'গন্তব্যে ঢুকবে (${to.currency})'),
+                    labelText: tr('Amount arriving ({currency})',
+                        {'currency': to.currency})),
               ),
             ],
             const SizedBox(height: 8),
             TextField(
                 controller: _note,
                 maxLength: 200,
-                decoration: const InputDecoration(labelText: 'নোট')),
+                decoration: InputDecoration(labelText: tr('Note'))),
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),

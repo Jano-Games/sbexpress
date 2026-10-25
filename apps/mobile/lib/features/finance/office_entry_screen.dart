@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/ledger_actions.dart';
 import '../../data/money_payload.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/account_picker.dart';
 import '../../widgets/money_confirm.dart';
@@ -66,23 +67,27 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
         amount <= 0 ||
         note.isEmpty ||
         (_kind != 'expense' && note.length > 160)) {
-      setState(() =>
-          _error = 'অ্যাকাউন্ট, অঙ্ক ও নোট দিন। আয়ের নোট ১৬০ অক্ষরের মধ্যে।');
+      setState(() => _error = tr(
+          'Enter an account, amount and note. Income notes are up to 160 characters.'));
       return;
     }
     final chosen = account;
     final label = switch (_kind) {
-      'capital' => 'মালিকের মূলধন',
-      'expense' => 'অফিস খরচ',
-      _ => 'আয়',
+      'capital' => tr('Owner capital'),
+      'expense' => tr('Office expense'),
+      _ => tr('Income'),
+    };
+    final money = {
+      'amount': formatMoney(amount, chosen.currency),
+      'account': chosen.name
     };
     final direction = _kind == 'expense'
-        ? '${chosen.name} থেকে যাবে'
-        : '${chosen.name}-এ ঢুকবে';
+        ? tr('{amount} leaves {account}.', money)
+        : tr('{amount} goes into {account}.', money);
     final ok = await confirmMoney(context,
         title: label,
         body:
-            '${formatMoney(amount, chosen.currency)} $direction। ${_kind == 'capital' ? 'ক্যাশ বাড়বে, প্রফিট নয়।' : ''}');
+            '$direction ${_kind == 'capital' ? tr('Cash goes up, profit does not.') : ''}');
     if (!ok || !mounted) return;
     setState(() {
       _busy = true;
@@ -118,26 +123,27 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'জমা বা খরচ',
+        title: tr('Deposit or expense'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'সেভ করুন',
+                label: tr('Save'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'শিপমেন্ট ছাড়া অফিসের আয়, মূলধন বা খরচ। শিপমেন্ট খরচ শিপমেন্টের খরচ পেজে।',
-                  style: TextStyle(
+                  tr(
+                      "Office income, capital or expenses outside shipments. Shipment costs go on the shipment's costs page."),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           ChoiceChips(
-            options: const [
-              (value: 'income', label: 'আয়'),
-              (value: 'capital', label: 'মূলধন'),
-              (value: 'expense', label: 'খরচ'),
+            options: [
+              (value: 'income', label: tr('Income')),
+              (value: 'capital', label: tr('Capital')),
+              (value: 'expense', label: tr('Expense')),
             ],
             selected: _kind,
             onSelected: (value) => setState(() => _kind = value),
@@ -162,13 +168,13 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
               controller: _amount,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'অঙ্ক')),
+              decoration: InputDecoration(labelText: tr('Amount'))),
           const SizedBox(height: 8),
           TextField(
             controller: _note,
             maxLength: _kind == 'expense' ? 500 : 160,
-            decoration:
-                InputDecoration(labelText: _kind == 'expense' ? 'কারণ' : 'নোট'),
+            decoration: InputDecoration(
+                labelText: _kind == 'expense' ? tr('Reason') : tr('Note')),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),

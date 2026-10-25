@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/customer.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
@@ -31,7 +32,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
 
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) {
-      setState(() => _error = 'কাস্টমারের নাম দিন।');
+      setState(() => _error = tr('Enter the customer name.'));
       return;
     }
     setState(() {
@@ -58,42 +59,43 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'নতুন কাস্টমার',
+        title: tr('New customer'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'সেভ করুন',
+                label: tr('Save'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'কোড সার্ভার দেবে। পেমেন্ট অ্যাকাউন্ট এখানে যোগ করা হয় না।',
-                  style: TextStyle(
+                  tr(
+                      'The server assigns the code. Payment accounts are not added here.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           TextField(
               controller: _name,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'নাম')),
+              decoration: InputDecoration(labelText: tr('Name'))),
           const SizedBox(height: 8),
           TextField(
               controller: _phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'ফোন')),
+              decoration: InputDecoration(labelText: tr('Phone'))),
           const SizedBox(height: 8),
           TextField(
               controller: _address,
-              decoration: const InputDecoration(labelText: 'ঠিকানা')),
+              decoration: InputDecoration(labelText: tr('Address'))),
           const SizedBox(height: 12),
-          const Text('বিলিং টার্ম',
-              style: TextStyle(fontWeight: FontWeight.w600)),
+          Text(tr('Billing terms'),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ChoiceChips(
-            options: const [
-              (value: 'instant', label: 'সাথে সাথে'),
-              (value: 'monthly', label: 'মাসিক'),
+            options: [
+              (value: 'instant', label: tr('Instant')),
+              (value: 'monthly', label: tr('Monthly')),
             ],
             selected: _terms,
             onSelected: (value) => setState(() => _terms = value),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/flyer.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 
@@ -46,7 +47,7 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
 
   Future<void> _save() async {
     if (_first.text.trim().isEmpty) {
-      setState(() => _error = 'নামের প্রথম অংশ দিন।');
+      setState(() => _error = tr('Enter the first name.'));
       return;
     }
     setState(() {
@@ -78,51 +79,53 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
   @override
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
-        title: 'নতুন ফ্লায়ার',
+        title: tr('New flyer'),
         root: false,
         footer: ActionFooter(
             child: AppButton(
-                label: 'সেভ করুন',
+                label: tr('Save flyer'),
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
-              child: Text('নাম দিয়ে প্রোফাইল খোলে। বাকি ঘর খালি রাখা যায়।',
-                  style: TextStyle(
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                  tr(
+                      'A name is enough to create the profile. Other fields can stay blank.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           TextField(
               controller: _first,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'নামের প্রথম অংশ')),
+              decoration: InputDecoration(labelText: tr('First name'))),
           const SizedBox(height: 8),
           TextField(
               controller: _last,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'নামের শেষ অংশ')),
+              decoration: InputDecoration(labelText: tr('Last name'))),
           const SizedBox(height: 8),
           TextField(
               controller: _bd,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'বাংলাদেশ ফোন')),
+              decoration: InputDecoration(labelText: tr('Bangladesh phone'))),
           const SizedBox(height: 8),
           TextField(
               controller: _cn,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'চায়না ফোন')),
+              decoration: InputDecoration(labelText: tr('China phone'))),
           const SizedBox(height: 8),
           TextField(
               controller: _university,
-              decoration: const InputDecoration(labelText: 'বিশ্ববিদ্যালয়')),
+              decoration: InputDecoration(labelText: tr('University'))),
           const SizedBox(height: 8),
           TextField(
               controller: _program,
-              decoration: const InputDecoration(labelText: 'প্রোগ্রাম')),
+              decoration: InputDecoration(labelText: tr('Program'))),
           const SizedBox(height: 8),
           TextField(
               controller: _batch,
-              decoration: const InputDecoration(labelText: 'ব্যাচ')),
+              decoration: InputDecoration(labelText: tr('Batch'))),
           const SizedBox(height: 8),
           TextField(
               controller: _wechat,
@@ -130,8 +133,7 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
           const SizedBox(height: 8),
           TextField(
               controller: _emergency,
-              decoration:
-                  const InputDecoration(labelText: 'ইমার্জেন্সি কন্টাক্ট')),
+              decoration: InputDecoration(labelText: tr('Emergency contact'))),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: const TextStyle(color: AppColors.danger)),

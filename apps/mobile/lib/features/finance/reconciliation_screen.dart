@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/reconciliation.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
@@ -52,15 +53,16 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Widget build(BuildContext context) {
     final report = _report;
     return WorkspaceScaffold(
-        title: 'মিলিয়ে দেখা',
+        title: tr('Reconciliation'),
         root: false,
         onRefresh: _load,
         children: [
-          const Padding(
-              padding: EdgeInsets.only(bottom: 20),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Text(
-                  'অ্যাকাউন্টের টাকা তার মুদ্রায়। শিপমেন্টের পার্থক্য BDT। পুরনো ব্যালেন্স যা লেজারে নেই, সেটা শুরুর ব্যালেন্স হিসেবে আলাদা।',
-                  style: TextStyle(
+                  tr(
+                      'Account amounts are in their own currency; shipment differences are in BDT. Older balances not in the ledger are shown separately as opening balance.'),
+                  style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           if (_loading && report == null)
             const LinearProgressIndicator(
@@ -69,7 +71,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
           if (report != null) ...[
             PaperCard(
               child: Text(
-                '${report.missingPostings.length} লাইনে অ্যাকাউন্ট স্ন্যাপশট নেই। ${report.shipmentDifferences.length} শিপমেন্টে পেমেন্ট মিলছে না।\n${report.note}',
+                '${trn(report.missingPostings.length, '{n} line has no account snapshot.', '{n} lines have no account snapshot.')} ${trn(report.shipmentDifferences.length, '{n} shipment has mismatched payments.', '{n} shipments have mismatched payments.')}\n${report.note}',
                 style: TextStyle(
                   height: 1.4,
                   color: report.missingPostings.isNotEmpty ||
@@ -80,14 +82,14 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const SectionTitle(
-                title: 'অ্যাকাউন্ট',
-                subtitle:
-                    'বর্তমান ব্যালেন্স, লেজারে নড়া, এবং যে অংশ লেজারে নেই।'),
+            SectionTitle(
+                title: tr('Accounts'),
+                subtitle: tr(
+                    'Current balance, ledger movement, and the part not in the ledger.')),
             if (report.accounts.isEmpty)
-              const EmptyNote(
-                  title: 'অ্যাকাউন্ট নেই',
-                  body: 'ফান্ড খুললে এখানে মিল দেখা যাবে।')
+              EmptyNote(
+                  title: tr('No accounts'),
+                  body: tr('Open a fund to see its reconciliation here.'))
             else
               for (final account in report.accounts) ...[
                 PaperCard(
@@ -100,15 +102,15 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                           style: const TextStyle(color: AppColors.muted)),
                       const SizedBox(height: 8),
                       KvRow(
-                          label: 'বর্তমান',
+                          label: tr('Current'),
                           value:
                               formatMoney(account.balance, account.currency)),
                       KvRow(
-                          label: 'লেজার',
+                          label: tr('Ledger'),
                           value: formatMoney(
                               account.recordedNetMovement, account.currency)),
                       KvRow(
-                          label: 'শুরু (অনুমান)',
+                          label: tr('Opening (implied)'),
                           value: formatMoney(
                               account.impliedOpeningBalance, account.currency)),
                     ],
@@ -117,12 +119,13 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                 const SizedBox(height: 8),
               ],
             const SizedBox(height: 8),
-            const SectionTitle(
-                title: 'শিপমেন্ট পার্থক্য', subtitle: 'সব অংক BDT।'),
+            SectionTitle(
+                title: tr('Shipment differences'),
+                subtitle: tr('All amounts in BDT.')),
             if (report.shipmentDifferences.isEmpty)
-              const EmptyNote(
-                  title: 'পার্থক্য নেই',
-                  body: 'ইস্যু করা পেমেন্ট আর লেজার একই।')
+              EmptyNote(
+                  title: tr('No differences'),
+                  body: tr('Issued payments match the ledger.'))
             else
               for (final row in report.shipmentDifferences) ...[
                 PaperCard(
@@ -133,15 +136,18 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 8),
                       KvRow(
-                          label: 'বরাদ্দ', value: formatBdt(row.allocatedPaid)),
-                      KvRow(label: 'লেজার', value: formatBdt(row.ledgerPaid)),
+                          label: tr('Allocated'),
+                          value: formatBdt(row.allocatedPaid)),
                       KvRow(
-                          label: 'পার্থক্য',
+                          label: tr('Ledger'),
+                          value: formatBdt(row.ledgerPaid)),
+                      KvRow(
+                          label: tr('Difference'),
                           value: formatBdt(row.difference),
                           valueColor: AppColors.danger),
                       const SizedBox(height: 8),
                       AppButton(
-                        label: 'শিপমেন্ট খুলুন',
+                        label: tr('Open shipment'),
                         kind: AppButtonKind.quiet,
                         onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -155,10 +161,10 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               ],
             if (report.missingPostings.isNotEmpty) ...[
               const SizedBox(height: 8),
-              const SectionTitle(
-                  title: 'স্ন্যাপশট নেই',
-                  subtitle:
-                      'এগুলো আবার বানানো হয় না। ব্যাংক বা ক্যাশ রেকর্ডের সাথে মিলিয়ে নিন।'),
+              SectionTitle(
+                  title: tr('Missing snapshots'),
+                  subtitle: tr(
+                      'These are not rebuilt. Check them against bank or cash records.')),
               for (final row in report.missingPostings) ...[
                 PaperCard(
                   child: Column(

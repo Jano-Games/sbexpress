@@ -1,7 +1,9 @@
+import '../../l10n/l10n.dart';
 import '../models/shipment.dart';
 
 /// Dhaka hub handling order. Do not reorder, rename, or drop a step.
-const String hubChainOrderLabel = 'weigh → pack → courier → dispatch → handover';
+const String hubChainOrderLabel =
+    'weigh → pack → courier → dispatch → handover';
 
 enum HubChainStep { weigh, pack, courier, dispatch, handover }
 
@@ -60,15 +62,15 @@ class HubChainSnapshot {
   String title(HubChainStep step) {
     switch (step) {
       case HubChainStep.weigh:
-        return 'ওজন';
+        return tr('Weigh');
       case HubChainStep.pack:
-        return 'প্যাক';
+        return tr('Pack');
       case HubChainStep.courier:
-        return 'কুরিয়ার';
+        return tr('Courier');
       case HubChainStep.dispatch:
-        return 'ডিসপ্যাচ';
+        return tr('Dispatch');
       case HubChainStep.handover:
-        return 'হ্যান্ডওভার';
+        return tr('Handover');
     }
   }
 }
@@ -77,7 +79,9 @@ HubListStep hubListStep(OperationalShipment row) {
   if (row.exception != null && closedHubExceptions.contains(row.exception)) {
     return HubListStep.none;
   }
-  if (row.status == 'received_bd_hub' && row.weighedKg == null) return HubListStep.weigh;
+  if (row.status == 'received_bd_hub' && row.weighedKg == null) {
+    return HubListStep.weigh;
+  }
   if (row.status == 'received_bd_hub') return HubListStep.pack;
   if (row.status == 'ready_for_last_mile' || row.status == 'out_for_delivery') {
     return HubListStep.deliveryChain;
@@ -88,18 +92,19 @@ HubListStep hubListStep(OperationalShipment row) {
 String hubListStepLabel(HubListStep step) {
   switch (step) {
     case HubListStep.weigh:
-      return 'ওজন';
+      return tr('Weigh');
     case HubListStep.pack:
-      return 'প্যাক';
+      return tr('Pack');
     case HubListStep.deliveryChain:
       return 'courier → dispatch → handover';
     case HubListStep.none:
-      return 'এখন হাবের ধাপ নেই';
+      return tr('No hub step right now');
   }
 }
 
 class HubWorkCounts {
-  const HubWorkCounts({required this.weigh, required this.pack, required this.deliveryChain});
+  const HubWorkCounts(
+      {required this.weigh, required this.pack, required this.deliveryChain});
 
   final int weigh;
   final int pack;
@@ -132,7 +137,8 @@ class HubWorkCounts {
           break;
       }
     }
-    return HubWorkCounts(weigh: weigh, pack: pack, deliveryChain: deliveryChain);
+    return HubWorkCounts(
+        weigh: weigh, pack: pack, deliveryChain: deliveryChain);
   }
 }
 
