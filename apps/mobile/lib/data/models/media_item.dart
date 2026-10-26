@@ -7,6 +7,7 @@ class MediaItem {
     required this.contentType,
     required this.size,
     required this.shared,
+    this.deviceCategory,
   });
 
   final String reference;
@@ -14,6 +15,10 @@ class MediaItem {
   final String contentType;
   final int size;
   final bool shared;
+
+  /// "Mobile", "Laptop" … for photos of a category's devices; null for
+  /// parcel photos and on servers that do not send it.
+  final String? deviceCategory;
 
   bool get isImage => contentType.startsWith('image/');
 
@@ -24,6 +29,9 @@ class MediaItem {
       contentType: requiredString(json, 'contentType'),
       size: requiredInt(json, 'size'),
       shared: requiredBool(json, 'shared'),
+      deviceCategory: json['deviceCategory'] is String
+          ? json['deviceCategory']! as String
+          : null,
     );
   }
 }
@@ -37,7 +45,10 @@ class ShipmentMediaList {
   factory ShipmentMediaList.fromJson(Map<String, Object?> json) {
     return ShipmentMediaList(
       configured: requiredBool(json, 'configured'),
-      media: [for (final item in requiredMapList(json, 'media')) MediaItem.fromJson(item)],
+      media: [
+        for (final item in requiredMapList(json, 'media'))
+          MediaItem.fromJson(item)
+      ],
     );
   }
 }

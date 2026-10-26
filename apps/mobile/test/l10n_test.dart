@@ -9,7 +9,9 @@ import 'package:sbexpress/l10n/bn_finance.dart';
 import 'package:sbexpress/l10n/bn_finance_ui.dart';
 import 'package:sbexpress/l10n/bn_flights.dart';
 import 'package:sbexpress/l10n/bn_flights_ui.dart';
+import 'package:sbexpress/l10n/bn_flow.dart';
 import 'package:sbexpress/l10n/bn_hub.dart';
+import 'package:sbexpress/l10n/bn_quick.dart';
 import 'package:sbexpress/l10n/bn_shared.dart';
 import 'package:sbexpress/l10n/bn_team_ui.dart';
 import 'package:sbexpress/l10n/l10n.dart';
@@ -101,6 +103,8 @@ void main() {
       'flightsUi': bnFlightsUi,
       'teamUi': bnTeamUi,
       'financeUi': bnFinanceUi,
+      'flow': bnFlow,
+      'quick': bnQuick,
       'core': bnCore,
     };
     final seen = <String, (String, String)>{};

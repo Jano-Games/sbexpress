@@ -79,6 +79,9 @@ export const supplierRoutes = new Hono<AppEnv>()
     return c.json({ suppliers: suppliers.map(summary) })
   })
 
+  /** The code a new customer gets when none is typed, shown in the form before saving. */
+  .get('/next-code', requireRole('admin'), async (c) => c.json({ code: await nextSupplierCode() }))
+
   .post('/', requireRole('admin'), async (c) => {
     const body = z
       .object({

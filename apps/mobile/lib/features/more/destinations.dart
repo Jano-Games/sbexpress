@@ -80,6 +80,16 @@ List<MoreDestination> moreDestinations(UserRole role) {
           title: tr('Photos / media'),
           body: tr('Shipment photos and attachments'),
         ),
+        MoreDestination(
+          id: 'staff-add',
+          title: tr('Add admin or hub manager'),
+          body: tr('A new sign-in for the team'),
+        ),
+        MoreDestination(
+          id: 'staff',
+          title: tr('Staff'),
+          body: tr('Everyone who can sign in'),
+        ),
       ];
   }
 }
@@ -105,6 +115,7 @@ List<MoreGroup> moreGroups(UserRole role) {
         MoreGroup(tr('Tasks & finance'),
             const ['tasks', 'assign', 'review', 'finance']),
         MoreGroup(tr('Management'), const ['flights', 'settings']),
+        MoreGroup(tr('Team'), const ['staff-add', 'staff']),
       ];
   }
 }

@@ -28,6 +28,10 @@ ApiClient screenFixtureApi(
       if (path == '/api/flyers') {
         return http.Response(jsonEncode({'flyers': []}), 200);
       }
+      if (path == '/api/suppliers/next-code') {
+        return http.Response(jsonEncode({'code': 'C-15'}), 200,
+            headers: {'content-type': 'application/json'});
+      }
       if (path == '/api/finance/ledger') {
         return http.Response(jsonEncode(ledgerBody()), 200,
             headers: {'content-type': 'application/json'});
@@ -53,6 +57,19 @@ ApiClient screenFixtureApi(
       if (path.endsWith('/media')) {
         return http.Response(
             jsonEncode({'configured': true, 'media': []}), 200);
+      }
+      if (path == '/api/dashboard/collect') {
+        return http.Response(jsonEncode(collectBody()), 200,
+            headers: {'content-type': 'application/json'});
+      }
+      if (path == '/api/dashboard/counts') {
+        return http.Response(
+            jsonEncode({'reviewCount': 2, 'openTodoCount': 4}), 200,
+            headers: {'content-type': 'application/json'});
+      }
+      if (path == '/api/flights/$flowFlightCode') {
+        return http.Response(jsonEncode(flowFlightDetailBody()), 200,
+            headers: {'content-type': 'application/json'});
       }
       if (path == '/api/flights/BG305-20261021-ab12cd') {
         return http.Response(jsonEncode(_flightDetailFull()), 200,
@@ -84,6 +101,11 @@ ApiClient screenFixtureApi(
                     'reference': ''
                   },
                 ],
+                'costs': {
+                  'items': [],
+                  'usualCosts': _usual(150, 0, 400, 120),
+                  'total': 670,
+                },
               }
             }),
             200);
@@ -103,7 +125,13 @@ ApiClient screenFixtureApi(
                   'settings': {
                     'rate': 17.5,
                     'threshold': 0.5,
-                    'pcsRates': {'Mobile': 2000, 'Laptop': 3500}
+                    'pcsRates': {'Mobile': 2000, 'Laptop': 3500},
+                    'costDefaults': {
+                      'packaging': 150,
+                      'courier': 300,
+                      'customs': 400,
+                      'transport': 120
+                    },
                   }
                 }
               : path == '/api/categories'
@@ -399,8 +427,86 @@ Map<String, Object?> _overviewBody() => {
       },
       'notices': [
         {'tag': 'WEIGHT', 'text': 'SH-18 weighed 1.4 kg over the booking'},
+        // As the server words them, so the overview can read them.
+        {
+          'tag': 'WEIGHT',
+          'text':
+              'SH-48 (C-15 · Rahman Traders) weighed 6.2 kg vs 5.6 kg booked — Δ+0.6kg'
+        },
+        {
+          'tag': 'FLIGHT',
+          'text':
+              '$flowFlightCode departs Thursday 29 Oct — 12.5 kg space left. Flyer: Arif Rahman, Rakib Hasan'
+        },
+        {
+          'tag': 'DUE',
+          'text':
+              'Billing cycle closes 31 Oct — Nila Store (C-14) balance ৳15,400 outstanding'
+        },
       ],
-      'flights': [],
+      'flyerReceivables': 9000,
+      'payables': 14200,
+      'stageCounts': {
+        'pending': 1,
+        'received_cn_hub': 1,
+        'ready_for_shipment': 0,
+        'in_transit': 1,
+        'customs_cleared': 0,
+        'received_bd_hub': 1,
+        'ready_for_last_mile': 1,
+        'out_for_delivery': 2,
+        'delivered': 4,
+      },
+      'flights': [
+        {
+          'code': flowFlightCode,
+          'date': _fixtureDay(3),
+          'flyers': ['Arif Rahman', 'Rakib Hasan'],
+          'bookedKg': 31.5,
+          'spaceKg': 44,
+          'status': 'upcoming',
+          'shipmentCount': 4,
+          'revenue': 31800,
+          'costs': 3620,
+          'profit': 16180,
+          'missingCostCount': 2,
+        },
+        {
+          'code': 'BG147-${_fixtureDay(9).replaceAll('-', '')}-cd9',
+          'date': _fixtureDay(9),
+          'flyers': ['Sumi Akter'],
+          'bookedKg': 18.4,
+          'spaceKg': 40,
+          'status': 'upcoming',
+          'shipmentCount': 2,
+          'revenue': 17480,
+          'costs': 0,
+          'profit': 11480,
+          'missingCostCount': 0,
+        },
+        {
+          'code': 'BG139-${_fixtureDay(-5).replaceAll('-', '')}-cd5',
+          'date': _fixtureDay(-5),
+          'flyers': ['Rakib Hasan'],
+          'bookedKg': 26,
+          'spaceKg': 44,
+          'status': 'completed',
+          'shipmentCount': 3,
+          'revenue': 24700,
+          'costs': 2950,
+          'profit': 15750,
+          'missingCostCount': 1,
+        },
+      ],
+      'collect': {
+        'afterDeliveryDue': 17550,
+        'afterDeliveryCount': 2,
+        'overdueCount': 1,
+        'monthlyDue': 19600,
+        'monthlyCustomers': 2,
+        'month': _fixtureDay(0).substring(0, 7),
+        'monthLabel': 'October 2026',
+      },
       'activeShipmentCount': 1,
       'activeShipments': [
         {
@@ -417,9 +523,22 @@ Map<String, Object?> _overviewBody() => {
           'paymentTerms': 'invoice',
           'freeOfCharge': false,
           'receiptStatus': null,
+          'costTotal': 670,
+          'usualCosts': _usual(150, 0, 400, 120),
+          'profitBeforeTicket': 4130,
         },
       ],
     };
+
+/// The four usual costs; 0 means not added yet.
+List<Map<String, Object?>> _usual(
+        double packaging, double courier, double customs, double transport) =>
+    [
+      {'category': 'packaging', 'amount': packaging},
+      {'category': 'courier', 'amount': courier},
+      {'category': 'customs', 'amount': customs},
+      {'category': 'transport', 'amount': transport},
+    ];
 
 String _fixtureDay(int offset) => DateTime.now()
     .add(Duration(days: offset))
@@ -529,7 +648,9 @@ Map<String, Object?> _adminBooking(String code,
         required int statusIndex,
         required double kg,
         required double bill,
-        required double paid}) =>
+        required double paid,
+        List<double> costs = const [0, 0, 0, 0],
+        String terms = 'invoice'}) =>
     {
       ..._shipment(code: code, status: status, statusIndex: statusIndex),
       'bookedKg': kg,
@@ -546,9 +667,13 @@ Map<String, Object?> _adminBooking(String code,
               ? 'partial'
               : 'unpaid',
       'payMethod': null,
-      'paymentTerms': 'invoice',
+      'paymentTerms': terms,
       'freeOfCharge': false,
       'receiptStatus': null,
+      'costTotal': costs.fold<double>(0, (sum, cost) => sum + cost),
+      'usualCosts': _usual(costs[0], costs[1], costs[2], costs[3]),
+      'profitBeforeTicket':
+          bill - costs.fold<double>(0, (sum, cost) => sum + cost),
     };
 
 /// BG305 with two flyers part-paid, an unassigned early payment and four
@@ -569,6 +694,8 @@ Map<String, Object?> _flightDetailFull() {
     'laptops': 2,
     'shipmentCount': 4,
     'revenue': 32725,
+    'totalShipmentCosts': 3620,
+    'margin': 17105,
     'settlements': [
       {'name': 'Arif Rahman', 'contribution': 15000, 'paidAmount': 15000},
       {'name': 'Rakib Hasan', 'contribution': 15000, 'paidAmount': 6000},
@@ -584,21 +711,24 @@ Map<String, Object?> _flightDetailFull() {
           statusIndex: 2,
           kg: 4,
           bill: 4600,
-          paid: 1000),
+          paid: 1000,
+          costs: [150, 0, 400, 120]),
       _adminBooking('SH-21',
           supplier: 'Rahman Traders',
           status: 'ready_for_shipment',
           statusIndex: 2,
           kg: 12.5,
           bill: 11875,
-          paid: 11875),
+          paid: 11875,
+          costs: [250, 350, 900, 200]),
       _adminBooking('SH-51',
           supplier: 'Sky Mobile',
           status: 'received_cn_hub',
           statusIndex: 1,
           kg: 9,
           bill: 10550,
-          paid: 0),
+          paid: 0,
+          costs: [200, 300, 750, 0]),
       _adminBooking('SH-53',
           supplier: 'Nila Store',
           status: 'pending',
@@ -922,5 +1052,156 @@ Map<String, Object?> ledgerBody() {
       {'currency': 'BDT', 'moneyIn': 64200, 'moneyOut': 31850},
       {'currency': 'CNY', 'moneyIn': 1400, 'moneyOut': 400},
     ],
+  };
+}
+
+/// BG305 as drawn in the flow designs: two flyers paying part, four
+/// shipments with their usual costs.
+const flowFlightCode = 'BG305-20261021-ef56gh';
+
+Map<String, Object?> flowFlightDetailBody() {
+  final flight = Map<String, Object?>.from(
+      (_flightsBody()['flights'] as List).first as Map);
+  flight.addAll({
+    'code': flowFlightCode,
+    'legs': [
+      {
+        ..._leg('TFU', 'Chengdu', 'DAC', 'Dhaka', '09:40', '12:10'),
+        'source': 'ticket',
+      }
+    ],
+    'flyers': ['Arif Rahman', 'Rakib Hasan'],
+    'fare': 30000,
+    'actualCost': 42000,
+    'agencyShare': 12000,
+    'flyerPaidAmount': 21000,
+    'ticketPaid': 28000,
+    'ticketDue': 14000,
+    'ticketRefundDue': 0,
+    'flyerDue': 9000,
+    'unallocatedFlyerPaid': 0,
+    'mobiles': 4,
+    'laptops': 2,
+    'shipmentCount': 4,
+    'revenue': 31800,
+    'totalShipmentCosts': 3620,
+    'margin': 16180,
+    'settlements': [
+      {'name': 'Arif Rahman', 'contribution': 15000, 'paidAmount': 15000},
+      {'name': 'Rakib Hasan', 'contribution': 15000, 'paidAmount': 6000},
+    ],
+    'flyerDetails': [
+      {'name': 'Arif Rahman', 'bdPhone': '01800000000', 'initial': 'A'},
+      {'name': 'Rakib Hasan', 'bdPhone': '01811000000', 'initial': 'R'},
+    ],
+    'bookings': [
+      _adminBooking('SH-18',
+          supplier: 'Nila Store',
+          status: 'received_bd_hub',
+          statusIndex: 5,
+          kg: 4,
+          bill: 4800,
+          paid: 1000,
+          costs: [150, 0, 400, 120],
+          terms: 'monthly'),
+      _adminBooking('SH-21',
+          supplier: 'Rahman Traders',
+          status: 'delivered',
+          statusIndex: 8,
+          kg: 12.5,
+          bill: 11250,
+          paid: 0,
+          costs: [250, 350, 900, 200]),
+      _adminBooking('SH-51',
+          supplier: 'Sky Mobile',
+          status: 'out_for_delivery',
+          statusIndex: 7,
+          kg: 9,
+          bill: 10050,
+          paid: 0,
+          costs: [200, 300, 750, 0]),
+      _adminBooking('SH-53',
+          supplier: 'Nila Store',
+          status: 'ready_for_shipment',
+          statusIndex: 2,
+          kg: 6,
+          bill: 5700,
+          paid: 0,
+          terms: 'monthly'),
+    ],
+  });
+  return {'flight': flight};
+}
+
+/// `GET /api/dashboard/collect` with the numbers of the Get paid design.
+Map<String, Object?> collectBody() {
+  final month = _fixtureDay(0).substring(0, 7);
+  return {
+    'today': _fixtureDay(0),
+    'afterDelivery': {
+      'handedOver': [
+        {
+          'code': 'SH-14',
+          'supplierCode': 'C-22',
+          'supplierName': 'Bismillah Telecom',
+          'supplierPhone': '01712000000',
+          'amount': 6300,
+          'deliveredOn': _fixtureDay(-9),
+          'days': 9,
+          'overdue': true,
+        },
+        {
+          'code': 'SH-21',
+          'supplierCode': 'C-15',
+          'supplierName': 'Rahman Traders',
+          'supplierPhone': '01713000000',
+          'amount': 11250,
+          'deliveredOn': _fixtureDay(-1),
+          'days': 1,
+          'overdue': false,
+        },
+      ],
+      'comingSoon': [
+        {
+          'code': 'SH-51',
+          'supplierCode': 'C-31',
+          'supplierName': 'Sky Mobile',
+          'amount': 10050,
+          'status': 'out_for_delivery',
+          'statusLabel': 'Out for Delivery',
+        },
+      ],
+      'due': 17550,
+      'overdueCount': 1,
+    },
+    'monthly': {
+      'month': month,
+      'monthLabel': 'October 2026',
+      'customers': [
+        {
+          'code': 'C-14',
+          'name': 'Nila Store',
+          'phone': '01700000000',
+          'billed': 18600,
+          'paid': 3200,
+          'due': 15400,
+          'shipments': 4,
+          'linkSentOn': _fixtureDay(-3),
+          'linkActive': true,
+        },
+        {
+          'code': 'C-27',
+          'name': 'Mou Cosmetics',
+          'phone': '01714000000',
+          'billed': 4200,
+          'paid': 0,
+          'due': 4200,
+          'shipments': 1,
+          'linkSentOn': null,
+          'linkActive': false,
+        },
+      ],
+      'due': 19600,
+    },
   };
 }

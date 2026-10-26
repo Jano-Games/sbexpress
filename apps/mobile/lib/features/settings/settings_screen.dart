@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/models/flow.dart';
 import '../../data/models/workspace.dart';
+import '../../data/money_payload.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/flow_parts.dart' show usualCostIcon, usualCostLabel;
 import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
@@ -31,6 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool? _setupOpen;
   final _rate = TextEditingController();
 
+  /// Usual shipment cost amounts, edited in place.
+  var _costsOpen = false;
+  final _costFields = {
+    for (final key in usualCostKeys) key: TextEditingController()
+  };
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +51,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _rate.dispose();
+    for (final field in _costFields.values) {
+      field.dispose();
+    }
     super.dispose();
   }
 
@@ -118,6 +130,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _editCosts(CostDefaults defaults) {
+    for (final key in usualCostKeys) {
+      final value = defaults.of(key);
+      _costFields[key]!.text = value > 0 ? plainNumber(value) : '';
+    }
+    setState(() {
+      _costsOpen = true;
+      _error = null;
+    });
+  }
+
+  Future<void> _saveCosts() async {
+    var defaults = const CostDefaults();
+    for (final key in usualCostKeys) {
+      final value = readOptionalMoney(_costFields[key]!.text);
+      if (value == null) {
+        setState(() => _error = tr(
+            'Enter each usual cost as a number, or leave it empty for none.'));
+        return;
+      }
+      defaults = defaults.withValue(key, value);
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await AppScope.of(context).settings.saveCostDefaults(defaults);
+      if (!mounted) return;
+      setState(() => _costsOpen = false);
+      await _load();
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _openStaff() async {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const StaffScreen()));
@@ -144,6 +195,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (setup != null && settings != null) ...[
             _rateCard(setup, settings),
+            if (settings.costDefaults != null) ...[
+              const SizedBox(height: 14),
+              _costsCard(settings.costDefaults!),
+            ],
             const SizedBox(height: 22),
             SectionTitle(
                 title: tr('Payment methods'),
@@ -270,6 +325,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: _saveRate)),
         ]),
       ]));
+
+  Widget _costsCard(CostDefaults defaults) => PaperCard(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          const IconBadge(Icons.inventory_2_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(tr('Usual shipment costs'),
+                    style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.35,
+                        fontWeight: FontWeight.w700)),
+                Text(tr('Filled in when one is added to a shipment'),
+                    style: const TextStyle(
+                        fontSize: 13, height: 1.4, color: AppColors.muted)),
+              ])),
+          if (!_costsOpen)
+            TextButton(
+                key: const Key('costs-edit'),
+                onPressed: () => _editCosts(defaults),
+                child: Text(tr('Edit'))),
+        ]),
+        const SizedBox(height: 12),
+        if (_costsOpen) ...[
+          for (var i = 0; i < usualCostKeys.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: 12),
+            PairRow(
+                first: _costField(usualCostKeys[i]),
+                second: _costField(usualCostKeys[i + 1])),
+          ],
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(
+                child: AppButton(
+                    label: tr('Cancel'),
+                    kind: AppButtonKind.quiet,
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() => _costsOpen = false))),
+            const SizedBox(width: 10),
+            Expanded(
+                child: AppButton(
+                    key: const Key('costs-save'),
+                    label: tr('Save'),
+                    busy: _busy,
+                    onPressed: _saveCosts)),
+          ]),
+        ] else
+          for (var i = 0; i < usualCostKeys.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: AppColors.lineSoft),
+            Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(children: [
+                  Icon(usualCostIcon(usualCostKeys[i]),
+                      size: 18, color: AppColors.inkSoft),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: Text(usualCostLabel(usualCostKeys[i]),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600))),
+                  Text(
+                      defaults.of(usualCostKeys[i]) > 0
+                          ? formatBdt(defaults.of(usualCostKeys[i]))
+                          : tr('Not set'),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: defaults.of(usualCostKeys[i]) > 0
+                              ? AppColors.ink
+                              : AppColors.muted,
+                          fontFeatures: const [FontFeature.tabularFigures()])),
+                ])),
+          ],
+      ]));
+
+  Widget _costField(String key) => LabeledField(
+      label: usualCostLabel(key),
+      child: TextField(
+          key: ValueKey('costs-$key'),
+          controller: _costFields[key],
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+              hintText: '0',
+              prefixIcon: fieldSign('৳'),
+              prefixIconConstraints: fieldSignConstraints)));
 
   List<({String label, String value, bool ok})> _checks(SetupStatus setup) => [
         (

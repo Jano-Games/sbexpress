@@ -11,7 +11,9 @@ import 'bn_finance.dart';
 import 'bn_finance_ui.dart';
 import 'bn_flights.dart';
 import 'bn_flights_ui.dart';
+import 'bn_flow.dart';
 import 'bn_hub.dart';
+import 'bn_quick.dart';
 import 'bn_shared.dart';
 import 'bn_team_ui.dart';
 
@@ -25,5 +27,7 @@ final Map<String, String> bnStrings = {
   ...bnFlightsUi,
   ...bnTeamUi,
   ...bnFinanceUi,
+  ...bnFlow,
+  ...bnQuick,
   ...bnCore,
 };

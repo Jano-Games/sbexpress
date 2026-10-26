@@ -58,6 +58,9 @@ class FlightSummary {
     required this.settlements,
     this.from,
     this.to,
+    this.totalShipmentCosts,
+    this.margin,
+    this.fromTicket = false,
   });
 
   final String code;
@@ -91,6 +94,17 @@ class FlightSummary {
   final String? from;
   final String? to;
 
+  /// Costs of this flight's shipments, and charges − those costs − our
+  /// ticket share. The detail sends them; list rows may not.
+  final double? totalShipmentCosts;
+  final double? margin;
+
+  /// A leg was read from an e-ticket.
+  final bool fromTicket;
+
+  /// The flyers' part of the ticket: what we do not pay.
+  double get flyersShare => actualCost - agencyShare;
+
   String get displayCode => displayFlightCode(code);
 
   /// "Via KMG Kunming" without the prefix; null for a direct flight.
@@ -115,6 +129,9 @@ class FlightSummary {
     return FlightSummary(
       from: legs.isEmpty ? null : _legPlace(legs.first, 'fromCity', 'fromIata'),
       to: legs.isEmpty ? null : _legPlace(legs.last, 'toCity', 'toIata'),
+      fromTicket: legs.any((leg) => leg['source'] == 'ticket'),
+      totalShipmentCosts: optionalDouble(json, 'totalShipmentCosts'),
+      margin: optionalDouble(json, 'margin'),
       code: requiredString(json, 'code'),
       date: requiredString(json, 'date'),
       depTime: requiredString(json, 'depTime'),

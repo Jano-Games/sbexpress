@@ -12,8 +12,10 @@ import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/picked_photo_file.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../data/uploads/upload_queue.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/quick_parts.dart' show QueuedFilesCard;
 import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import '../flights/flight_detail_screen.dart';
@@ -22,9 +24,13 @@ import 'flyers_screen.dart';
 
 /// One flyer: profile, contact, documents to verify and their flights.
 class FlyerDetailScreen extends StatefulWidget {
-  const FlyerDetailScreen({super.key, required this.name});
+  const FlyerDetailScreen({super.key, required this.name, this.uploads});
 
   final String name;
+
+  /// Documents from the new flyer form that are still being sent or failed;
+  /// a failed one can be sent again from here.
+  final UploadQueue? uploads;
 
   @override
   State<FlyerDetailScreen> createState() => _FlyerDetailScreenState();
@@ -39,12 +45,26 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
   var _kind = 'student_id';
   PhotoUploadController? _photos;
 
+  var _uploadedSeen = 0;
+
   @override
   void initState() {
     super.initState();
+    _uploadedSeen = widget.uploads?.doneCount ?? 0;
+    widget.uploads?.addListener(_onUploads);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
+  }
+
+  /// Reloads the documents each time another queued file arrives.
+  void _onUploads() {
+    if (!mounted) return;
+    final done = widget.uploads!.doneCount;
+    if (done != _uploadedSeen) {
+      _uploadedSeen = done;
+      _load();
+    }
   }
 
   @override
@@ -62,6 +82,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
 
   @override
   void dispose() {
+    widget.uploads?.removeListener(_onUploads);
     _photos?.dispose();
     super.dispose();
   }
@@ -243,6 +264,11 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                 'verified': flyer.verifiedDocumentCount,
                 'total': flyer.documentCount
               }))),
+          if (widget.uploads case final uploads?)
+            QueuedFilesCard(
+                queue: uploads,
+                titleOf: (kind) => flyerDocumentKinds[kind] ?? kind ?? ''),
+          if (widget.uploads?.allDone == false) const SizedBox(height: 10),
           _documentsCard(documents),
           const SizedBox(height: 22),
           SectionTitle(

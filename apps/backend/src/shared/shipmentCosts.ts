@@ -138,3 +138,21 @@ export function shipmentCostItems(
       ),
   ]
 }
+
+/** The four costs almost every shipment has, in checklist order. */
+export const USUAL_COSTS = ['packaging', 'courier', 'customs', 'transport'] as const
+
+/** What is recorded so far for each usual cost; 0 means it has not been added. */
+export function usualCosts(
+  s: Parameters<typeof shipmentCostItems>[0],
+): { category: (typeof USUAL_COSTS)[number]; amount: number }[] {
+  const items = shipmentCostItems(s).filter((item) => !item.voidedAt)
+  return USUAL_COSTS.map((category) => ({
+    category,
+    amount: round(
+      items
+        .filter((item) => item.category === category)
+        .reduce((sum, item) => sum + item.amount, 0),
+    ),
+  }))
+}

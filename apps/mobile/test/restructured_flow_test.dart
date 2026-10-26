@@ -12,6 +12,7 @@ import 'package:sbexpress/features/customers/customers_screen.dart';
 import 'package:sbexpress/features/finance/finance_screen.dart';
 import 'package:sbexpress/features/finance/transfer_screen.dart';
 import 'package:sbexpress/features/flights/flight_detail_screen.dart';
+import 'package:sbexpress/features/intake/booking_done_screen.dart';
 import 'package:sbexpress/features/intake/intake_screen.dart';
 import 'package:sbexpress/features/shell/main_shell.dart';
 import 'package:sbexpress/features/tasks/tasks_screen.dart';
@@ -42,6 +43,17 @@ Finder field(String label) => find.byWidgetPredicate(
 Future<void> enter(WidgetTester t, String label, String value) async {
   await t.ensureVisible(field(label));
   await t.enterText(field(label), value);
+}
+
+/// Scrolls down to the field with [key] and types [value] into it.
+Future<void> enterKey(WidgetTester t, String key, String value) async {
+  final field = find.byKey(Key(key));
+  await t.scrollUntilVisible(field, 200,
+      scrollable: find.byType(Scrollable).first);
+  await t.ensureVisible(field);
+  await t.enterText(field, value);
+  // Let the focused field finish scrolling itself into view.
+  await t.pumpAndSettle();
 }
 
 void phone(WidgetTester t) {
@@ -120,7 +132,7 @@ void main() {
   });
 
   testWidgets(
-      'booking wizard validates, preserves its draft and sends the original CNY amount',
+      'one-page booking validates, keeps what was typed and sends the original CNY amount',
       (t) async {
     phone(t);
     Map<String, dynamic>? sent;
@@ -132,7 +144,7 @@ void main() {
       return null;
     }));
     await t.pumpAndSettle();
-    await t.tap(find.byKey(const Key('intake-next')));
+    await t.tap(find.byKey(const Key('intake-create')));
     await t.pumpAndSettle();
     expect(find.text('কাস্টমার বেছে নিন।'), findsOneWidget);
     expect(sent, isNull);
@@ -140,28 +152,40 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Nila Store'));
     await t.pumpAndSettle();
-    await t.tap(find.text('General'));
-    await t.tap(find.byKey(const Key('intake-next')));
-    await t.pumpAndSettle();
-    await enter(t, 'বুকড kg', '2.5');
-    await enter(t, 'প্রতি kg রেট', '80');
+    await enterKey(t, 'intake-kg', '2.5');
+    await enterKey(t, 'intake-rate', '80');
     await t.ensureVisible(find.text('CNY'));
+    await t.pumpAndSettle();
     await t.tap(find.text('CNY'));
-    await enter(t, 'বিবরণ', 'Test parcel');
-    await t.ensureVisible(find.text('মাসিক'));
-    await t.tap(find.text('মাসিক'));
-    await t.tap(find.byKey(const Key('intake-next')));
+    await enterKey(t, 'intake-description', 'Test parcel');
+    await t.ensureVisible(find.byKey(const Key('intake-terms-monthly')));
+    await t.tap(find.byKey(const Key('intake-terms-monthly')));
     await t.pumpAndSettle();
-    expect(find.text('CNY 80'), findsOneWidget);
+    // No category yet: nothing is sent and what was typed stays.
+    await t.tap(find.byKey(const Key('intake-create')));
+    await t.pumpAndSettle();
+    expect(find.text('অন্তত একটি ক্যাটাগরি বেছে নিন।'), findsOneWidget);
     expect(sent, isNull);
-    await t.tap(find.text('আগের ধাপ'));
-    await t.pumpAndSettle();
-    expect((t.widget<TextField>(field('প্রতি kg রেট'))).controller!.text, '80');
     expect(
-        (t.widget<TextField>(field('বিবরণ'))).controller!.text, 'Test parcel');
-    await t.tap(find.byKey(const Key('intake-next')));
+        t
+            .widget<TextField>(find.byKey(const Key('intake-rate')))
+            .controller!
+            .text,
+        '80');
+    expect(
+        t
+            .widget<TextField>(find.byKey(const Key('intake-description')))
+            .controller!
+            .text,
+        'Test parcel');
+    expect(t.widget<Text>(find.byKey(const Key('intake-charge'))).data, '¥200');
+    await t.scrollUntilVisible(find.text('General'), -200,
+        scrollable: find.byType(Scrollable).first);
+    await t.ensureVisible(find.text('General'));
     await t.pumpAndSettle();
-    await t.tap(find.byKey(const Key('intake-next')));
+    await t.tap(find.text('General'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('intake-create')));
     await t.pumpAndSettle();
     expect(sent, {
       'supplierCode': 'C-14',
@@ -173,6 +197,10 @@ void main() {
       'paymentTerms': 'monthly',
       'pcsItems': []
     });
+    expect(find.byType(BookingDoneScreen), findsOneWidget);
+    expect(find.text('SH-18 বুক হয়েছে'), findsOneWidget);
+    await t.tap(find.byKey(const Key('booking-open')));
+    await t.pumpAndSettle();
     expect(find.byType(AdminShipmentScreen), findsOneWidget);
     expect(find.text('Nila Store'), findsOneWidget);
     expect(t.takeException(), isNull);
@@ -196,19 +224,26 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('flight tabs retain travelers and settlement actions', (t) async {
+  testWidgets('flight detail retains travelers and settlement actions',
+      (t) async {
     phone(t);
     await t.pumpWidget(app(const FlightDetailScreen(code: 'BG305')));
     await t.pumpAndSettle();
-    expect(find.text('বুকিং নেই'), findsOneWidget);
-    await t.tap(find.text('ফ্লায়ার · 1'));
-    await t.pumpAndSettle();
+    final scroll = find.byType(Scrollable).first;
+    // The ticket row names the flyer; bookings follow below.
     expect(find.text('Arif Rahman'), findsOneWidget);
-    await t.tap(find.text('হিসাব'));
+    await t.scrollUntilVisible(find.text('বুকিং নেই'), 200, scrollable: scroll);
+    expect(find.text('বুকিং নেই'), findsOneWidget);
+    await t.scrollUntilVisible(find.byKey(const Key('flight-ticket')), -200,
+        scrollable: scroll);
+    await t.ensureVisible(find.byKey(const Key('flight-ticket')));
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(find.text('টিকিট ও কনট্রিবিউশন'), 200,
+    await t.tap(find.byKey(const Key('flight-ticket')));
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('টিকিটের টাকা দিন'), 200,
         scrollable: find.byType(Scrollable).first);
-    expect(find.text('টিকিট ও কনট্রিবিউশন'), findsOneWidget);
+    expect(find.text('ফ্লায়ারের জমা লিখুন'), findsOneWidget);
+    expect(find.text('টিকিটের টাকা দিন'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 

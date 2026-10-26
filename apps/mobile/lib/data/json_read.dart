@@ -91,7 +91,19 @@ List<Map<String, Object?>> asMapList(Object? value, String label) {
   return [for (final item in value) asJsonMap(item as Object?, label)];
 }
 
-List<Map<String, Object?>> requiredMapList(Map<String, Object?> json, String key) {
+List<Map<String, Object?>> requiredMapList(
+    Map<String, Object?> json, String key) {
   requireKey(json, key);
   return asMapList(json[key], key);
 }
+
+/// Null when [key] is absent or null. Fields added to the API later are read
+/// this way, so the app keeps working against a server that predates them.
+double? optionalDouble(Map<String, Object?> json, String key) =>
+    json[key] == null ? null : asDouble(json[key], key);
+
+int? optionalInt(Map<String, Object?> json, String key) =>
+    json[key] == null ? null : asInt(json[key], key);
+
+Map<String, Object?>? optionalMap(Map<String, Object?> json, String key) =>
+    json[key] == null ? null : asJsonMap(json[key], key);

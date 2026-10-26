@@ -9,7 +9,7 @@ import { cacheInvalidate } from '../core/redis'
 import { notFound } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { matchesQrDataUrl } from '../shared/mediaValidation'
-import { getSettings, putPcsRates, putSetting, putRaw } from '../shared/settings'
+import { getSettings, putCostDefaults, putPcsRates, putSetting, putRaw } from '../shared/settings'
 
 import type { PayMethod } from '@prisma/client'
 
@@ -76,6 +76,15 @@ export const settingsRoutes = new Hono<AppEnv>()
         investBdt: z.number().min(0).optional(),
         investCny: z.number().min(0).optional(),
         pcsRates: z.record(z.string().min(1).max(60), z.number().min(0)).optional(),
+        costDefaults: z
+          .object({
+            packaging: z.number().min(0).max(1_000_000).optional(),
+            courier: z.number().min(0).max(1_000_000).optional(),
+            customs: z.number().min(0).max(1_000_000).optional(),
+            transport: z.number().min(0).max(1_000_000).optional(),
+          })
+          .strict()
+          .optional(),
       })
       .parse(await c.req.json())
     for (const key of ['rate', 'threshold', 'investBdt', 'investCny'] as const) {
@@ -83,6 +92,7 @@ export const settingsRoutes = new Hono<AppEnv>()
       if (value !== undefined) await putSetting(key, value)
     }
     if (body.pcsRates !== undefined) await putPcsRates(body.pcsRates)
+    if (body.costDefaults !== undefined) await putCostDefaults(body.costDefaults)
     await cacheInvalidate('dashboard')
     await cacheInvalidate('track')
     return c.json({ settings: await getSettings() })

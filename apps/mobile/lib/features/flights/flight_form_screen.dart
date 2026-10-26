@@ -9,6 +9,8 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../data/money_payload.dart';
 import '../../widgets/account_picker.dart';
+import '../../widgets/flight_parts.dart' show LetterAvatar;
+import '../../widgets/flow_parts.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
@@ -23,7 +25,10 @@ class FlightFormScreen extends StatefulWidget {
 class _FlightFormScreenState extends State<FlightFormScreen> {
   final _code = TextEditingController();
   final _cost = TextEditingController();
-  final _agency = TextEditingController();
+
+  /// Each picked flyer's part of the ticket when the flyers pay part.
+  final _parts = <String, TextEditingController>{};
+  var _flyersPay = false;
   final _space = TextEditingController(text: '44');
   final _mobiles = TextEditingController(text: '2');
   final _laptops = TextEditingController(text: '1');
@@ -48,7 +53,9 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
   void dispose() {
     _code.dispose();
     _cost.dispose();
-    _agency.dispose();
+    for (final field in _parts.values) {
+      field.dispose();
+    }
     _space.dispose();
     _mobiles.dispose();
     _laptops.dispose();
@@ -100,12 +107,30 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       return;
     }
     final actual = readOptionalMoney(_cost.text);
-    final agency = readOptionalMoney(_agency.text);
-    if (actual == null || agency == null || agency > actual) {
-      setState(() => _error = tr(
-          'Ticket cost and agency share must be 0 or more, with up to two decimals. Blank counts as 0. Agency share cannot exceed the actual cost.'));
+    if (actual == null) {
+      setState(() => _error =
+          tr('Enter the ticket cost as a number with up to two decimals.'));
       return;
     }
+    final names = _picked.toList();
+    final parts = <String, double>{};
+    for (final name in names) {
+      final part =
+          _flyersPay ? readOptionalMoney(_parts[name]?.text ?? '') : 0.0;
+      if (part == null) {
+        setState(() => _error = tr('Enter 0 or more for each flyer.'));
+        return;
+      }
+      parts[name] = part;
+    }
+    final flyersTotal =
+        roundMoney(parts.values.fold(0.0, (total, part) => total + part));
+    if (flyersTotal > actual + 0.001) {
+      setState(() =>
+          _error = tr("The flyers' parts add up to more than the ticket."));
+      return;
+    }
+    final agency = roundMoney(actual - flyersTotal);
     FinanceAccount? paying;
     for (final account in _accounts) {
       if (account.name == _account) paying = account;
@@ -128,17 +153,26 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       _error = null;
     });
     try {
-      await AppScope.of(context).flights.create(FlightDraft(
-            airlineCode: code,
-            date: _iso(date),
-            flyerNames: _picked.toList(),
-            spaceKg: int.tryParse(_space.text.trim()) ?? 44,
-            mobiles: int.tryParse(_mobiles.text.trim()) ?? 2,
-            laptops: int.tryParse(_laptops.text.trim()) ?? 1,
-            actualCost: actual,
-            agencyShare: agency,
-            accountName: actual > 0 ? paying?.name : null,
-          ));
+      final flights = AppScope.of(context).flights;
+      final created = await flights.create(FlightDraft(
+        airlineCode: code,
+        date: _iso(date),
+        flyerNames: names,
+        spaceKg: int.tryParse(_space.text.trim()) ?? 44,
+        mobiles: int.tryParse(_mobiles.text.trim()) ?? 2,
+        laptops: int.tryParse(_laptops.text.trim()) ?? 1,
+        actualCost: actual,
+        agencyShare: agency,
+        accountName: actual > 0 ? paying?.name : null,
+      ));
+      // One flyer gets the whole flyers' part from the server; more than one
+      // need their parts saved.
+      if (names.length > 1 && flyersTotal > 0) {
+        await flights.allocateContributions(created, [
+          for (final name in names)
+            (name: name, contribution: parts[name]!, legacyPaid: 0.0),
+        ]);
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ApiException catch (error) {
@@ -196,6 +230,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
               onChanged: (value) => setState(() {
                 if (value == true) {
                   _picked.add(flyer.name);
+                  _parts.putIfAbsent(flyer.name, TextEditingController.new);
                 } else {
                   _picked.remove(flyer.name);
                 }
@@ -237,12 +272,74 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
                 labelText: tr('Actual ticket cost (BDT)'),
                 helperText: tr('Leave blank if unknown')),
           ),
+          const SizedBox(height: 16),
+          SectionTitle(title: tr('Who pays the ticket?')),
+          ChoicePair(
+              first: BigChoice(
+                  key: const Key('flight-we-pay'),
+                  icon: Icons.apartment_rounded,
+                  title: tr('We pay all'),
+                  subtitle: tr('Our company pays the whole ticket'),
+                  selected: !_flyersPay,
+                  onTap: () => setState(() => _flyersPay = false)),
+              second: BigChoice(
+                  key: const Key('flight-flyers-pay'),
+                  icon: Icons.groups_2_outlined,
+                  title: tr('Flyers pay part'),
+                  subtitle: tr('Each flyer pays a part, we pay the rest'),
+                  selected: _flyersPay,
+                  onTap: () => setState(() => _flyersPay = true))),
+          if (_flyersPay) ...[
+            const SizedBox(height: 12),
+            if (_picked.isEmpty)
+              Text(tr('Choose the flyers above first.'),
+                  style: const TextStyle(color: AppColors.muted, height: 1.45))
+            else
+              for (final name in _picked)
+                Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: LayoutBuilder(
+                        builder: (context, box) => Row(children: [
+                              LetterAvatar(name, size: 32),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                  child: Text(name,
+                                      style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600))),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                  width: box.maxWidth * 0.42 > 150
+                                      ? 150
+                                      : box.maxWidth * 0.42,
+                                  child: BigAmountField(
+                                      key: ValueKey('flight-part-$name'),
+                                      controller: _parts[name]!,
+                                      fontSize: 17,
+                                      textAlign: TextAlign.end,
+                                      onChanged: (_) => setState(() {}))),
+                            ]))),
+          ],
           const SizedBox(height: 8),
-          TextField(
-              controller: _agency,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: tr('Agency share (BDT)'))),
+          Builder(builder: (context) {
+            final cost = readOptionalMoney(_cost.text) ?? 0;
+            final flyers = _flyersPay
+                ? roundMoney(_picked.fold(
+                    0.0,
+                    (total, name) =>
+                        total +
+                        (readOptionalMoney(_parts[name]?.text ?? '') ?? 0)))
+                : 0.0;
+            final ours = roundMoney(cost - flyers);
+            if (cost <= 0) return const SizedBox.shrink();
+            return SplitSummary(
+                ours: ours < 0 ? 0 : ours,
+                flyers: flyers,
+                ticket: cost,
+                problem: ours < -0.001
+                    ? tr("The flyers' parts add up to more than the ticket.")
+                    : null);
+          }),
           if ((double.tryParse(_cost.text.trim()) ?? 0) > 0) ...[
             const SizedBox(height: 12),
             SectionTitle(
