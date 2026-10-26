@@ -14,6 +14,7 @@ import 'package:sbexpress/l10n/bn_hub.dart';
 import 'package:sbexpress/l10n/bn_quick.dart';
 import 'package:sbexpress/l10n/bn_round5.dart';
 import 'package:sbexpress/l10n/bn_round6.dart';
+import 'package:sbexpress/l10n/bn_scan.dart';
 import 'package:sbexpress/l10n/bn_shared.dart';
 import 'package:sbexpress/l10n/bn_team_ui.dart';
 import 'package:sbexpress/l10n/l10n.dart';
@@ -109,6 +110,7 @@ void main() {
       'quick': bnQuick,
       'round5': bnRound5,
       'round6': bnRound6,
+      'scan': bnScan,
       'core': bnCore,
     };
     final seen = <String, (String, String)>{};

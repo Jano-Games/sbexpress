@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/flyer.dart';
+import '../../data/scan/mrz.dart';
+import '../../data/scan/read_text.dart';
 import '../../data/uploads/photo_upload.dart';
 import '../../data/uploads/quick_uploads.dart';
 import '../../data/uploads/upload_queue.dart';
@@ -10,6 +12,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart' show MeterBar;
 import '../../widgets/quick_parts.dart';
+import '../../widgets/scan_parts.dart';
 import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import 'flyer_detail_screen.dart';
@@ -20,12 +23,17 @@ class FlyerFormScreen extends StatefulWidget {
   const FlyerFormScreen(
       {super.key,
       this.pickFile,
+      this.scanDocument,
       this.initialFirstName,
       this.initialLastName,
       this.returnName = false});
 
   /// Picks one document photo or PDF; null when cancelled. Tests replace it.
   final Future<PickedPhoto?> Function(FileSource source)? pickFile;
+
+  /// Reads the name lines of a passport or visa photo on the device. Tests
+  /// replace it.
+  final ScanTravelDocument? scanDocument;
 
   /// Names filled in from where the form was opened, e.g. a ticket.
   final String? initialFirstName, initialLastName;
@@ -39,7 +47,12 @@ class FlyerFormScreen extends StatefulWidget {
 }
 
 /// The documents asked for on the form, as the server's kinds.
-const _documentKinds = ['student_id', 'visa', 'admission'];
+const _documentKinds = ['student_id', 'passport', 'visa', 'admission'];
+
+String _kindOf(TravelDocument document) => switch (document) {
+      TravelDocument.passport => 'passport',
+      TravelDocument.visa => 'visa',
+    };
 
 class _FlyerFormScreenState extends State<FlyerFormScreen> {
   late final _first = TextEditingController(text: widget.initialFirstName);
@@ -55,6 +68,12 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
   UploadQueue? _uploads;
   String? _error;
   var _busy = false;
+
+  /// The scan: reading a photo, the photo it could not read, and what the
+  /// last scan did. Only the name and the photo are kept from a scan.
+  var _reading = false;
+  PickedPhoto? _unread;
+  ({TravelDocument kind, bool filled})? _scanned;
 
   @override
   void dispose() {
@@ -76,12 +95,14 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
 
   static String _title(String kind) => switch (kind) {
         'student_id' => tr('Student ID'),
+        'passport' => tr('Passport'),
         'visa' => tr('Visa'),
         _ => tr('Admission letter'),
       };
 
   static IconData _icon(String kind) => switch (kind) {
         'student_id' => Icons.badge_outlined,
+        'passport' => Icons.book_outlined,
         'visa' => Icons.travel_explore_outlined,
         _ => Icons.description_outlined,
       };
@@ -98,6 +119,77 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     }
+  }
+
+  /// Reads the name from a passport or visa photo, fills the empty name
+  /// fields (or the typed ones after asking) and queues the photo as that
+  /// document.
+  Future<void> _scan(FileSource source) async {
+    if (_reading) return;
+    PickedPhoto? picked;
+    try {
+      picked = await (widget.pickFile ?? pickDocument)(source);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+      return;
+    }
+    final photo = picked;
+    if (photo == null || !mounted) return;
+    setState(() {
+      _reading = true;
+      _unread = null;
+      _scanned = null;
+      _error = null;
+    });
+    final reading = await _read(photo);
+    if (!mounted) return;
+    setState(() => _reading = false);
+    if (reading == null) {
+      setState(() => _unread = photo);
+      return;
+    }
+    final first = reading.firstName, last = reading.lastName;
+    final typed = _differs(_first.text, first) || _differs(_last.text, last);
+    final fill = !typed ||
+        await confirmScannedName(context,
+            kind: reading.kind,
+            name: [first, last].where((part) => part.isNotEmpty).join(' '));
+    if (!mounted) return;
+    setState(() {
+      if (fill) {
+        _first.text = first;
+        _last.text = last;
+      }
+      _files[_kindOf(reading.kind)] = photo;
+      _scanned = (kind: reading.kind, filled: fill);
+    });
+  }
+
+  /// The name lines of [photo]; a reader that fails counts as a photo it
+  /// could not read.
+  Future<MrzReading?> _read(PickedPhoto photo) async {
+    try {
+      return await (widget.scanDocument ?? scanTravelDocument)(photo);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// A typed value that the scanned one would replace.
+  static bool _differs(String typed, String scanned) {
+    final text = typed.trim();
+    return text.isNotEmpty && text.toLowerCase() != scanned.toLowerCase();
+  }
+
+  /// Keeps a photo that could not be read as the chosen document.
+  void _attach(TravelDocument document) {
+    final photo = _unread;
+    if (photo == null) return;
+    setState(() {
+      _files[_kindOf(document)] = photo;
+      _unread = null;
+      _scanned = (kind: document, filled: false);
+    });
   }
 
   Future<void> _save() async {
@@ -218,6 +310,17 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
                       onPressed: _save),
                 ])),
         children: [
+          DocumentScanCard(
+              key: const Key('flyer-scan'),
+              reading: _reading,
+              unreadable: _unread != null,
+              note: switch (_scanned) {
+                (:final kind, :final filled) => scanNote(kind, filled: filled),
+                null => null,
+              },
+              onScan: _scan,
+              onAttach: _attach),
+          const SizedBox(height: 14),
           FormCard(title: tr('Personal details'), children: [
             PairRow(
                 first: _field(tr('First name'), _first,

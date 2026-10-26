@@ -342,7 +342,8 @@ void main() {
     await _reveal(t, slot('visa', 'PDF'));
     await t.tap(slot('visa', 'PDF'));
     await t.pumpAndSettle();
-    expect(find.text(tr('{n} of {total} added', {'n': 2, 'total': 3})),
+    // Student ID, passport, visa and admission letter.
+    expect(find.text(tr('{n} of {total} added', {'n': 2, 'total': 4})),
         findsOneWidget);
     expect(
         find.text(trn(2, 'Save flyer and upload {n} file',

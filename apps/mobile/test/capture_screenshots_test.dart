@@ -7,6 +7,7 @@ import 'package:sbexpress/features/flyers/flyer_form_screen.dart';
 import 'package:sbexpress/features/flyers/flyers_screen.dart';
 import 'package:sbexpress/features/admin/admin_shipment_screen.dart';
 import 'package:sbexpress/features/flights/flight_detail_screen.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -26,6 +27,8 @@ import 'package:sbexpress/widgets/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:sbexpress/data/scan/mrz.dart';
+import 'package:sbexpress/data/scan/read_text.dart';
 import 'package:sbexpress/data/uploads/photo_upload.dart';
 import 'package:sbexpress/data/uploads/quick_uploads.dart';
 import 'package:sbexpress/features/intake/booking_done_screen.dart';
@@ -314,6 +317,7 @@ void main() {
     await _quickShots(tester, scope);
     await _round5Shots(tester, scope);
     await _round6Shots(tester, scope);
+    await _scanShots(tester, scope);
     await _shot(
         tester,
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
@@ -419,6 +423,7 @@ void main() {
     await _flowCompactShots(tester, scope);
     await _round5Shots(tester, scope, compact: true);
     await _round6Shots(tester, scope, compact: true);
+    await _scanShots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
     await _shot(
         tester,
@@ -1198,6 +1203,75 @@ Future<void> _quickShots(WidgetTester tester, AppScope scope) async {
       '52-more-team',
       find.byType(MoreScreen));
   await _scrollShot(tester, '52-more-team', dy: -700);
+}
+
+/// The passport and visa scan on the new flyer form: filled from the
+/// passport, the photo in Documents, Reading…, unreadable and the question
+/// before a typed name is replaced.
+Future<void> _scanShots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-scan' : '80';
+  final team = _teamScope(scope);
+  const page = [
+    'Passport',
+    "PEOPLE'S REPUBLIC OF BANGLADESH",
+    'P<BGDSHAHRIAR<<MD<RIFAT<<<<<<<<<<<<<<<<<<<<<',
+    'A012345678BGD0102030M3001019<<<<<<<<<<<<<<08',
+  ];
+  Future<PickedPhoto?> pick(FileSource source) async => PickedPhoto(
+      bytes: Uint8List.fromList(img.encodeJpg(img.Image(width: 4, height: 3))),
+      name: 'passport.jpg',
+      mime: 'image/jpeg');
+  Widget form(ScanTravelDocument scan) =>
+      FlyerFormScreen(pickFile: pick, scanDocument: scan);
+  Future<void> tapScan() async {
+    await tester.tap(find.byKey(const Key('scan-camera')));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> scrollChecks(String name) async {
+    if (!compact) return;
+    for (var i = 0; i < 3; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$name scrolled');
+    }
+  }
+
+  await _shot(
+      tester,
+      _scoped(team, form((photo) async => readMrz(page.join('\n')))),
+      '$prefix-a-flyer-scan',
+      find.byType(FlyerFormScreen));
+  await tapScan();
+  await _saveShot(tester, '$prefix-a-flyer-scan');
+  await _reveal(tester, find.byKey(const ValueKey('flyer-doc-passport')));
+  await _saveShot(tester, '$prefix-b-flyer-scan-documents');
+  await scrollChecks('$prefix-b-flyer-scan-documents');
+
+  final reading = Completer<MrzReading?>();
+  await _shot(tester, _scoped(team, form((photo) => reading.future)),
+      '$prefix-c-flyer-scan-reading', find.byType(FlyerFormScreen));
+  await tester.tap(find.byKey(const Key('scan-camera')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  await _saveShot(tester, '$prefix-c-flyer-scan-reading');
+  reading.complete(null);
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-d-flyer-scan-unreadable');
+  await scrollChecks('$prefix-d-flyer-scan-unreadable');
+
+  await _shot(
+      tester,
+      _scoped(team, form((photo) async => readMrz(page.join('\n')))),
+      '$prefix-e-flyer-scan-replace',
+      find.byType(FlyerFormScreen));
+  await tester.enterText(find.byType(TextField).at(0), 'Rifat');
+  await tapScan();
+  await _saveShot(tester, '$prefix-e-flyer-scan-replace');
+  await tester.tap(find.byKey(const Key('scan-replace')));
+  await tester.pumpAndSettle();
+  expect(tester.takeException(), isNull, reason: '$prefix-e replaced');
 }
 
 /// Scrolls the first list until [finder] is built, then fully on screen.
