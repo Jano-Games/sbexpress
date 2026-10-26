@@ -9,6 +9,7 @@ import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
 import '../admin/payment_review_screen.dart';
 import 'fund_account_screen.dart';
+import 'get_paid_screen.dart';
 import 'ledger_screen.dart';
 import 'office_entry_screen.dart';
 import 'reconciliation_screen.dart';
@@ -288,6 +289,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
             const SizedBox(height: 24),
             SectionTitle(title: tr('Review and history')),
             SurfaceGroup(children: [
+              MenuRow(
+                  key: const Key('finance-get-paid'),
+                  title: tr('Get paid'),
+                  subtitle: tr('After-delivery and monthly bills still owed'),
+                  icon: Icons.request_quote_outlined,
+                  tone: ChipTone.amber,
+                  onTap: () => _open(const GetPaidScreen())),
               MenuRow(
                   title: tr('Payment review'),
                   subtitle: tr('Check receipts sent by customers'),

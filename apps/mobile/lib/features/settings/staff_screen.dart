@@ -6,6 +6,7 @@ import '../../data/models/workspace.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
+import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 
 class StaffScreen extends StatefulWidget {
@@ -48,16 +49,54 @@ class _StaffScreenState extends State<StaffScreen> {
     }
   }
 
+  Future<void> _edit(StaffAccount person, String? self) async {
+    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
+        builder: (_) => StaffEditScreen(person: person, selfId: self)));
+    if (changed == true && mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final self = AppScope.of(context).session.user?.id;
+    final admins = [
+      for (final person in _staff)
+        if (person.role != 'hub') person
+    ];
+    final hub = [
+      for (final person in _staff)
+        if (person.role == 'hub') person
+    ];
+    final active = _staff.where((person) => person.active).length;
+    Widget group(String title, List<StaffAccount> people) =>
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SectionTitle(title: title, action: SectionCount('${people.length}')),
+          SurfaceGroup(children: [
+            for (final person in people)
+              _PersonRow(
+                  person: person,
+                  self: person.id == self,
+                  onTap: () => _edit(person, self)),
+          ]),
+          const SizedBox(height: 20),
+        ]);
     return WorkspaceScaffold(
         title: tr('Staff'),
+        subtitle: tr('Access and passwords'),
         root: false,
         onRefresh: _load,
+        actions: [
+          if (_staff.isNotEmpty)
+            Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Center(
+                    child: StatusPill(
+                        label: tr('{n} active', {'n': active}),
+                        tone: ChipTone.green))),
+        ],
         footer: ActionFooter(
             child: AppButton(
           label: tr('New staff'),
+          icon: Icons.person_add_alt_1_outlined,
           kind: AppButtonKind.current,
           onPressed: () async {
             final changed = await Navigator.of(context).push<bool>(
@@ -66,44 +105,125 @@ class _StaffScreenState extends State<StaffScreen> {
           },
         )),
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  tr(
-                      'Admins see everything. Hub managers do not see money or customer names.'),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          if (_loading && _staff.isEmpty)
-            const LinearProgressIndicator(
-                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-          if (_error != null) ...[
-            ErrorNote(message: _error!, onRetry: _load),
-            const SizedBox(height: 12),
-          ],
-          for (final person in _staff) ...[
-            DirectoryTile(
-              title: person.name,
-              subtitle: [
-                person.email,
-                [
-                  person.role == 'hub' ? tr('Hub') : tr('Admin'),
-                  if (person.id == self) tr('You'),
-                ].join(' · '),
-              ].join('\n'),
-              badge: person.active ? tr('Active') : tr('Inactive'),
-              onTap: () async {
-                final changed = await Navigator.of(context).push<bool>(
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            StaffEditScreen(person: person, selfId: self)));
-                if (changed == true && mounted) await _load();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+          const _RoleCards(),
+          const SizedBox(height: 20),
+          if (_loading && _staff.isEmpty) const LinearProgressIndicator(),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (admins.isNotEmpty) group(tr('Admins'), admins),
+          if (hub.isNotEmpty) group(tr('Hub'), hub),
+          TipNote(
+              icon: Icons.key_outlined,
+              text: tr(
+                  'Open a person to change their role, switch them off or set a new password. Another admin has to change your own role.')),
         ]);
   }
 }
+
+/// What each role can see, so the choice is clear before editing.
+class _RoleCards extends StatelessWidget {
+  const _RoleCards();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget card(IconData icon, ChipTone tone, String title, String body) =>
+        PaperCard(
+            radius: 14,
+            padding: const EdgeInsets.all(12),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                IconBadge(icon, tone: tone, size: 32),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text(title,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700))),
+              ]),
+              const SizedBox(height: 6),
+              Text(body,
+                  style: const TextStyle(
+                      fontSize: 13, height: 1.45, color: AppColors.muted)),
+            ]));
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+          child: card(Icons.shield_outlined, ChipTone.blue, tr('Admin'),
+              tr('Sees everything, including money'))),
+      const SizedBox(width: 10),
+      Expanded(
+          child: card(Icons.inventory_2_outlined, ChipTone.neutral, tr('Hub'),
+              tr('Handles shipments. No money or customer names'))),
+    ]);
+  }
+}
+
+class _PersonRow extends StatelessWidget {
+  const _PersonRow(
+      {required this.person, required this.self, required this.onTap});
+  final StaffAccount person;
+  final bool self;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+      onTap: onTap,
+      child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            InitialsAvatar(person.name,
+                letters: 1,
+                tone: self
+                    ? AvatarTone.filled
+                    : person.active
+                        ? AvatarTone.soft
+                        : AvatarTone.muted),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Row(children: [
+                    Flexible(
+                        child: Text(person.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: person.active
+                                    ? AppColors.ink
+                                    : AppColors.inkSoft))),
+                    if (self) ...[
+                      const SizedBox(width: 8),
+                      StatusPill(label: tr('You'), tone: ChipTone.blue),
+                    ],
+                  ]),
+                  Text(
+                      person.active
+                          ? person.email
+                          : '${person.email} · ${tr("can't sign in")}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.muted)),
+                ])),
+            const SizedBox(width: 8),
+            StatusPill(
+                label: person.active ? tr('Active') : tr('Inactive'),
+                tone: person.active ? ChipTone.green : ChipTone.neutral),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded,
+                size: 20, color: AppColors.faint),
+          ])));
+}
+
+List<SegmentOption<String>> _roleOptions() => [
+      (value: 'admin', label: tr('Admin'), icon: Icons.shield_outlined),
+      (value: 'hub', label: tr('Hub'), icon: Icons.inventory_2_outlined),
+    ];
+
+String _roleNote(String role) => role == 'hub'
+    ? tr('Handles shipments. No money or customer names')
+    : tr('Sees everything, including money');
 
 class StaffCreateScreen extends StatefulWidget {
   const StaffCreateScreen({super.key});
@@ -161,50 +281,54 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
         title: tr('New staff'),
+        subtitle: tr('Access and passwords'),
         root: false,
-        footer: ActionFooter(
+        footer: FooterActions(
+            error: _error,
             child: AppButton(
                 label: tr('Create staff'),
+                icon: Icons.person_add_alt_1_outlined,
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  tr(
-                      'Hub managers handle shipments. Money is handled by admins.'),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          TextField(
-              controller: _name,
-              decoration: InputDecoration(labelText: tr('Name'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(labelText: tr('Email'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _password,
-              obscureText: true,
-              decoration: InputDecoration(
-                  labelText: tr('Password'),
-                  helperText: tr('8–128 characters'))),
-          const SizedBox(height: 12),
-          ChoiceChips(
-            options: [
-              (value: 'hub', label: tr('Hub')),
-              (value: 'admin', label: tr('Admin'))
-            ],
-            selected: _role,
-            onSelected: (value) => setState(() => _role = value),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!,
-                style: const TextStyle(color: AppColors.danger, height: 1.35)),
-          ],
+          FormCard(title: tr('Profile'), children: [
+            LabeledField(
+                label: tr('Name'),
+                child: TextField(
+                    controller: _name,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next)),
+            LabeledField(
+                label: tr('Email'),
+                child: TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.next)),
+            LabeledField(
+                label: tr('Password'),
+                helper: tr('8–128 characters'),
+                child: TextField(
+                    controller: _password,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false)),
+          ]),
+          const SizedBox(height: 14),
+          FormCard(title: tr('Role'), gap: 10, children: [
+            SegmentPicker<String>(
+                options: _roleOptions(),
+                selected: _role,
+                onChanged: (value) => setState(() => _role = value)),
+            Text(_roleNote(_role),
+                style: const TextStyle(
+                    fontSize: 13, height: 1.45, color: AppColors.muted)),
+          ]),
+          const SizedBox(height: 14),
+          TipNote(
+              text: tr(
+                  'Hub managers handle shipments. Money is handled by admins.')),
         ]);
   }
 }
@@ -324,81 +448,139 @@ class _StaffEditScreenState extends State<StaffEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final person = widget.person;
     return WorkspaceScaffold(
-        title: widget.person.name,
+        title: person.name,
+        subtitle: person.email,
         root: false,
-        subtitle: widget.person.name,
-        footer: ActionFooter(
+        footer: FooterActions(
+            error: _error,
             child: AppButton(
                 label: tr('Save password'),
+                icon: Icons.key_outlined,
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _savePassword)),
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  _self
-                      ? tr(
-                          'You cannot change your own role. Changing your password signs you out.')
-                      : tr('Role and password are saved separately.'),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          TextField(
-              controller: _name,
-              decoration: InputDecoration(labelText: tr('Name'))),
-          const SizedBox(height: 8),
-          TextField(
-              controller: _email,
-              decoration: InputDecoration(labelText: tr('Email'))),
-          const SizedBox(height: 12),
-          if (_self)
-            Text(tr('Role: Admin (your own role cannot be changed here)'),
-                style: const TextStyle(color: AppColors.muted, height: 1.35))
-          else ...[
-            SectionTitle(title: tr('Role')),
-            ChoiceChips(
-              options: [
-                (value: 'admin', label: tr('Admin')),
-                (value: 'hub', label: tr('Hub'))
-              ],
-              selected: _role,
-              onSelected: (value) => setState(() => _role = value),
-            ),
-            const SizedBox(height: 8),
-            ChoiceChips(
-              options: [
-                (value: 'on', label: tr('Active')),
-                (value: 'off', label: tr('Inactive'))
-              ],
-              selected: _active ? 'on' : 'off',
-              onSelected: (value) => setState(() => _active = value == 'on'),
-            ),
-          ],
-          const SizedBox(height: 12),
-          AppButton(
-              label: tr('Save profile'),
-              kind: AppButtonKind.teal,
-              busy: _busy,
-              onPressed: _saveProfile),
-          const SizedBox(height: 20),
-          SectionTitle(title: tr('Password')),
-          if (_self) ...[
-            TextField(
-                controller: _current,
-                obscureText: true,
-                decoration: InputDecoration(labelText: tr('Current password'))),
-            const SizedBox(height: 8),
-          ],
-          TextField(
-              controller: _password,
-              obscureText: true,
-              decoration: InputDecoration(labelText: tr('New password'))),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!,
-                style: const TextStyle(color: AppColors.danger, height: 1.35)),
-          ],
+          PaperCard(
+              padding: const EdgeInsets.all(14),
+              child: Row(children: [
+                InitialsAvatar(person.name,
+                    letters: 1,
+                    tone: _self
+                        ? AvatarTone.filled
+                        : person.active
+                            ? AvatarTone.soft
+                            : AvatarTone.muted),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(person.name,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                      Text(
+                          [
+                            person.role == 'hub' ? tr('Hub') : tr('Admin'),
+                            if (_self) tr('You'),
+                          ].join(' · '),
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.muted)),
+                    ])),
+                StatusPill(
+                    label: person.active ? tr('Active') : tr('Inactive'),
+                    tone: person.active ? ChipTone.green : ChipTone.neutral),
+              ])),
+          const SizedBox(height: 14),
+          FormCard(title: tr('Profile'), children: [
+            LabeledField(
+                label: tr('Name'),
+                child: TextField(
+                    controller: _name,
+                    textCapitalization: TextCapitalization.words)),
+            LabeledField(
+                label: tr('Email'),
+                child: TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false)),
+            if (_self)
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(Icons.lock_outline_rounded,
+                        size: 18, color: AppColors.muted)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text(
+                        tr(
+                            'Role: Admin (your own role cannot be changed here)'),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.muted,
+                            height: 1.45))),
+              ])
+            else ...[
+              LabeledField(
+                  label: tr('Role'),
+                  helper: _roleNote(_role),
+                  child: SegmentPicker<String>(
+                      options: _roleOptions(),
+                      selected: _role,
+                      onChanged: (value) => setState(() => _role = value))),
+              Row(children: [
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      FieldLabel(tr('Can sign in')),
+                      Text(tr('Switched off accounts cannot sign in.'),
+                          style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: AppColors.muted)),
+                    ])),
+                const SizedBox(width: 8),
+                Semantics(
+                    label: tr('Can sign in'),
+                    child: Switch(
+                        value: _active,
+                        onChanged: (value) => setState(() => _active = value))),
+              ]),
+            ],
+            AppButton(
+                label: tr('Save profile'),
+                icon: Icons.check_rounded,
+                kind: AppButtonKind.tonal,
+                busy: _busy,
+                onPressed: _saveProfile),
+          ]),
+          const SizedBox(height: 14),
+          FormCard(title: tr('Password'), children: [
+            if (_self)
+              LabeledField(
+                  label: tr('Current password'),
+                  child: TextField(
+                      controller: _current,
+                      obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false)),
+            LabeledField(
+                label: tr('New password'),
+                helper: tr('8–128 characters'),
+                child: TextField(
+                    controller: _password,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false)),
+          ]),
+          const SizedBox(height: 14),
+          TipNote(
+              text: _self
+                  ? tr(
+                      'You cannot change your own role. Changing your password signs you out.')
+                  : tr('Role and password are saved separately.')),
         ]);
   }
 }

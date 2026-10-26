@@ -1,8 +1,13 @@
 import '../json_read.dart';
+import 'flow.dart';
 import 'shipment.dart';
 
 class NextFlightCard {
-  const NextFlightCard({required this.code, required this.date, required this.bookedKg, required this.spaceKg});
+  const NextFlightCard(
+      {required this.code,
+      required this.date,
+      required this.bookedKg,
+      required this.spaceKg});
 
   final String code;
   final String date;
@@ -28,6 +33,10 @@ class OverviewFlight {
     required this.spaceKg,
     required this.status,
     required this.shipmentCount,
+    this.revenue,
+    this.costs,
+    this.profit,
+    this.missingCostCount,
   });
 
   final String code;
@@ -38,6 +47,15 @@ class OverviewFlight {
   final String status;
   final int shipmentCount;
 
+  /// Shipment charges, shipment costs and charges − costs − our ticket share.
+  /// Null on a server that does not send them yet.
+  final double? revenue;
+  final double? costs;
+  final double? profit;
+
+  /// Shipments at or past the Dhaka hub still missing a usual cost.
+  final int? missingCostCount;
+
   factory OverviewFlight.fromJson(Map<String, Object?> json) {
     return OverviewFlight(
       code: requiredString(json, 'code'),
@@ -47,6 +65,10 @@ class OverviewFlight {
       spaceKg: requiredDouble(json, 'spaceKg'),
       status: requiredString(json, 'status'),
       shipmentCount: requiredInt(json, 'shipmentCount'),
+      revenue: optionalDouble(json, 'revenue'),
+      costs: optionalDouble(json, 'costs'),
+      profit: optionalDouble(json, 'profit'),
+      missingCostCount: optionalInt(json, 'missingCostCount'),
     );
   }
 }
@@ -58,7 +80,8 @@ class OverviewNotice {
   final String text;
 
   factory OverviewNotice.fromJson(Map<String, Object?> json) {
-    return OverviewNotice(tag: requiredString(json, 'tag'), text: requiredString(json, 'text'));
+    return OverviewNotice(
+        tag: requiredString(json, 'tag'), text: requiredString(json, 'text'));
   }
 }
 
@@ -82,6 +105,12 @@ class AdminOverview {
     required this.flights,
     required this.activeShipmentCount,
     required this.activeShipments,
+    this.collect,
+    this.flyerReceivables,
+    this.payables,
+    this.stageCounts,
+    this.flyersMissingDocs,
+    this.flyersMissingDocsCount,
   });
 
   final String weekLabel;
@@ -103,6 +132,24 @@ class AdminOverview {
   final int activeShipmentCount;
   final List<AdminShipment> activeShipments;
 
+  /// What customers still owe; null on a server that does not send it yet.
+  final CollectSummary? collect;
+
+  /// Ticket parts flyers still owe us, and tickets and costs we still owe.
+  /// Null on a server that does not send them.
+  final double? flyerReceivables;
+  final double? payables;
+
+  /// Shipments per status, e.g. `{'pending': 2, 'in_transit': 1}`; null on a
+  /// server that does not send it.
+  final Map<String, int>? stageCounts;
+
+  /// Active flyers without every travel document, newest first and at most
+  /// ten, and how many there are in all. Null on a server that does not
+  /// send them.
+  final List<FlyerMissingDocs>? flyersMissingDocs;
+  final int? flyersMissingDocsCount;
+
   factory AdminOverview.fromJson(Map<String, Object?> json) {
     final cash = asJsonMap(json['cash'], 'cash');
     final next = json['nextFlight'];
@@ -120,13 +167,57 @@ class AdminOverview {
       unpaid: requiredDouble(json, 'unpaid'),
       reviewCount: requiredInt(json, 'reviewCount'),
       openTodoCount: requiredInt(json, 'openTodoCount'),
-      nextFlight: next == null ? null : NextFlightCard.fromJson(asJsonMap(next, 'nextFlight')),
-      notices: [for (final row in requiredMapList(json, 'notices')) OverviewNotice.fromJson(row)],
-      flights: [for (final row in requiredMapList(json, 'flights')) OverviewFlight.fromJson(row)],
+      nextFlight: next == null
+          ? null
+          : NextFlightCard.fromJson(asJsonMap(next, 'nextFlight')),
+      notices: [
+        for (final row in requiredMapList(json, 'notices'))
+          OverviewNotice.fromJson(row)
+      ],
+      flights: [
+        for (final row in requiredMapList(json, 'flights'))
+          OverviewFlight.fromJson(row)
+      ],
       activeShipmentCount: requiredInt(json, 'activeShipmentCount'),
-      activeShipments: [for (final row in requiredMapList(json, 'activeShipments')) AdminShipment.fromJson(row)],
+      activeShipments: [
+        for (final row in requiredMapList(json, 'activeShipments'))
+          AdminShipment.fromJson(row)
+      ],
+      collect: json['collect'] == null
+          ? null
+          : CollectSummary.fromJson(asJsonMap(json['collect'], 'collect')),
+      flyerReceivables: optionalDouble(json, 'flyerReceivables'),
+      payables: optionalDouble(json, 'payables'),
+      stageCounts: json['stageCounts'] == null
+          ? null
+          : {
+              for (final entry
+                  in asJsonMap(json['stageCounts'], 'stageCounts').entries)
+                entry.key: asInt(entry.value, entry.key)
+            },
+      flyersMissingDocs: json['flyersMissingDocs'] == null
+          ? null
+          : [
+              for (final row in requiredMapList(json, 'flyersMissingDocs'))
+                FlyerMissingDocs.fromJson(row)
+            ],
+      flyersMissingDocsCount: optionalInt(json, 'flyersMissingDocsCount'),
     );
   }
+}
+
+/// A flyer and the travel documents not on file: `student_id`, `visa`,
+/// `admission`.
+class FlyerMissingDocs {
+  const FlyerMissingDocs({required this.name, required this.missing});
+
+  final String name;
+  final List<String> missing;
+
+  factory FlyerMissingDocs.fromJson(Map<String, Object?> json) =>
+      FlyerMissingDocs(
+          name: requiredString(json, 'name'),
+          missing: requiredStringList(json, 'missing'));
 }
 
 class SetupStatus {
@@ -162,11 +253,18 @@ class SetupStatus {
 }
 
 class SettingsSnapshot {
-  const SettingsSnapshot({required this.rate, required this.threshold, required this.pcsRates});
+  const SettingsSnapshot(
+      {required this.rate,
+      required this.threshold,
+      required this.pcsRates,
+      this.costDefaults});
 
   final double rate;
   final double threshold;
   final Map<String, double> pcsRates;
+
+  /// Usual shipment cost amounts; null on a server that does not send them.
+  final CostDefaults? costDefaults;
 
   factory SettingsSnapshot.fromJson(Map<String, Object?> json) {
     final rates = asJsonMap(json['pcsRates'], 'pcsRates');
@@ -178,6 +276,10 @@ class SettingsSnapshot {
       rate: requiredDouble(json, 'rate'),
       threshold: requiredDouble(json, 'threshold'),
       pcsRates: parsed,
+      costDefaults: json['costDefaults'] == null
+          ? null
+          : CostDefaults.fromJson(
+              asJsonMap(json['costDefaults'], 'costDefaults')),
     );
   }
 }
@@ -275,7 +377,9 @@ class InvoiceLine {
     return InvoiceLine(
       label: requiredString(json, 'label'),
       amount: requiredDouble(json, 'amount'),
-      costId: json.containsKey('costId') ? requiredNullableString(json, 'costId') : null,
+      costId: json.containsKey('costId')
+          ? requiredNullableString(json, 'costId')
+          : null,
     );
   }
 }
@@ -346,13 +450,19 @@ Map<String, Object?> invoiceIssueBody(
     'note': document.note,
     'state': state == 'draft' ? 'draft' : 'issued',
     'pricingMode': mode == 'manual' ? 'manual' : 'automatic',
-    if (revisionReason != null && revisionReason.trim().isNotEmpty) 'revisionReason': revisionReason.trim(),
+    if (revisionReason != null && revisionReason.trim().isNotEmpty)
+      'revisionReason': revisionReason.trim(),
     if (confirmFree) 'confirmFree': true,
   };
 }
 
 class IntakePiece {
-  const IntakePiece({required this.category, required this.count, required this.rate, required this.currency, required this.units});
+  const IntakePiece(
+      {required this.category,
+      required this.count,
+      required this.rate,
+      required this.currency,
+      required this.units});
 
   final String category;
   final int count;
@@ -366,7 +476,8 @@ class IntakePiece {
         'rate': rate,
         'currency': currency,
         'units': [
-          for (final unit in units) {'model': unit.model, 'serial': unit.serial},
+          for (final unit in units)
+            {'model': unit.model, 'serial': unit.serial},
         ],
       };
 }

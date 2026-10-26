@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/customer_activity.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/finance_parts.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
@@ -88,138 +89,229 @@ class _CustomerActivityScreenState extends State<CustomerActivityScreen> {
     }
   }
 
+  void _go(int page) {
+    setState(() => _pageNumber = page);
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final page = _page;
+    final pages = page == null || page.limit <= 0
+        ? 1
+        : (page.total / page.limit).ceil().clamp(1, 1 << 30);
     final hasNext = page != null && page.page * page.limit < page.total;
+    final groups = <String, List<CustomerActivityEntry>>{};
+    for (final entry in page?.entries ?? const <CustomerActivityEntry>[]) {
+      final when = localTime(entry.at);
+      groups
+          .putIfAbsent(when == null ? '—' : dayHeading(when), () => [])
+          .add(entry);
+    }
     return WorkspaceScaffold(
         title: tr('Account activity'),
+        subtitle: '${widget.name} · ${widget.code}',
         root: false,
         onRefresh: _load,
-        subtitle: widget.code,
+        actions: [
+          if (page != null && page.total > 0)
+            Center(
+                child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: StatusPill(
+                        label: trn(page.total, '{n} line', '{n} lines'),
+                        tone: ChipTone.neutral))),
+        ],
         children: [
           Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  tr('{name} · payments, advances, credit and refunds, in the original currency and BDT.',
-                      {'name': widget.name}),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          if (_loading && page == null)
-            const LinearProgressIndicator(
-                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-          if (_error != null) ...[
-            ErrorNote(message: _error!, onRetry: _load),
-            const SizedBox(height: 12),
-          ],
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
+              child: Wrap(spacing: 14, runSpacing: 6, children: [
+                LegendDot(color: AppColors.ok, label: tr('Money in')),
+                LegendDot(color: AppColors.inkSoft, label: tr('Money out')),
+                LegendDot(color: AppColors.primary, label: tr('Credit')),
+                Text('· ${tr('Amounts in BDT')}',
+                    style:
+                        const TextStyle(fontSize: 13, color: AppColors.muted)),
+              ])),
+          if (_loading) const LinearProgressIndicator(),
+          if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (page != null && page.entries.isEmpty)
             EmptyNote(
+                icon: Icons.history_rounded,
                 title: tr('No activity'),
                 body:
                     tr('Money movements appear here when they are recorded.')),
-          if (page != null)
-            for (final entry in page.entries) ...[
-              PaperCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(activityLabel(entry.label),
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    Text(_when(entry.at),
-                        style: const TextStyle(color: AppColors.muted)),
-                    if (entry.reference.isNotEmpty)
-                      Text(entry.reference,
-                          style: const TextStyle(height: 1.35)),
-                    if (entry.reason.isNotEmpty)
-                      Text(entry.reason,
-                          style: const TextStyle(
-                              color: AppColors.muted, height: 1.35)),
-                    const SizedBox(height: 8),
-                    KvRow(
-                        label: tr('Original'),
-                        value: formatMoney(
-                            _signedSource(entry), entry.sourceCurrency)),
-                    KvRow(label: 'BDT', value: formatBdt(entry.amount)),
-                    if (entry.sourceCurrency == 'CNY')
-                      KvRow(
-                          label: tr('Rate'),
-                          value: '1 CNY = ${entry.sourceFxRate}'),
-                    KvRow(
-                        label: tr('Account'),
-                        value: entry.accountName ?? tr('Credit balance')),
-                    if (entry.shipmentCode != null) ...[
-                      const SizedBox(height: 8),
-                      AppButton(
-                        label: entry.shipmentCode!,
-                        kind: AppButtonKind.quiet,
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                              builder: (_) => AdminShipmentScreen(
-                                  code: entry.shipmentCode!)),
-                        ),
-                      ),
-                    ],
-                    if (entry.canReverse) ...[
-                      const SizedBox(height: 8),
-                      AppButton(
-                          label: tr('Reverse'),
-                          kind: AppButtonKind.danger,
-                          busy: _busy,
-                          onPressed: () => _reverse(entry)),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          if (page != null && page.total > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-                trn(page.total, '{n} line · page {page}',
-                    '{n} lines · page {page}', {'page': page.page}),
-                style: const TextStyle(color: AppColors.muted)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: tr('Previous page'),
-                    kind: AppButtonKind.quiet,
-                    onPressed: page.page <= 1
+          for (final group in groups.entries) ...[
+            DayHeader(group.key),
+            ListCard(children: [
+              for (final entry in group.value)
+                _ActivityRow(
+                    entry: entry,
+                    busy: _busy,
+                    onReverse: () => _reverse(entry),
+                    onShipment: entry.shipmentCode == null
                         ? null
-                        : () {
-                            setState(() => _pageNumber = page.page - 1);
-                            _load();
-                          },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AppButton(
-                    label: tr('Next page'),
-                    kind: AppButtonKind.quiet,
-                    onPressed: hasNext
-                        ? () {
-                            setState(() => _pageNumber = page.page + 1);
-                            _load();
-                          }
-                        : null,
-                  ),
-                ),
-              ],
-            ),
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                                builder: (_) => AdminShipmentScreen(
+                                    code: entry.shipmentCode!)))),
+            ]),
+            const SizedBox(height: 14),
           ],
+          if (page != null && page.total > 0)
+            PagerBar(
+                summary: trn(
+                    page.total,
+                    '{n} line · page {page} of {pages}',
+                    '{n} lines · page {page} of {pages}',
+                    {'page': page.page, 'pages': pages}),
+                onPrevious: page.page <= 1 || _loading
+                    ? null
+                    : () => _go(page.page - 1),
+                onNext: !hasNext || _loading ? null : () => _go(page.page + 1)),
         ]);
   }
+}
 
-  double _signedSource(CustomerActivityEntry entry) {
-    final sign = entry.amount < 0 ? -1.0 : 1.0;
-    return sign * entry.sourceAmount.abs();
+enum _Flow { moneyIn, moneyOut, credit }
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow(
+      {required this.entry,
+      required this.busy,
+      required this.onReverse,
+      required this.onShipment});
+  final CustomerActivityEntry entry;
+  final bool busy;
+  final VoidCallback onReverse;
+  final VoidCallback? onShipment;
+
+  bool get _isCredit =>
+      entry.reversalKind == 'credit' ||
+      entry.label == 'Credit applied' ||
+      entry.label == 'Credit adjustment';
+
+  @override
+  Widget build(BuildContext context) {
+    final flow = _isCredit
+        ? _Flow.credit
+        : entry.amount < 0
+            ? _Flow.moneyOut
+            : _Flow.moneyIn;
+    final (icon, tone, color) = switch (flow) {
+      _Flow.moneyIn => (Icons.south_west_rounded, ChipTone.green, AppColors.ok),
+      _Flow.moneyOut => (
+          Icons.north_east_rounded,
+          ChipTone.neutral,
+          AppColors.ink
+        ),
+      _Flow.credit => (
+          entry.label == 'Credit applied'
+              ? Icons.sell_outlined
+              : Icons.tune_rounded,
+          ChipTone.blue,
+          AppColors.primaryInk
+        ),
+    };
+    final amount = flow == _Flow.credit && entry.label == 'Credit applied'
+        ? formatBdt(entry.amount.abs())
+        : signedMoney(entry.amount, 'BDT');
+    final when = localTime(entry.at);
+    final source = entry.accountName ?? tr('From credit balance');
+    final cny = entry.sourceCurrency == 'CNY';
+    const meta = TextStyle(fontSize: 13, height: 1.45, color: AppColors.muted);
+    const note =
+        TextStyle(fontSize: 13, height: 1.45, color: AppColors.inkSoft);
+    final hasFooter = onShipment != null || entry.canReverse;
+    return Padding(
+        padding: EdgeInsets.fromLTRB(14, 14, 14, hasFooter ? 4 : 14),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          IconBadge(icon, tone: tone),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                SplitRow(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    start: Text(activityLabel(entry.label),
+                        style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.35,
+                            fontWeight: FontWeight.w700)),
+                    end: FitAmount(amount,
+                        style: TextStyle(
+                            fontSize: 16,
+                            height: 1.3,
+                            fontWeight: FontWeight.w700,
+                            color: color))),
+                _pair(
+                    Text(
+                        [source, if (when != null) clockTime(when)].join(' · '),
+                        style: meta),
+                    cny
+                        ? FitAmount(
+                            flow == _Flow.credit &&
+                                    entry.label == 'Credit applied'
+                                ? formatMoney(entry.sourceAmount.abs(),
+                                    entry.sourceCurrency)
+                                : signedSource(entry),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.45,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.inkSoft))
+                        : null),
+                if (entry.reference.isNotEmpty || cny)
+                  _pair(
+                      entry.reference.isEmpty
+                          ? const SizedBox.shrink()
+                          : Text(
+                              tr('Ref {reference}',
+                                  {'reference': entry.reference}),
+                              style: note),
+                      cny
+                          ? FitAmount(
+                              tr('1 CNY = {rate}',
+                                  {'rate': formatBdt(entry.sourceFxRate)}),
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  height: 1.5,
+                                  color: AppColors.muted))
+                          : null),
+                if (entry.reason.isNotEmpty)
+                  Text(tr('Reason: {reason}', {'reason': entry.reason}),
+                      style: note),
+                if (hasFooter)
+                  Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (onShipment != null)
+                          Flexible(
+                              child: ShipmentChip(
+                                  code: entry.shipmentCode!,
+                                  onTap: onShipment!))
+                        else
+                          const SizedBox.shrink(),
+                        if (entry.canReverse)
+                          Flexible(
+                              child: DangerLink(
+                                  label: tr('Reverse'),
+                                  icon: Icons.undo_rounded,
+                                  onPressed: busy ? null : onReverse)),
+                      ]),
+              ])),
+        ]));
   }
 
-  String _when(String at) {
-    final text = at.replaceFirst('T', ' ');
-    final dot = text.indexOf('.');
-    return dot == -1 ? text : text.substring(0, dot);
+  static Widget _pair(Widget start, Widget? end) => end == null
+      ? start
+      : SplitRow(
+          crossAxisAlignment: CrossAxisAlignment.start, start: start, end: end);
+
+  /// The original-currency amount carries the sign of the BDT amount.
+  static String signedSource(CustomerActivityEntry entry) {
+    final sign = entry.amount < 0 ? -1.0 : 1.0;
+    return formatMoney(sign * entry.sourceAmount.abs(), entry.sourceCurrency);
   }
 }

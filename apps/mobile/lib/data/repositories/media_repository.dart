@@ -14,11 +14,14 @@ class MediaRepository {
     return ShipmentMediaList.fromJson(json);
   }
 
+  /// [deviceCategory] ("Mobile", "Laptop" …) marks a photo of that
+  /// category's devices; null is a parcel photo. Older servers ignore it.
   Future<String> uploadPhoto(
     String code,
     PreparedImage image,
-    void Function(double progress) onProgress,
-  ) {
+    void Function(double progress) onProgress, {
+    String? deviceCategory,
+  }) {
     return transferPreparedUpload(
       file: image,
       onProgress: onProgress,
@@ -27,6 +30,8 @@ class MediaRepository {
           'name': file.filename,
           'contentType': file.contentType,
           'size': file.size,
+          if (deviceCategory != null && deviceCategory.trim().isNotEmpty)
+            'deviceCategory': deviceCategory.trim(),
         });
         return UploadReservation(
           reference: requiredString(json, 'reference'),
@@ -35,16 +40,21 @@ class MediaRepository {
         );
       },
       put: (reservation, file, progress) {
-        return api.putBytes(reservation.uploadUrl, file.bytes, file.contentType, progress);
+        return api.putBytes(
+            reservation.uploadUrl, file.bytes, file.contentType, progress);
       },
       complete: (reference) async {
-        await api.postJson('${_path(code)}/media/${Uri.encodeComponent(reference)}/complete');
+        await api.postJson(
+            '${_path(code)}/media/${Uri.encodeComponent(reference)}/complete');
       },
     );
   }
 
-  Future<void> setShared(String code, String reference, {required bool shared}) {
-    return api.patchJson('${_path(code)}/media/${Uri.encodeComponent(reference)}', body: {'shared': shared});
+  Future<void> setShared(String code, String reference,
+      {required bool shared}) {
+    return api.patchJson(
+        '${_path(code)}/media/${Uri.encodeComponent(reference)}',
+        body: {'shared': shared});
   }
 
   /// Private IMEI photo. It is never marked shared with the customer.
@@ -72,9 +82,11 @@ class MediaRepository {
           expiresAt: requiredString(json, 'expiresAt'),
         );
       },
-      put: (reservation, file, progress) => api.putBytes(reservation.uploadUrl, file.bytes, file.contentType, progress),
+      put: (reservation, file, progress) => api.putBytes(
+          reservation.uploadUrl, file.bytes, file.contentType, progress),
       complete: (reference) async {
-        await api.postJson('${_path(code)}/device-photo/${Uri.encodeComponent(reference)}/complete');
+        await api.postJson(
+            '${_path(code)}/device-photo/${Uri.encodeComponent(reference)}/complete');
       },
     );
   }

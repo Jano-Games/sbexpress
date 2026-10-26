@@ -15,7 +15,7 @@ vi.mock('../src/modules/auth', () => ({ requireRole: (...roles: Role[]) => async
 } }))
 const { flightRoutes } = await import('../src/modules/flights')
 const { handleError } = await import('../src/core/errors')
-const { matchFlyers, parseTicketText, splitJourneys } = await import('../src/shared/ticketImport')
+const { matchFlyers, parseTicketText, passengerName, splitJourneys } = await import('../src/shared/ticketImport')
 
 // Synthetic passenger and numbers; real tickets carry personal data.
 const SEGMENTS: [string, string, string, string, string][] = [
@@ -99,7 +99,9 @@ describe('ticket text parsing', () => {
       const ticket = parseTicketText(lines.join('\n'))
       expect(ticket).toMatchObject({
         agency: 'DESH TRAVELER',
-        passenger: 'KHAN / MD ARIF HOSSAIN SD',
+        passenger: 'KHAN / MD ARIF HOSSAIN',
+        firstName: 'Md Arif Hossain',
+        lastName: 'Khan',
         pnr: 'TEST01',
         ticketNumber: '781-0000000001',
         issuedOn: '2026-10-24',
@@ -148,7 +150,9 @@ describe('POST /flights/ticket', () => {
     }
     expect(body.ticket).toEqual({
       agency: 'DESH TRAVELER',
-      passenger: 'KHAN / MD ARIF HOSSAIN SD',
+      passenger: 'KHAN / MD ARIF HOSSAIN',
+      firstName: 'Md Arif Hossain',
+      lastName: 'Khan',
       pnr: 'TEST01',
       ticketNumber: '781-0000000001',
       issuedOn: '2026-10-24',
@@ -170,5 +174,14 @@ describe('POST /flights/ticket', () => {
 
   it('is admin-only', async () => {
     expect((await post('hub', { file: 'JVBERi0=' })).status).toBe(403)
+  })
+})
+
+describe('passenger names', () => {
+  it('drops trailing airline titles but keeps MD as part of the name', () => {
+    expect(passengerName('SHAHRIAR / MD RIFAT SD')).toEqual({ passenger: 'SHAHRIAR / MD RIFAT', firstName: 'Md Rifat', lastName: 'Shahriar' })
+    expect(passengerName('AKTER / SUMI MS')).toEqual({ passenger: 'AKTER / SUMI', firstName: 'Sumi', lastName: 'Akter' })
+    expect(passengerName("O'NEIL / MARY-ANN MRS")).toEqual({ passenger: "O'NEIL / MARY-ANN", firstName: 'Mary-Ann', lastName: "O'Neil" })
+    expect(passengerName(null)).toEqual({ passenger: null, firstName: null, lastName: null })
   })
 })

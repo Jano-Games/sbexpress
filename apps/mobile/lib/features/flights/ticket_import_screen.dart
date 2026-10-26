@@ -8,6 +8,7 @@ import '../../data/models/ticket_import.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/ui.dart';
+import '../flyers/flyer_form_screen.dart';
 
 /// Reads an e-ticket PDF and lets the admin edit or drop each journey before
 /// the flights are created. The PDF itself is not kept.
@@ -31,14 +32,41 @@ class _TicketImportScreenState extends State<TicketImportScreen> {
   var _saving = false;
   var _created = 0;
 
+  /// The flyer made from the passenger's name on this screen.
+  String? _added;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      AppScope.of(context).flyers.list().then((rows) {
-        if (mounted) setState(() => _flyers = rows);
-      }).catchError((Object _) {});
+      if (mounted) _loadFlyers();
+    });
+  }
+
+  Future<void> _loadFlyers() async {
+    try {
+      final rows = await AppScope.of(context).flyers.list();
+      if (mounted) setState(() => _flyers = rows);
+    } catch (_) {
+      // The picker still offers the flyers the ticket matched.
+    }
+  }
+
+  /// Opens the new flyer form with the passenger's name, then picks the
+  /// flyer it made for this ticket.
+  Future<void> _addPassenger(TicketImport ticket) async {
+    final name = await Navigator.of(context).push<String>(MaterialPageRoute(
+        builder: (_) => FlyerFormScreen(
+            initialFirstName: ticket.firstName,
+            initialLastName: ticket.lastName,
+            returnName: true)));
+    if (name == null || !mounted) return;
+    await _loadFlyers();
+    if (!mounted) return;
+    setState(() {
+      _added = name;
+      _flyer = name;
+      _error = null;
     });
   }
 
@@ -161,11 +189,24 @@ class _TicketImportScreenState extends State<TicketImportScreen> {
                     flyers: _flyers,
                     matches: ticket.flyerMatches,
                     passenger: ticket.passenger,
+                    added: _added,
                     value: _flyer,
                     onChanged: (name) => setState(() {
                           _flyer = name;
                           _error = null;
                         })),
+                if (ticket.flyerMatches.isEmpty && _added == null) ...[
+                  const SizedBox(height: 10),
+                  AppButton(
+                      key: const Key('ticket-add-flyer'),
+                      label: _passengerName(ticket) == null
+                          ? tr('Add the passenger as a flyer')
+                          : tr('Add {name} as a flyer',
+                              {'name': _passengerName(ticket)}),
+                      icon: Icons.person_add_alt_1_rounded,
+                      kind: AppButtonKind.current,
+                      onPressed: _saving ? null : () => _addPassenger(ticket)),
+                ],
                 const SizedBox(height: 18),
                 for (var i = 0; i < _drafts.length; i++) ...[
                   _DraftCard(
@@ -207,6 +248,15 @@ class _TicketImportScreenState extends State<TicketImportScreen> {
   }
 }
 
+/// "Md Rifat Shahriar", or null when the ticket has no readable name.
+String? _passengerName(TicketImport ticket) {
+  final name = [ticket.firstName, ticket.lastName]
+      .whereType<String>()
+      .where((part) => part.trim().isNotEmpty)
+      .join(' ');
+  return name.isEmpty ? null : name;
+}
+
 class _TicketFacts extends StatelessWidget {
   const _TicketFacts({required this.ticket});
   final TicketImport ticket;
@@ -231,11 +281,15 @@ class _FlyerPicker extends StatelessWidget {
       {required this.flyers,
       required this.matches,
       required this.passenger,
+      required this.added,
       required this.value,
       required this.onChanged});
   final List<FlyerSummary> flyers;
   final List<String> matches;
   final String? passenger;
+
+  /// A flyer just made from the ticket; listed even before the list has it.
+  final String? added;
   final String? value;
   final ValueChanged<String?> onChanged;
 
@@ -243,13 +297,15 @@ class _FlyerPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final names = {
       ...matches,
+      if (added != null) added!,
       for (final flyer in flyers)
         if (flyer.archivedAt == null) flyer.name
     }.toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SectionTitle(title: tr('Flyer')),
       DropdownButtonFormField<String>(
-          key: const Key('ticket-flyer'),
+          // A new key when the value changes from outside, e.g. a new flyer.
+          key: ValueKey('ticket-flyer-$value'),
           initialValue: names.contains(value) ? value : null,
           isExpanded: true,
           decoration: InputDecoration(labelText: tr('Flyer on this ticket')),
@@ -264,7 +320,7 @@ class _FlyerPicker extends StatelessWidget {
                       overflow: TextOverflow.ellipsis)),
           ],
           onChanged: onChanged),
-      if (matches.isEmpty) ...[
+      if (matches.isEmpty && added == null) ...[
         const SizedBox(height: 10),
         HintNote(
             text: tr(
@@ -385,7 +441,7 @@ class _DraftCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
                 child: _NumberField(
-                    label: tr('Agency share (BDT)'),
+                    label: tr('Our share (BDT)'),
                     value: draft.agencyShare == 0 ? '' : '${draft.agencyShare}',
                     decimal: true,
                     enabled: active,

@@ -132,6 +132,11 @@ class _ShipmentPickerScreenState extends State<ShipmentPickerScreen> {
       ShipmentPickTarget.invoice =>
         AdminShipmentScreen(code: code, initialTab: 1),
     };
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+    // The shipment may have been deleted there.
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => screen))
+        .then((_) {
+      if (mounted) _load();
+    });
   }
 }

@@ -75,12 +75,13 @@ String payStatusLabel(String status) {
   }
 }
 
+/// Customers pay after delivery or monthly. Old `cod` bookings are collected
+/// after delivery too.
 String paymentTermsLabel(String terms) {
   switch (terms) {
     case 'invoice':
-      return tr('Invoice');
     case 'cod':
-      return 'COD';
+      return tr('After delivery');
     case 'monthly':
       return tr('Monthly');
     default:

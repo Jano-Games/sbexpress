@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/api/api_exception.dart';
+import '../../data/data_changes.dart';
 import '../../data/hub/hub_chain.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/session_user.dart';
@@ -38,13 +39,20 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
   @override
   void initState() {
     super.initState();
+    dataChanges.addListener(_onDataChanged);
     _load();
   }
 
   @override
   void dispose() {
+    dataChanges.removeListener(_onDataChanged);
     _query.dispose();
     super.dispose();
+  }
+
+  /// A shipment was deleted on another screen.
+  void _onDataChanged() {
+    if (mounted) _load();
   }
 
   Future<void> _load() async {

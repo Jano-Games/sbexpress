@@ -13,6 +13,7 @@ import '../flights/flights_screen.dart';
 import '../flyers/flyers_screen.dart';
 import '../intake/intake_screen.dart';
 import '../settings/settings_screen.dart';
+import '../settings/staff_screen.dart';
 import '../shipments/shipment_picker_screen.dart';
 import '../tasks/tasks_screen.dart';
 import 'destinations.dart';
@@ -164,6 +165,8 @@ void openMoreDestination(BuildContext context, MoreDestination item) {
     'settings' => const SettingsScreen(),
     'media' => const ShipmentPickerScreen(target: ShipmentPickTarget.photos),
     'imei' => const ShipmentPickerScreen(target: ShipmentPickTarget.imei),
+    'staff-add' => const StaffCreateScreen(),
+    'staff' => const StaffScreen(),
     _ => null,
   };
   if (screen == null) return;
@@ -183,5 +186,7 @@ IconData _destinationIcon(String id) => switch (id) {
       'settings' => Icons.tune_rounded,
       'media' => Icons.photo_library_outlined,
       'imei' => Icons.qr_code_scanner_rounded,
+      'staff-add' => Icons.person_add_alt_outlined,
+      'staff' => Icons.groups_outlined,
       _ => Icons.chevron_right_rounded,
     };

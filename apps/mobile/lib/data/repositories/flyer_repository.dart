@@ -36,6 +36,12 @@ class FlyerRepository {
     await api.postJson('${_path(name)}/archive', body: {'archived': archived});
   }
 
+  /// Refused with a 400 while the flyer has flights, shipments, payments or
+  /// stored documents; archive the profile instead.
+  Future<void> delete(String name) async {
+    await api.deleteJson(_path(name));
+  }
+
   Future<FlyerDocumentList> documents(String name) async {
     final json = await api.getJson('${_path(name)}/documents');
     return FlyerDocumentList.fromJson(json);

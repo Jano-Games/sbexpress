@@ -1,5 +1,6 @@
 import '../api/api_client.dart';
 import '../json_read.dart';
+import '../models/flow.dart';
 import '../models/workspace.dart';
 
 class SettingsRepository {
@@ -22,6 +23,12 @@ class SettingsRepository {
     return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
   }
 
+  Future<SettingsSnapshot> saveCostDefaults(CostDefaults defaults) async {
+    final json = await api
+        .patchJson('/api/settings', body: {'costDefaults': defaults.toJson()});
+    return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
+  }
+
   Future<List<String>> categories() async {
     final json = await api.getJson('/api/categories');
     return requiredStringList(json, 'categories');
@@ -33,12 +40,18 @@ class SettingsRepository {
 
   Future<List<PayMethodInfo>> payMethods() async {
     final json = await api.getJson('/api/settings/pay-methods');
-    return [for (final row in requiredMapList(json, 'methods')) PayMethodInfo.fromJson(row)];
+    return [
+      for (final row in requiredMapList(json, 'methods'))
+        PayMethodInfo.fromJson(row)
+    ];
   }
 
   Future<List<StaffAccount>> staff() async {
     final json = await api.getJson('/api/settings/users');
-    return [for (final row in requiredMapList(json, 'users')) StaffAccount.fromJson(row)];
+    return [
+      for (final row in requiredMapList(json, 'users'))
+        StaffAccount.fromJson(row)
+    ];
   }
 
   Future<void> createPayMethod(Map<String, Object?> body) async {
@@ -46,10 +59,15 @@ class SettingsRepository {
   }
 
   Future<void> setPayMethodEnabled(String id, {required bool enabled}) async {
-    await api.patchJson('/api/settings/pay-methods/${Uri.encodeComponent(id)}', body: {'enabled': enabled});
+    await api.patchJson('/api/settings/pay-methods/${Uri.encodeComponent(id)}',
+        body: {'enabled': enabled});
   }
 
-  Future<StaffAccount> createStaff({required String name, required String email, required String role, required String password}) async {
+  Future<StaffAccount> createStaff(
+      {required String name,
+      required String email,
+      required String role,
+      required String password}) async {
     final json = await api.postJson('/api/settings/users', body: {
       'name': name,
       'email': email,
@@ -60,14 +78,20 @@ class SettingsRepository {
   }
 
   Future<StaffAccount> updateStaff(String id, Map<String, Object?> body) async {
-    final json = await api.patchJson('/api/settings/users/${Uri.encodeComponent(id)}', body: body);
+    final json = await api.patchJson(
+        '/api/settings/users/${Uri.encodeComponent(id)}',
+        body: body);
     return StaffAccount.fromJson(asJsonMap(json['user'], 'user'));
   }
 
-  Future<void> setPassword(String id, {required String password, String? currentPassword}) async {
-    await api.postJson('/api/settings/users/${Uri.encodeComponent(id)}/password', body: {
-      'password': password,
-      if (currentPassword != null && currentPassword.isNotEmpty) 'currentPassword': currentPassword,
-    });
+  Future<void> setPassword(String id,
+      {required String password, String? currentPassword}) async {
+    await api.postJson(
+        '/api/settings/users/${Uri.encodeComponent(id)}/password',
+        body: {
+          'password': password,
+          if (currentPassword != null && currentPassword.isNotEmpty)
+            'currentPassword': currentPassword,
+        });
   }
 }

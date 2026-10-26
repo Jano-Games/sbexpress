@@ -10,9 +10,15 @@ export interface AppSettings {
   investCny: number
   /** Default per-piece shipping rates by category, BDT (Mobile, Laptop, Drone …). */
   pcsRates: Record<string, number>
+  /** Usual amount of each everyday shipment cost, BDT; 0 = no suggestion. */
+  costDefaults: CostDefaults
 }
 
-const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {} }
+export const USUAL_COST_KEYS = ['packaging', 'courier', 'customs', 'transport'] as const
+export type CostDefaults = Record<(typeof USUAL_COST_KEYS)[number], number>
+const NO_COST_DEFAULTS: CostDefaults = { packaging: 0, courier: 0, customs: 0, transport: 0 }
+
+const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {}, costDefaults: NO_COST_DEFAULTS }
 
 export async function getSettings(): Promise<AppSettings> {
   const rows = await prisma.setting.findMany()
@@ -33,6 +39,18 @@ export async function getSettings(): Promise<AppSettings> {
   } catch {
     // Malformed JSON — fall back to no rates rather than failing every read.
   }
+  const costDefaults: CostDefaults = { ...DEFAULTS.costDefaults }
+  try {
+    const parsed: unknown = JSON.parse(map.get('costDefaults') ?? '{}')
+    if (parsed && typeof parsed === 'object') {
+      for (const key of USUAL_COST_KEYS) {
+        const value = (parsed as Record<string, unknown>)[key]
+        if (typeof value === 'number' && value >= 0) costDefaults[key] = value
+      }
+    }
+  } catch {
+    // Malformed JSON — no suggestions rather than a failed read.
+  }
   return {
     rate: numFrom('rate'),
     exchangeRates: {BDT:1,CNY:numFrom('rate')},
@@ -40,7 +58,13 @@ export async function getSettings(): Promise<AppSettings> {
     investBdt: numFrom('investBdt'),
     investCny: numFrom('investCny'),
     pcsRates,
+    costDefaults,
   }
+}
+
+export async function putCostDefaults(values: Partial<CostDefaults>): Promise<void> {
+  const current = (await getSettings()).costDefaults
+  await putRaw('costDefaults', JSON.stringify({ ...current, ...values }))
 }
 
 export async function putSetting(key: 'rate' | 'threshold' | 'investBdt' | 'investCny', value: number): Promise<void> {

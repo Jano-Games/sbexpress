@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { prisma } from '../core/db'
 import { notFound } from '../core/errors'
-export const newPublicToken = () => randomBytes(32).toString('base64url')
+/** 16 random bytes = 22 base64url characters (128 bits), never derived from an id. */
+export const newPublicToken = () => randomBytes(16).toString('base64url')
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex')
-export const validToken = (token: string) => /^[A-Za-z0-9_-]{43}$/.test(token)
+/** Accepts current 22-character tokens and the older 43-character ones already shared. */
+export const validToken = (token: string) => /^[A-Za-z0-9_-]{22}(?:[A-Za-z0-9_-]{21})?$/.test(token)
 export const isLive = (link: { expiresAt: Date; revokedAt: Date | null }, now = new Date()) => !link.revokedAt && link.expiresAt > now
 export async function resolvePublicLink(token: string) {
   if (!validToken(token)) throw notFound('Link unavailable or expired')

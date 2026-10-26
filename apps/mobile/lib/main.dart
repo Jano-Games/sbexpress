@@ -20,5 +20,9 @@ Future<void> main() async {
     onUnauthorized: () => session.handleUnauthorized(),
   );
   session = SessionController(store: store, auth: AuthRepository(api));
-  runApp(SbExpressApp(session: session, api: api, language: language));
+  runApp(SbExpressApp(
+      session: session,
+      api: api,
+      language: language,
+      splashMinimum: const Duration(milliseconds: 1200)));
 }

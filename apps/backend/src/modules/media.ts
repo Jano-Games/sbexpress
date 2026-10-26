@@ -28,7 +28,9 @@ async function media(code:string, reference:string) {
  if(!m || m.status==='deleted') throw notFound('Attachment not found')
  return m
 }
-const row=(m:{reference:string;name:string;contentType:string;size:number;shared:boolean})=>({reference:m.reference,name:m.name,contentType:m.contentType,size:m.size,shared:m.shared})
+const row=(m:{reference:string;name:string;contentType:string;size:number;shared:boolean;purpose:string;deviceKey:string|null})=>({reference:m.reference,name:m.name,contentType:m.contentType,size:m.size,shared:m.shared,
+ /** "Mobile", "Laptop" … for photos of the devices in a category; null for parcel photos. */
+ deviceCategory:m.purpose==='device_category'?m.deviceKey:null})
 export const mediaRoutes=new Hono<AppEnv>()
  .get('/:code/media',requireRole('admin','hub'),async c=>{
   const s=await shipment(c.req.param('code')!)
@@ -38,13 +40,13 @@ export const mediaRoutes=new Hono<AppEnv>()
  .post('/:code/media/upload',requireRole('admin','hub'),async c=>{
   await assertStaffUploadBudget(c.get('user').id)
   const s=await shipment(c.req.param('code')!)
-  const b=z.object({name:z.string().trim().min(1).max(180),contentType:z.enum(mediaTypes),size:z.number().int().positive()}).parse(await c.req.json())
+  const {deviceCategory,...b}=z.object({name:z.string().trim().min(1).max(180),contentType:z.enum(mediaTypes),size:z.number().int().positive(),deviceCategory:z.string().trim().min(1).max(60).optional()}).parse(await c.req.json())
   if(b.size>mediaLimit(b.contentType)) throw badRequest('Maximum photo size is 10 MB; video size is 100 MB')
   if(await prisma.shipmentMedia.count({where:{shipmentId:s.id,OR:[{status:'ready'},{status:'pending',expiresAt:{gt:new Date()}}]}})>=50) throw badRequest('Maximum 50 attachments per shipment')
   const seconds=reservationSeconds(b.contentType)
   const stagingKey=`staging/${randomUUID()}`,objectKey=`media/${randomUUID()}`
   const uploadUrl=await signUpload(stagingKey,b.contentType,b.size,seconds)
-  const m=await prisma.shipmentMedia.create({data:{...b,purpose:'general',shipmentId:s.id,stagingKey,objectKey,expiresAt:new Date(Date.now()+seconds*1000)}})
+  const m=await prisma.shipmentMedia.create({data:{...b,purpose:deviceCategory?'device_category':'general',deviceKey:deviceCategory??null,shipmentId:s.id,stagingKey,objectKey,expiresAt:new Date(Date.now()+seconds*1000)}})
   return c.json({reference:m.reference,uploadUrl,expiresAt:m.expiresAt.toISOString()},201)
  })
  .post('/:code/media/:reference/complete',requireRole('admin','hub'),async c=>{

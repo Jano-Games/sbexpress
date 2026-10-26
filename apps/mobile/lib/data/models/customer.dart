@@ -17,6 +17,7 @@ class CustomerSummary {
     required this.creditBalance,
     required this.pricingPending,
     required this.discountTotal,
+    this.archivedAt,
   });
 
   final String code;
@@ -34,6 +35,12 @@ class CustomerSummary {
   final int pricingPending;
   final double discountTotal;
 
+  /// When the customer was archived; null while active and on an older
+  /// server, which does not send it.
+  final String? archivedAt;
+
+  bool get archived => archivedAt != null;
+
   factory CustomerSummary.fromJson(Map<String, Object?> json) {
     return CustomerSummary(
       code: requiredString(json, 'code'),
@@ -50,12 +57,17 @@ class CustomerSummary {
       creditBalance: requiredDouble(json, 'creditBalance'),
       pricingPending: requiredInt(json, 'pricingPending'),
       discountTotal: requiredDouble(json, 'discountTotal'),
+      archivedAt: optionalString(json, 'archivedAt'),
     );
   }
 }
 
 class CustomerPayment {
-  const CustomerPayment({required this.code, required this.method, required this.amount, required this.at});
+  const CustomerPayment(
+      {required this.code,
+      required this.method,
+      required this.amount,
+      required this.at});
 
   final String code;
   final String method;
@@ -114,6 +126,7 @@ class CustomerDetail extends CustomerSummary {
     required super.creditBalance,
     required super.pricingPending,
     required super.discountTotal,
+    super.archivedAt,
     required this.orders,
     required this.payments,
     required this.invoices,
@@ -140,23 +153,43 @@ class CustomerDetail extends CustomerSummary {
       creditBalance: base.creditBalance,
       pricingPending: base.pricingPending,
       discountTotal: base.discountTotal,
-      orders: [for (final row in requiredMapList(json, 'orders')) AdminShipment.fromJson(row)],
-      payments: [for (final row in requiredMapList(json, 'payments')) CustomerPayment.fromJson(row)],
-      invoices: [for (final row in requiredMapList(json, 'invoices')) CustomerInvoice.fromJson(row)],
+      archivedAt: base.archivedAt,
+      orders: [
+        for (final row in requiredMapList(json, 'orders'))
+          AdminShipment.fromJson(row)
+      ],
+      payments: [
+        for (final row in requiredMapList(json, 'payments'))
+          CustomerPayment.fromJson(row)
+      ],
+      invoices: [
+        for (final row in requiredMapList(json, 'invoices'))
+          CustomerInvoice.fromJson(row)
+      ],
     );
   }
 }
 
 class CustomerDraft {
-  const CustomerDraft({required this.name, this.phone, this.address, required this.terms});
+  const CustomerDraft(
+      {required this.name,
+      this.phone,
+      this.address,
+      required this.terms,
+      this.code});
 
   final String name;
   final String? phone;
   final String? address;
   final String terms;
 
+  /// A code the operator typed; null lets the server pick the next free one.
+  final String? code;
+
   Map<String, Object?> toJson() {
     final body = <String, Object?>{'name': name, 'terms': terms};
+    final codeText = code?.trim() ?? '';
+    if (codeText.isNotEmpty) body['code'] = codeText;
     final phoneText = phone?.trim() ?? '';
     final addressText = address?.trim() ?? '';
     if (phoneText.isNotEmpty) body['phone'] = phoneText;

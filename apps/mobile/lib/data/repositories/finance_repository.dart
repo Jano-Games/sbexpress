@@ -1,7 +1,6 @@
 import '../api/api_client.dart';
-import '../json_read.dart';
 import '../models/finance_snapshot.dart';
-import '../models/ledger_actions.dart';
+import '../models/ledger_page.dart';
 import '../models/reconciliation.dart';
 import '../money_payload.dart';
 
@@ -15,9 +14,11 @@ class FinanceRepository {
     return FinanceSnapshot.fromJson(json);
   }
 
-  Future<List<LedgerEntry>> ledger({String period = 'all'}) async {
-    final json = await api.getJson('/api/finance/ledger?period=${Uri.encodeQueryComponent(period)}&limit=50');
-    return [for (final row in requiredMapList(json, 'entries')) LedgerEntry.fromJson(row)];
+  /// One page of ledger lines with money in/out totals for the filters.
+  Future<LedgerPage> ledger([LedgerFilter filter = const LedgerFilter()]) async {
+    final query = Uri(queryParameters: filter.query).query;
+    final json = await api.getJson('/api/finance/ledger?$query');
+    return LedgerPage.fromJson(json);
   }
 
   Future<void> transfer({

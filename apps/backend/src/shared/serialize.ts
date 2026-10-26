@@ -6,7 +6,7 @@ import { latestReceipt, receiptSummary } from './receiptHistory'
  * Dhaka role; these DTOs do not add a per-hub scope.
  */
 
-import { shipmentCostItems, type ShipmentCostItem } from './shipmentCosts'
+import { shipmentCostItems, usualCosts, type ShipmentCostItem } from './shipmentCosts'
 import type { Prisma } from '@prisma/client'
 import type { Role } from '../modules/auth'
 import { STATUS_LABEL, statusIndex } from './status'
@@ -106,11 +106,17 @@ const moneyFields = (s: ShipmentWithRelations) => {
 
 /** Full shipment list row, including billing fields. */
 export function shipmentRowAdmin(s: ShipmentWithRelations, threshold: number) {
+  const money = moneyFields(s)
+  const costTotal = Math.round(shipmentOperatingCosts(s).total * 100) / 100
   return {
     ...operational(s, threshold),
     ...paymentHints(s),
     supplierName: s.supplier.name,
-    ...moneyFields(s),
+    ...money,
+    costTotal,
+    usualCosts: usualCosts(s),
+    /** Bill minus this shipment's own costs; the flight's ticket is not shared out here. */
+    profitBeforeTicket: Math.round((money.billAmount - costTotal) * 100) / 100,
   }
 }
 
@@ -230,6 +236,7 @@ export function shipmentDetail(
     log: s.logs.map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
     costs: {
       items: shipmentCostItems(s),
+      usualCosts: usualCosts(s),
       total: Math.round(shipmentOperatingCosts(s).total * 100) / 100,
       unpaidCosts: {
         cnFare:Math.max(0,num(s.cnFare)-s.expenses.filter(e=>e.costField === 'cnFare').reduce((a,e)=>a+num(e.amount),0)),

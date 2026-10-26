@@ -1,5 +1,6 @@
 import '../../l10n/l10n.dart';
 import '../json_read.dart';
+import 'flow.dart';
 
 /// Keys the hub UI must not read. The branch snapshot may still send
 /// `paymentTerms`, `freeOfCharge`, and `receiptStatus`; they are ignored.
@@ -31,6 +32,9 @@ const Set<String> hubOmittedKeys = {
   'receiptHistory',
   'bill',
   'supplierName',
+  'costTotal',
+  'usualCosts',
+  'profitBeforeTicket',
 };
 
 class LastMileBooking {
@@ -442,6 +446,9 @@ class AdminShipment extends OperationalShipment {
     required this.paymentTerms,
     required this.freeOfCharge,
     required this.receiptStatus,
+    this.costTotal,
+    this.usualCosts,
+    this.profitBeforeTicket,
   });
 
   final String? supplierName;
@@ -455,6 +462,16 @@ class AdminShipment extends OperationalShipment {
   final String paymentTerms;
   final bool freeOfCharge;
   final String? receiptStatus;
+
+  /// This shipment's own costs, the usual four of them, and bill − costs.
+  /// Null on a server that does not send them yet.
+  final double? costTotal;
+  final List<UsualCost>? usualCosts;
+  final double? profitBeforeTicket;
+
+  /// Customers pay after delivery or monthly; old `cod` rows read as after
+  /// delivery.
+  bool get monthly => paymentTerms == 'monthly';
 
   factory AdminShipment.fromJson(Map<String, Object?> json) {
     final base = OperationalShipment.fromJson(json);
@@ -486,6 +503,9 @@ class AdminShipment extends OperationalShipment {
       paymentTerms: requiredString(json, 'paymentTerms'),
       freeOfCharge: requiredBool(json, 'freeOfCharge'),
       receiptStatus: requiredNullableString(json, 'receiptStatus'),
+      costTotal: optionalDouble(json, 'costTotal'),
+      usualCosts: optionalUsualCosts(json, 'usualCosts'),
+      profitBeforeTicket: optionalDouble(json, 'profitBeforeTicket'),
     );
   }
 }
@@ -519,6 +539,9 @@ class AdminShipmentDetail extends AdminShipment {
     required super.paymentTerms,
     required super.freeOfCharge,
     required super.receiptStatus,
+    super.costTotal,
+    super.usualCosts,
+    super.profitBeforeTicket,
     required this.chargeRate,
     required this.chargeCurrency,
     required this.packageCount,
@@ -531,7 +554,11 @@ class AdminShipmentDetail extends AdminShipment {
     required this.log,
     required this.invoice,
     required this.payments,
+    this.costsTotal,
   });
+
+  /// `costs.total` of the detail: every cost of this shipment.
+  final double? costsTotal;
 
   final double chargeRate;
   final String chargeCurrency;
@@ -551,6 +578,7 @@ class AdminShipmentDetail extends AdminShipment {
     final invoiceValue = json.containsKey('invoice')
         ? json['invoice']
         : throw const FormatException('Missing invoice');
+    final costs = optionalMap(json, 'costs');
     return AdminShipmentDetail(
       code: row.code,
       supplierCode: row.supplierCode,
@@ -579,6 +607,13 @@ class AdminShipmentDetail extends AdminShipment {
       paymentTerms: row.paymentTerms,
       freeOfCharge: row.freeOfCharge,
       receiptStatus: row.receiptStatus,
+      costTotal: row.costTotal ??
+          (costs == null ? null : optionalDouble(costs, 'total')),
+      usualCosts:
+          (costs == null ? null : optionalUsualCosts(costs, 'usualCosts')) ??
+              row.usualCosts,
+      profitBeforeTicket: row.profitBeforeTicket,
+      costsTotal: costs == null ? null : optionalDouble(costs, 'total'),
       chargeRate: requiredDouble(json, 'chargeRate'),
       chargeCurrency: requiredString(json, 'chargeCurrency'),
       packageCount: requiredInt(json, 'packageCount'),

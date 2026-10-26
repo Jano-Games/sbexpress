@@ -125,6 +125,8 @@ model Supplier {
   address   String        @default("—")
   terms     SupplierTerms @default(instant)
   createdAt DateTime      @default(now())
+  /// Hidden from lists and new bookings; history and balances stay intact.
+  archivedAt DateTime?
 
   shipments Shipment[]
   invoices  Invoice[]

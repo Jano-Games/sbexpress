@@ -65,7 +65,7 @@ class _HubFlightsScreenState extends State<HubFlightsScreen> {
     return WorkspaceScaffold(
         root: widget.root,
         title: tr('Flights'),
-        subtitle: tr('Arriving in Dhaka from Chengdu'),
+        subtitle: tr('Arriving in Bangladesh from China'),
         onRefresh: _load,
         toolbar: ScreenTabs(labels: [
           data == null
@@ -457,7 +457,7 @@ class _RouteCard extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           ])),
           _Endpoint(
-              city: banglaPlace(flight.to, fallback: tr('Dhaka')),
+              city: banglaPlace(flight.to, fallback: tr('Bangladesh')),
               time: flight.arrTime,
               note: tr('Arrives'),
               end: true),
@@ -633,8 +633,8 @@ class FlightRouteLine extends StatelessWidget {
               flight.depTime, banglaPlace(flight.from, fallback: tr('China')))),
       const Expanded(child: _DashedPlane(size: 18)),
       Flexible(
-          child: end(
-              flight.arrTime, banglaPlace(flight.to, fallback: tr('Dhaka')),
+          child: end(flight.arrTime,
+              banglaPlace(flight.to, fallback: tr('Bangladesh')),
               right: true)),
     ]);
   }
@@ -692,7 +692,7 @@ class FlightDateBlock extends StatelessWidget {
     final foreground = highlight ? Colors.white : AppColors.ink;
     return Container(
         width: 56,
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 3),
         decoration: BoxDecoration(
             color: highlight ? AppColors.primary : AppColors.paper,
             borderRadius: BorderRadius.circular(12)),
@@ -703,13 +703,17 @@ class FlightDateBlock extends StatelessWidget {
                   height: 1.15,
                   fontWeight: FontWeight.w700,
                   color: foreground)),
-          Text(day == null ? '' : '${day!.month} · ${day!.weekday}',
-              maxLines: 1,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color:
-                      highlight ? const Color(0xE6FFFFFF) : AppColors.muted)),
+          // Long Bangla weekdays (বৃহস্পতি) shrink rather than clip.
+          FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(day == null ? '' : '${day!.month} · ${day!.weekday}',
+                  maxLines: 1,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: highlight
+                          ? const Color(0xE6FFFFFF)
+                          : AppColors.muted))),
         ]));
   }
 }

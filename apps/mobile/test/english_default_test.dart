@@ -8,6 +8,8 @@ import 'package:sbexpress/app.dart';
 import 'package:sbexpress/data/repositories/auth_repository.dart';
 import 'package:sbexpress/data/session/session_controller.dart';
 import 'package:sbexpress/data/session/session_store.dart';
+import 'package:sbexpress/features/auth/login_screen.dart';
+import 'package:sbexpress/features/auth/splash_screen.dart';
 import 'package:sbexpress/l10n/bn.dart';
 import 'package:sbexpress/l10n/l10n.dart';
 import 'support/screen_fixtures.dart';
@@ -22,9 +24,9 @@ Map<String, Object?> _hubUser() => {
       'roleLabel': 'Hub Manager Dhaka',
     };
 
-http.Response _json(Object body) => http.Response.bytes(
-    utf8.encode(jsonEncode(body)), 200,
-    headers: {'content-type': 'application/json; charset=utf-8'});
+http.Response _json(Object body) =>
+    http.Response.bytes(utf8.encode(jsonEncode(body)), 200,
+        headers: {'content-type': 'application/json; charset=utf-8'});
 
 void main() {
   setUp(() {
@@ -48,8 +50,8 @@ void main() {
   testWidgets('sign-in reads in English by default', (tester) async {
     await LanguageStore(storage: _storage).load();
     final api = screenFixtureApi();
-    final session =
-        SessionController(store: MemorySessionStore(), auth: AuthRepository(api));
+    final session = SessionController(
+        store: MemorySessionStore(), auth: AuthRepository(api));
     await tester.pumpWidget(SbExpressApp(
         session: session,
         api: api,
@@ -57,6 +59,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sign in'), findsWidgets);
     expect(find.text(bnStrings['Sign in']!), findsNothing);
+  });
+
+  testWidgets('the splash stays up for the launch minimum', (tester) async {
+    final api = screenFixtureApi();
+    final session = SessionController(
+        store: MemorySessionStore(), auth: AuthRepository(api));
+    await tester.pumpWidget(SbExpressApp(
+        session: session,
+        api: api,
+        splashMinimum: const Duration(milliseconds: 1200)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(session.ready, isTrue);
+    expect(find.byType(SplashScreen), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+    expect(find.byType(SplashScreen), findsNothing);
+    expect(find.byType(LoginScreen), findsOneWidget);
   });
 
   testWidgets('the hub app switches to Bangla from More and back',

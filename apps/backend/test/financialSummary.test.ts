@@ -15,7 +15,7 @@ const db = vi.hoisted(() => ({
 vi.mock('../src/core/db', () => ({ prisma: db }))
 const { financialSummary } = await import('../src/shared/financialSummary')
 
-const settings = { rate: 17, exchangeRates: { BDT: 1, CNY: 17 }, threshold: 1, investBdt: 20, investCny: 2, pcsRates: {} }
+const settings = { rate: 17, exchangeRates: { BDT: 1, CNY: 17 }, threshold: 1, investBdt: 20, investCny: 2, pcsRates: {}, costDefaults: { packaging: 0, courier: 0, customs: 0, transport: 0 } }
 const suppliers = [{ id: 'supplier-a', code: 'SUP-A', name: 'Acme' }, { id: 'supplier-empty', code: 'SUP-EMPTY', name: 'No shipments' }]
 const fixtureShipments = [
   { id: 'shipment-a', supplierId: 'supplier-a', createdAt: new Date('2026-09-03T12:00:00Z'), charge: 999, customsTax: 20, afterSalesFee: 0, invoice: { total: 100, state:"issued",needsReview:false }, paidAmount: 30, cnFare: 10, bdFare: 5, expenses: [] },

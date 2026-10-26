@@ -7,7 +7,7 @@ import '../../data/models/shipment.dart';
 import '../../data/money_payload.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/account_picker.dart';
+import '../../widgets/finance_parts.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
@@ -53,6 +53,9 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -69,37 +72,46 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
     final balance = _balance;
     return WorkspaceScaffold(
         title: tr('Customer credit'),
+        subtitle: '${widget.name} · ${widget.code}',
         root: false,
-        subtitle: widget.code,
+        onRefresh: _load,
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(widget.name,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          if (_loading && balance == null)
-            const LinearProgressIndicator(
-                color: AppColors.teal, backgroundColor: AppColors.tealSoft),
+          if (_loading && balance == null) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (balance != null) ...[
-            MetricTile(
-                label: tr('Credit balance'),
-                value: formatBdt(balance),
-                tone: balance > 0 ? ChipTone.green : ChipTone.neutral),
-            const SizedBox(height: 16),
-            AppButton(
-              label: tr('Apply to bill'),
-              kind: AppButtonKind.current,
-              onPressed: () => _open(ApplyCreditScreen(
-                  code: widget.code, balance: balance, orders: widget.orders)),
-            ),
-            const SizedBox(height: 8),
-            AppButton(
-              label: tr('Refund'),
-              kind: AppButtonKind.teal,
-              onPressed: () => _open(
-                  RefundCreditScreen(code: widget.code, balance: balance)),
-            ),
+            MoneyHero(children: [
+              HeroAmount(
+                  label: tr('Credit balance'), value: formatBdt(balance)),
+              const SizedBox(height: 8),
+              Text(
+                  balance > 0
+                      ? tr(
+                          'Advances and adjustments the customer has not used yet.')
+                      : tr('No credit to use or refund right now.'),
+                  style: const TextStyle(
+                      fontSize: 12, height: 1.45, color: HeroColors.soft)),
+            ]),
+            const SizedBox(height: 20),
+            SectionTitle(title: tr('Use the credit')),
+            SurfaceGroup(children: [
+              MenuRow(
+                  key: const Key('credit-apply'),
+                  title: tr('Apply to bill'),
+                  subtitle: tr('Pay part of an issued invoice from the credit'),
+                  icon: Icons.sell_outlined,
+                  onTap: () => _open(ApplyCreditScreen(
+                      code: widget.code,
+                      balance: balance,
+                      orders: widget.orders))),
+              MenuRow(
+                  key: const Key('credit-refund'),
+                  title: tr('Refund'),
+                  subtitle: tr('Give the credit back from an account'),
+                  icon: Icons.north_east_rounded,
+                  tone: ChipTone.neutral,
+                  onTap: () => _open(
+                      RefundCreditScreen(code: widget.code, balance: balance))),
+            ]),
           ],
         ]);
   }
@@ -172,45 +184,52 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
   Widget build(BuildContext context) {
     return WorkspaceScaffold(
         title: tr('Apply to bill'),
+        subtitle: tr(
+            'Credit balance {amount}', {'amount': formatBdt(widget.balance)}),
         root: false,
         footer: ActionFooter(
             child: AppButton(
+                key: const Key('credit-apply-save'),
                 label: tr('Apply'),
+                icon: Icons.check_rounded,
                 kind: AppButtonKind.current,
                 busy: _busy,
                 onPressed: _save)),
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  tr('Balance {amount}. Applies only to issued invoices that are not under review.',
-                      {'amount': formatBdt(widget.balance)}),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
+          HintNote(
+              text: tr(
+                  'Balance {amount}. Applies only to issued invoices that are not under review.',
+                  {'amount': formatBdt(widget.balance)})),
+          const SizedBox(height: 20),
+          SectionTitle(title: tr('Shipment')),
           if (widget.orders.isEmpty)
             EmptyNote(
+                icon: Icons.inventory_2_outlined,
                 title: tr('No shipments'),
-                body: tr(
-                    'Credit can be applied here once an invoice is issued.')),
-          for (final order in widget.orders) ...[
-            _OrderPick(
-              title: order.code,
-              subtitle:
-                  tr('Due {amount}', {'amount': formatBdt(order.dueAmount)}),
-              selected: _shipment == order.code,
-              onTap: () => setState(() => _shipment = order.code),
-            ),
-            const SizedBox(height: 8),
-          ],
-          TextField(
+                body:
+                    tr('Credit can be applied here once an invoice is issued.'))
+          else
+            ListCard(children: [
+              for (final order in widget.orders)
+                RadioRow(
+                    key: ValueKey('credit-order-${order.code}'),
+                    title: order.code,
+                    subtitle: tr(
+                        'Due {amount}', {'amount': formatBdt(order.dueAmount)}),
+                    icon: Icons.inventory_2_outlined,
+                    selected: _shipment == order.code,
+                    onTap: () => setState(() => _shipment = order.code)),
+            ]),
+          const SizedBox(height: 16),
+          FieldLabel(tr('Amount (BDT)')),
+          MoneyField(
+              key: const Key('credit-apply-amount'),
               controller: _amount,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: tr('Amount'))),
+              currency: 'BDT',
+              hint: widget.balance.toStringAsFixed(2)),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!,
-                style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            ErrorNote(message: _error!),
           ],
         ]);
   }
@@ -233,6 +252,7 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
   List<FinanceAccount> _accounts = const [];
   String? _account;
   String? _error;
+  var _loading = true;
   var _busy = false;
 
   @override
@@ -246,6 +266,8 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
       } on ApiException catch (error) {
         if (!mounted || error.status == 401) return;
         setState(() => _error = error.message);
+      } finally {
+        if (mounted) setState(() => _loading = false);
       }
     });
   }
@@ -257,11 +279,15 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
     super.dispose();
   }
 
-  Future<void> _save() async {
-    FinanceAccount? account;
+  FinanceAccount? get _picked {
     for (final row in _accounts) {
-      if (row.name == _account) account = row;
+      if (row.name == _account) return row;
     }
+    return null;
+  }
+
+  Future<void> _save() async {
+    final account = _picked;
     final amount = parseMoney(_amount.text);
     final reason = _reason.text.trim();
     if (account == null ||
@@ -303,82 +329,69 @@ class _RefundCreditScreenState extends State<RefundCreditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final account = _picked;
+    final amount = parseMoney(_amount.text);
     return WorkspaceScaffold(
         title: tr('Refund'),
+        subtitle: tr(
+            'Credit balance {amount}', {'amount': formatBdt(widget.balance)}),
         root: false,
         footer: ActionFooter(
-            child: AppButton(
-                label: tr('Save refund'),
-                kind: AppButtonKind.current,
-                busy: _busy,
-                onPressed: _save)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (account != null && amount != null && amount > 0) ...[
+            AmountSentence(
+                template:
+                    tr('{amount} leaves {account}.', {'account': account.name}),
+                amount: formatMoney(amount, account.currency)),
+            const SizedBox(height: 8),
+          ],
+          AppButton(
+              key: const Key('credit-refund-save'),
+              label: tr('Save refund'),
+              icon: Icons.check_rounded,
+              kind: AppButtonKind.current,
+              busy: _busy,
+              onPressed: _save),
+        ])),
         children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  tr('Balance {amount}. Choose the account the money leaves from.',
-                      {'amount': formatBdt(widget.balance)}),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          AccountPicker(
-              accounts: _accounts,
-              selected: _account,
-              onSelected: (account) => setState(() => _account = account.name)),
-          TextField(
+          HintNote(
+              text: tr(
+                  'Balance {amount}. Choose the account the money leaves from.',
+                  {'amount': formatBdt(widget.balance)})),
+          const SizedBox(height: 20),
+          SectionTitle(title: tr('Paid from')),
+          if (_loading)
+            const LinearProgressIndicator()
+          else
+            AccountChoiceList(
+                accounts: _accounts,
+                selected: _account,
+                onSelected: (account) =>
+                    setState(() => _account = account.name)),
+          const SizedBox(height: 16),
+          FieldLabel(account == null
+              ? tr('Amount')
+              : tr('Amount ({currency})', {'currency': account.currency})),
+          MoneyField(
+              key: const Key('credit-refund-amount'),
               controller: _amount,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: tr('Amount'))),
-          const SizedBox(height: 8),
+              currency: account?.currency,
+              onChanged: (_) => setState(() {})),
+          const SizedBox(height: 16),
+          FieldLabel(tr('Reason')),
           TextField(
+              key: const Key('credit-refund-reason'),
               controller: _reason,
-              decoration: InputDecoration(labelText: tr('Reason'))),
+              maxLength: 200,
+              minLines: 2,
+              maxLines: 3,
+              textCapitalization: TextCapitalization.sentences,
+              decoration:
+                  InputDecoration(hintText: tr('At least 3 characters'))),
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!,
-                style: const TextStyle(color: AppColors.danger, height: 1.35)),
+            ErrorNote(message: _error!),
           ],
         ]);
-  }
-}
-
-class _OrderPick extends StatelessWidget {
-  const _OrderPick(
-      {required this.title,
-      required this.subtitle,
-      required this.selected,
-      required this.onTap});
-
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.tealSoft : AppColors.card,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: minTouchTarget),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border:
-                Border.all(color: selected ? AppColors.teal : AppColors.line),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(subtitle, style: const TextStyle(color: AppColors.muted)),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
