@@ -102,6 +102,9 @@ List<Map<String, Object?>> requiredMapList(
 double? optionalDouble(Map<String, Object?> json, String key) =>
     json[key] == null ? null : asDouble(json[key], key);
 
+String? optionalString(Map<String, Object?> json, String key) =>
+    json[key] == null ? null : asString(json[key], key);
+
 int? optionalInt(Map<String, Object?> json, String key) =>
     json[key] == null ? null : asInt(json[key], key);
 

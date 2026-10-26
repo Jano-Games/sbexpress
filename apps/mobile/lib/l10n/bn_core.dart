@@ -59,7 +59,7 @@ const bnCore = <String, String>{
   'Mobiles': 'মোবাইল',
   'Laptops': 'ল্যাপটপ',
   'Ticket cost (BDT)': 'টিকিট খরচ (BDT)',
-  'Agency share (BDT)': 'এজেন্সি শেয়ার (BDT)',
+  'Our share (BDT)': 'আমাদের শেয়ার (BDT)',
   'Edit segment': 'সেগমেন্ট বদলান',
   'Remove segment': 'সেগমেন্ট বাদ দিন',
   'Flight number': 'ফ্লাইট নম্বর',
@@ -77,6 +77,6 @@ const bnCore = <String, String>{
   'Use three-letter airport codes.': 'তিন অক্ষরের এয়ারপোর্ট কোড দিন।',
   'Check departure and arrival times.': 'ছাড়া ও পৌঁছানোর সময় ঠিক করুন।',
   'Ticket amounts must be zero or more.': 'টিকিটের অঙ্ক শূন্য বা বেশি হতে হবে।',
-  'Agency share cannot exceed the ticket cost.':
-      'এজেন্সি শেয়ার টিকিট খরচের বেশি হতে পারে না।',
+  'Our share cannot exceed the ticket cost.':
+      'আমাদের শেয়ার টিকিট খরচের বেশি হতে পারে না।',
 };

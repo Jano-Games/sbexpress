@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../api/api_client.dart';
+import '../api/api_exception.dart';
 import '../json_read.dart';
 import '../models/flight.dart';
 import '../models/hub_flight.dart';
@@ -93,8 +94,39 @@ class FlightRepository {
     });
   }
 
+  /// Records what each flyer has paid, one payment at a time, after the
+  /// flight's ticket and split are saved. The amounts are BDT. Returns the
+  /// payments that were not recorded with the reason; [onProgress] gets how
+  /// many are done. A signed-out session stops at once.
+  Future<List<({FlyerPaid row, String reason})>> recordFlyerPayments(
+      String code, List<FlyerPaid> rows,
+      {required String accountName,
+      void Function(int done)? onProgress}) async {
+    final failed = <({FlyerPaid row, String reason})>[];
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      try {
+        await recordFlyerPayment(code,
+            amount: row.amount,
+            accountName: accountName,
+            currency: 'BDT',
+            flyerName: row.name);
+      } on ApiException catch (error) {
+        if (error.status == 401) rethrow;
+        failed.add((row: row, reason: error.message));
+      } catch (error) {
+        failed.add((row: row, reason: error.toString()));
+      }
+      onProgress?.call(i + 1);
+    }
+    return failed;
+  }
+
   String _path(String code) => '/api/flights/${Uri.encodeComponent(code)}';
 }
+
+/// One flyer's money toward their part of the ticket, in BDT.
+typedef FlyerPaid = ({String name, double amount});
 
 Map<String, Object?> contributionBody(
     List<({String name, double contribution, double legacyPaid})> rows) {

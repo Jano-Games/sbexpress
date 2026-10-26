@@ -93,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen>
                         padding: const EdgeInsets.only(bottom: 28),
                         child: FadeTransition(
                             opacity: _text,
-                            child: Text('${tr('Chengdu')} · ${tr('Dhaka')}',
+                            child: Text('${tr('China')} · ${tr('Bangladesh')}',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                     fontSize: 13, color: _soft)))))),

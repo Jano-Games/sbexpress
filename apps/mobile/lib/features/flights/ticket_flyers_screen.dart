@@ -2,24 +2,32 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/money_payload.dart';
+import '../../data/repositories/flight_repository.dart' show FlyerPaid;
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/account_picker.dart';
 import '../../widgets/finance_parts.dart' show showChoiceSheet;
 import '../../widgets/flight_parts.dart'
     show
         ActionNote,
         AccentOutlineButton,
+        FieldLabel,
         LetterAvatar,
         RowCard,
         isClockTime,
         stopText;
 import '../../widgets/flow_parts.dart';
+import '../../widgets/money_confirm.dart';
+import '../../widgets/quick_parts.dart' show wholeBdt;
+import '../../widgets/team_parts.dart' show FooterActions;
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
+import '../flyers/flyer_form_screen.dart';
 import 'flight_money_screen.dart';
 import 'hub_flights_screen.dart' show banglaPlace;
 
@@ -38,11 +46,21 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
   List<FlyerSummary> _flyers = const [];
   final _cost = TextEditingController();
   final _parts = <String, TextEditingController>{};
+
+  /// What each flyer pays now, on top of what is already recorded.
+  final _paid = <String, TextEditingController>{};
+  List<FinanceAccount> _accounts = const [];
+
+  /// The account the flyers' money went into.
+  String? _received;
   var _flyersPay = false;
   var _ready = false;
   String? _error;
   var _loading = true;
   var _busy = false;
+
+  /// Payments recorded so far while saving, out of how many.
+  ({int done, int total})? _recording;
 
   @override
   void initState() {
@@ -55,7 +73,7 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
   @override
   void dispose() {
     _cost.dispose();
-    for (final field in _parts.values) {
+    for (final field in [..._parts.values, ..._paid.values]) {
       field.dispose();
     }
     super.dispose();
@@ -70,6 +88,7 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
       final scope = AppScope.of(context);
       final detail = await scope.flights.detail(widget.code);
       final flyers = await scope.flyers.list();
+      final accounts = await _readAccounts();
       if (!mounted) return;
       final summary = detail.summary;
       if (!_ready) {
@@ -85,12 +104,19 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
           return TextEditingController(text: saved > 0 ? _plain(saved) : '');
         });
       }
+      for (final name in summary.flyers) {
+        _paid.putIfAbsent(name, TextEditingController.new);
+      }
       for (final name in _parts.keys.toList()) {
         if (!summary.flyers.contains(name)) _parts.remove(name)?.dispose();
+      }
+      for (final name in _paid.keys.toList()) {
+        if (!summary.flyers.contains(name)) _paid.remove(name)?.dispose();
       }
       setState(() {
         _detail = detail;
         _flyers = flyers;
+        if (accounts != null) _accounts = accounts;
       });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -100,6 +126,16 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
       setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// The accounts flyer money can go into; null when they cannot be read,
+  /// which only leaves the choice empty.
+  Future<List<FinanceAccount>?> _readAccounts() async {
+    try {
+      return (await AppScope.of(context).finance.snapshot()).accounts;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -128,9 +164,29 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
   double _typedFlyers(FlightSummary summary) => roundMoney(
       summary.flyers.fold(0.0, (total, name) => total + _typedPart(name)));
 
+  /// Already recorded from [name], with the earlier payment of a lone flyer.
+  double _recorded(FlightSummary summary, String name) =>
+      (_settlement(summary, name)?.paidAmount ?? 0) +
+      (summary.flyers.length == 1 ? summary.unallocatedFlyerPaid : 0);
+
+  /// A flyer whose part is already paid has nothing to pay now.
+  bool _canPay(FlightSummary summary, String name) {
+    final recorded = _recorded(summary, name);
+    return recorded <= 0.001 || _typedPart(name) - recorded > 0.001;
+  }
+
+  double _typedPaid(FlightSummary summary, String name) =>
+      _flyersPay && _canPay(summary, name)
+          ? (readOptionalMoney(_paid[name]?.text ?? '') ?? 0)
+          : 0;
+
+  bool _anyPaid(FlightSummary summary) =>
+      summary.flyers.any((name) => _typedPaid(summary, name) > 0);
+
   /// Typed values differ from what is saved, so payments wait for Save.
   bool _dirty(FlightSummary summary) {
     if ((_typedCost - summary.actualCost).abs() > 0.001) return true;
+    if (_anyPaid(summary)) return true;
     if ((roundMoney(_typedCost - _typedFlyers(summary)) - summary.agencyShare)
             .abs() >
         0.001) {
@@ -148,14 +204,18 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
       for (final flyer in _flyers)
         if (!flyer.archived && !summary.flyers.contains(flyer.name)) flyer.name
     ];
-    if (free.isEmpty) {
-      setState(() => _error = tr('No active flyers left to add.'));
-      return;
-    }
-    final name = await showChoiceSheet(context,
-        title: tr('Add flyer'),
-        options: [for (final name in free) (value: name, label: name)],
-        selected: '');
+    // Nobody left to choose: make the flyer's profile right away.
+    final picked = free.isEmpty
+        ? _newFlyer
+        : await showChoiceSheet(context,
+            title: tr('Add flyer'),
+            options: [
+              for (final name in free) (value: name, label: name),
+              (value: _newFlyer, label: tr('+ New flyer')),
+            ],
+            selected: '');
+    if (picked == null || !mounted) return;
+    final name = picked == _newFlyer ? await _createFlyer() : picked;
     if (name == null || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -168,6 +228,11 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Opens the new flyer form; the new flyer's name, or null when left.
+  Future<String?> _createFlyer() =>
+      Navigator.of(context).push<String>(MaterialPageRoute(
+          builder: (_) => const FlyerFormScreen(returnName: true)));
 
   Future<void> _removeFlyer(String name) async {
     setState(() => _busy = true);
@@ -227,14 +292,46 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
       return;
     }
     for (final name in flyers) {
-      final paid = (_settlement(summary, name)?.paidAmount ?? 0) +
-          (flyers.length == 1 ? earlier : 0);
+      final paid = _recorded(summary, name);
       if (parts[name]! < paid - 0.001) {
         setState(() => _error = tr(
             '{name} has already paid {amount}, so their part cannot be lower.',
             {'name': name, 'amount': formatBdt(paid)}));
         return;
       }
+    }
+    // Money paid now, recorded once the ticket and split are saved.
+    final payments = <FlyerPaid>[];
+    for (final name in flyers) {
+      if (!_flyersPay || !_canPay(summary, name)) continue;
+      final now = readOptionalMoney(_paid[name]?.text ?? '');
+      if (now == null) {
+        setState(() => _error = tr('Enter 0 or more for each flyer.'));
+        return;
+      }
+      final room = roundMoney(parts[name]! - _recorded(summary, name));
+      if (now > room + 0.001) {
+        setState(() => _error = tr('{name} can pay at most {amount} now.',
+            {'name': name, 'amount': formatBdt(room < 0 ? 0 : room)}));
+        return;
+      }
+      if (now > 0) payments.add((name: name, amount: now));
+    }
+    FinanceAccount? into;
+    for (final account in _accounts) {
+      if (account.name == _received) into = account;
+    }
+    if (payments.isNotEmpty) {
+      final chosen = into;
+      if (chosen == null) {
+        setState(() => _error = tr('Choose the account the flyers paid into.'));
+        return;
+      }
+      final ok = await confirmMoney(context,
+          title: tr('Flyer payments'),
+          body: flyerPaymentsEffect(payments,
+              accountName: chosen.name, accountCurrency: chosen.currency));
+      if (!ok || !mounted) return;
     }
     setState(() {
       _busy = true;
@@ -254,14 +351,50 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
             ),
         ]);
       }
+      if (payments.isNotEmpty && into != null) {
+        if (mounted) {
+          setState(() => _recording = (done: 0, total: payments.length));
+        }
+        final failed = await flights.recordFlyerPayments(widget.code, payments,
+            accountName: into.name, onProgress: (done) {
+          if (mounted) {
+            setState(() => _recording = (done: done, total: payments.length));
+          }
+        });
+        if (failed.isNotEmpty) {
+          if (!mounted) return;
+          // The ticket stays saved; what failed is recorded later.
+          for (final field in _paid.values) {
+            field.clear();
+          }
+          // Reload first: loading clears the message.
+          await _load();
+          if (!mounted) return;
+          setState(() => _error = [
+                trn(
+                    failed.length,
+                    'The ticket is saved, but this payment was not recorded: {list}. Record it from Payments so far.',
+                    'The ticket is saved, but these payments were not recorded: {list}. Record them from Payments so far.',
+                    {'list': flyerPaymentsList(failed.map((f) => f.row))}),
+                failed.first.reason,
+              ].join('\n'));
+          return;
+        }
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
-      setState(() => _error = error.message);
+      // Reload first: loading clears the message.
       await _load();
+      if (mounted) setState(() => _error = error.message);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _recording = null;
+        });
+      }
     }
   }
 
@@ -273,17 +406,27 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
         subtitle: _flightLine(summary, widget.code),
         root: false,
         onRefresh: _load,
-        footer: ActionFooter(
-            child: AppButton(
-                key: const Key('ticket-save'),
-                label: tr('Save'),
-                icon: Icons.check_rounded,
-                kind: AppButtonKind.current,
-                busy: _busy,
-                onPressed: summary == null ? null : _save)),
+        // Save problems show by the button, where the eye is.
+        footer: FooterActions(
+            error: summary == null ? null : _error,
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_recording case final progress?)
+                    RecordingProgress(
+                        done: progress.done, total: progress.total),
+                  AppButton(
+                      key: const Key('ticket-save'),
+                      label: tr('Save'),
+                      icon: Icons.check_rounded,
+                      kind: AppButtonKind.current,
+                      busy: _busy,
+                      onPressed: summary == null ? null : _save),
+                ])),
         children: [
           if (_loading && summary == null) const LinearProgressIndicator(),
-          if (_error != null) ErrorNote(message: _error!),
+          if (_error != null && summary == null) ErrorNote(message: _error!),
           if (summary != null) ...[
             _FlightCard(summary: summary),
             const SizedBox(height: 16),
@@ -366,36 +509,36 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(tr('Add flyers to the flight first.'),
                   style: const TextStyle(color: AppColors.muted, height: 1.45)))
-        else
+        else ...[
           for (var i = 0; i < summary.flyers.length; i++)
             Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: LayoutBuilder(
-                    builder: (context, box) => Row(children: [
-                          LetterAvatar(summary.flyers[i],
-                              size: 32,
-                              color: i == 0
-                                  ? AppColors.primary
-                                  : AppColors.inkSoft),
-                          const SizedBox(width: 10),
-                          Expanded(
-                              child: Text(summary.flyers[i],
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      height: 1.3,
-                                      fontWeight: FontWeight.w600))),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                              width: box.maxWidth * 0.42 > 150
-                                  ? 150
-                                  : box.maxWidth * 0.42,
-                              child: BigAmountField(
-                                  key: ValueKey('part-${summary.flyers[i]}'),
-                                  controller: _parts[summary.flyers[i]]!,
-                                  fontSize: 17,
-                                  textAlign: TextAlign.end,
-                                  onChanged: (_) => setState(() {}))),
-                        ]))),
+                padding: const EdgeInsets.only(top: 12),
+                child: FlyerPartRow(
+                    name: summary.flyers[i],
+                    part: _parts[summary.flyers[i]]!,
+                    paid: _canPay(summary, summary.flyers[i])
+                        ? _paid[summary.flyers[i]]
+                        : null,
+                    paidLabel: _recorded(summary, summary.flyers[i]) > 0.001
+                        ? tr('Paid now, in addition')
+                        : tr('Paid now'),
+                    note: _recordedNote(summary, summary.flyers[i]),
+                    paidUp: !_canPay(summary, summary.flyers[i]),
+                    partKey: ValueKey('part-${summary.flyers[i]}'),
+                    paidKey: ValueKey('paid-${summary.flyers[i]}'),
+                    avatarColor: i == 0 ? AppColors.primary : AppColors.inkSoft,
+                    onChanged: (_) => setState(() {}))),
+          if (_anyPaid(summary)) ...[
+            const SizedBox(height: 14),
+            FieldLabel(tr('Received in')),
+            AccountPicker(
+                key: const Key('ticket-received-in'),
+                accounts: _accounts,
+                selected: _received,
+                onSelected: (account) =>
+                    setState(() => _received = account.name)),
+          ],
+        ],
         if (unsplit > 0.001) ...[
           const SizedBox(height: 12),
           ActionNote(
@@ -428,6 +571,16 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
                 : null),
       ],
     ]));
+  }
+
+  /// What is already recorded from [name], so it is not entered twice.
+  String? _recordedNote(FlightSummary summary, String name) {
+    final recorded = _recorded(summary, name);
+    if (recorded <= 0.001) return null;
+    final args = {'amount': wholeBdt(recorded)};
+    return _canPay(summary, name)
+        ? tr('{amount} already recorded', args)
+        : tr('Paid up · {amount} recorded', args);
   }
 
   Widget _paymentsCard(FlightSummary summary) {
@@ -484,7 +637,10 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
           const Key('ticket-flyer-payment'),
           dirty),
       if (share <= 0.001 && received <= 0)
-        Text(tr('We pay the whole ticket, so no flyer pays.'),
+        Text(
+            _flyersPay
+                ? tr("Enter the ticket cost and each flyer's part first.")
+                : tr('We pay the whole ticket, so no flyer pays.'),
             style: const TextStyle(
                 fontSize: 13, height: 1.45, color: AppColors.muted))
       else ...[
@@ -543,6 +699,9 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
               fontSize: 13, height: 1.35, fontWeight: FontWeight.w600)));
 }
 
+/// The choice sheet's value for "+ New flyer".
+const _newFlyer = '\u0000new';
+
 FlightSettlement? _settlement(FlightSummary summary, String name) {
   for (final row in summary.settlements) {
     if (row.name == name) return row;
@@ -577,7 +736,7 @@ InlineSpan routeSpan(FlightSummary summary) {
                 size: 14, color: AppColors.muted))),
     TextSpan(
         text:
-            '${end(banglaPlace(summary.to, fallback: tr('Dhaka')), summary.arrTime)} · ${stopText(summary.stopLabel)}'),
+            '${end(banglaPlace(summary.to, fallback: tr('Bangladesh')), summary.arrTime)} · ${stopText(summary.stopLabel)}'),
   ]);
 }
 

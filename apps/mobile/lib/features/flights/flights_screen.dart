@@ -222,7 +222,7 @@ class AdminFlightCard extends StatelessWidget {
                       depTime: row.depTime,
                       arrTime: row.arrTime,
                       from: banglaPlace(row.from, fallback: tr('China')),
-                      to: banglaPlace(row.to, fallback: tr('Dhaka')),
+                      to: banglaPlace(row.to, fallback: tr('Bangladesh')),
                       stop: row.stopLabel,
                       highlight: next),
                 ])),

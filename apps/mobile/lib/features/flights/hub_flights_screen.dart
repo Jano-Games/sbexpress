@@ -65,7 +65,7 @@ class _HubFlightsScreenState extends State<HubFlightsScreen> {
     return WorkspaceScaffold(
         root: widget.root,
         title: tr('Flights'),
-        subtitle: tr('Arriving in Dhaka from Chengdu'),
+        subtitle: tr('Arriving in Bangladesh from China'),
         onRefresh: _load,
         toolbar: ScreenTabs(labels: [
           data == null
@@ -457,7 +457,7 @@ class _RouteCard extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           ])),
           _Endpoint(
-              city: banglaPlace(flight.to, fallback: tr('Dhaka')),
+              city: banglaPlace(flight.to, fallback: tr('Bangladesh')),
               time: flight.arrTime,
               note: tr('Arrives'),
               end: true),
@@ -633,8 +633,8 @@ class FlightRouteLine extends StatelessWidget {
               flight.depTime, banglaPlace(flight.from, fallback: tr('China')))),
       const Expanded(child: _DashedPlane(size: 18)),
       Flexible(
-          child: end(
-              flight.arrTime, banglaPlace(flight.to, fallback: tr('Dhaka')),
+          child: end(flight.arrTime,
+              banglaPlace(flight.to, fallback: tr('Bangladesh')),
               right: true)),
     ]);
   }

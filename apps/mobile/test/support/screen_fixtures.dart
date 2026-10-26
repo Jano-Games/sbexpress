@@ -457,6 +457,26 @@ Map<String, Object?> _overviewBody() => {
         'out_for_delivery': 2,
         'delivered': 4,
       },
+      // Newest first; five in all, so two more than the home lists.
+      'flyersMissingDocs': [
+        {
+          'name': 'Md Rifat Shahriar',
+          'missing': ['visa', 'admission']
+        },
+        {
+          'name': 'Nusrat Jahan',
+          'missing': ['student_id']
+        },
+        {
+          'name': 'Tanvir Ahmed',
+          'missing': ['student_id', 'visa', 'admission']
+        },
+        {
+          'name': 'Farhan Kabir',
+          'missing': ['visa']
+        },
+      ],
+      'flyersMissingDocsCount': 5,
       'flights': [
         {
           'code': flowFlightCode,
@@ -1205,3 +1225,6 @@ Map<String, Object?> collectBody() {
     },
   };
 }
+
+/// `GET /api/dashboard/overview` as the fixture server sends it.
+Map<String, Object?> overviewBody() => _overviewBody();

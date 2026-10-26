@@ -204,13 +204,29 @@ export const dashboardRoutes = new Hono<AppEnv>()
     const settingsRead = getSettings()
     const shipmentsRead = Promise.resolve(prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } }))
     const flightsRead = Promise.resolve(prisma.flight.findMany({ include: FLIGHT_INCLUDE }))
-    const [settings, money, ships, flights, todos] = await Promise.all([
+    const [settings, money, ships, flights, todos, flyers] = await Promise.all([
       settingsRead,
       financialSummary('week', { settings: settingsRead, shipments: shipmentsRead, flights: flightsRead }),
       shipmentsRead,
       flightsRead,
       prisma.todo.findMany({ where: { role: 'admin', done: false } }),
+      prisma.flyer.findMany({
+        where: { archivedAt: null },
+        select: { name: true, docStudentId: true, docVisa: true, docAdmission: true },
+        orderBy: { createdAt: 'desc' },
+      }),
     ])
+    // Travel documents every active flyer should have on file.
+    const flyersMissingDocs = flyers
+      .map((f) => ({
+        name: f.name,
+        missing: [
+          ...(f.docStudentId ? [] : ['student_id']),
+          ...(f.docVisa ? [] : ['visa']),
+          ...(f.docAdmission ? [] : ['admission']),
+        ],
+      }))
+      .filter((f) => f.missing.length > 0)
 
     // "This week" = the current calendar week, Monday through today.
     const now = new Date()
@@ -272,6 +288,8 @@ export const dashboardRoutes = new Hono<AppEnv>()
         : null,
       notices: buildNotices('admin', settings, ships, flights),
       flights: flightRows,
+      flyersMissingDocs: flyersMissingDocs.slice(0, 10),
+      flyersMissingDocsCount: flyersMissingDocs.length,
       collect: {
         afterDeliveryDue: collect.afterDelivery.due,
         afterDeliveryCount: collect.afterDelivery.handedOver.length,

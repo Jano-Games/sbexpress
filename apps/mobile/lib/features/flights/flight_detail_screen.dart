@@ -237,7 +237,7 @@ class _RouteCard extends StatelessWidget {
             Expanded(
                 flex: 3,
                 child: end(summary.arrTime,
-                    banglaPlace(summary.to, fallback: tr('Dhaka')),
+                    banglaPlace(summary.to, fallback: tr('Bangladesh')),
                     right: true)),
           ]),
           const Divider(height: 24, color: AppColors.lineSoft),

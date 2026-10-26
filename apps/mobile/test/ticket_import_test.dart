@@ -85,10 +85,10 @@ void main() {
   setUp(() => appLanguage.value = AppLanguage.en);
 
   test('a reviewed journey posts as a ticket-sourced connection flight', () {
-    final draft = TicketFlightDraft.fromImport(TicketImport.fromJson(_ticket))
-        .first
-      ..actualCost = 42000
-      ..agencyShare = 8000;
+    final draft =
+        TicketFlightDraft.fromImport(TicketImport.fromJson(_ticket)).first
+          ..actualCost = 42000
+          ..agencyShare = 8000;
     expect(draft.problem, isNull);
     expect(draft.route, 'TFU → KMG → DAC');
     final body = draft.toJson('KHAN Arif Hossain');
@@ -159,7 +159,8 @@ void main() {
     await tester.tap(find.byKey(const Key('ticket-pick')));
     await tester.pumpAndSettle();
     expect(base64Decode(sentPdf!), utf8.encode('%PDF-1.4 test'));
-    expect(find.text('KHAN / MD ARIF HOSSAIN SD'), findsOneWidget);
+    // The airline's SD title after the names is dropped.
+    expect(find.text('KHAN / MD ARIF HOSSAIN'), findsOneWidget);
     expect(find.text('KHAN Arif Hossain · matches ticket'), findsOneWidget);
     expect(find.text('Create 2 flights'), findsOneWidget);
     await tester.dragUntilVisible(find.text('Flight 1 · To Bangladesh'),

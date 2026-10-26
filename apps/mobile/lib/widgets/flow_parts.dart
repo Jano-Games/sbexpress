@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/models/flow.dart';
+import '../data/repositories/flight_repository.dart' show FlyerPaid;
 import '../features/admin/money_format.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_colors.dart';
+import 'flight_parts.dart' show LetterAvatar, MeterBar;
+import 'quick_parts.dart' show wholeBdt;
 import 'team_parts.dart' show DashedOutline;
 import 'ui.dart';
 
@@ -732,5 +735,141 @@ class LinkCard extends StatelessWidget {
         const SizedBox(width: 6),
         const Icon(Icons.chevron_right_rounded,
             size: 20, color: AppColors.faint),
+      ]));
+}
+
+// ---------------------------------------------------------------------------
+// Flyers paying their part when the ticket is saved.
+
+/// A flyer's part of the ticket and, under it, what they pay toward it now.
+/// [paid] is null when nothing is left for them to pay; the row then shows
+/// only the part and [note].
+class FlyerPartRow extends StatelessWidget {
+  const FlyerPartRow(
+      {super.key,
+      required this.name,
+      required this.part,
+      required this.paid,
+      required this.paidLabel,
+      this.note,
+      this.paidUp = false,
+      this.partKey,
+      this.paidKey,
+      this.avatarColor = AppColors.primary,
+      this.onChanged});
+  final String name;
+  final TextEditingController part;
+  final TextEditingController? paid;
+
+  /// "Already paid" on a new flight; "Paid now" on a saved one.
+  final String paidLabel;
+
+  /// Under the name, e.g. what is already recorded; green when [paidUp].
+  final String? note;
+  final bool paidUp;
+  final Key? partKey, paidKey;
+  final Color avatarColor;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        final width = box.maxWidth * 0.42 > 150 ? 150.0 : box.maxWidth * 0.42;
+        final paid = this.paid;
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                LetterAvatar(name, size: 32, color: avatarColor),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(name,
+                          style: const TextStyle(
+                              fontSize: 15,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600)),
+                      if (note != null)
+                        Text(note!,
+                            style: TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                fontWeight:
+                                    paidUp ? FontWeight.w600 : FontWeight.w400,
+                                color:
+                                    paidUp ? AppColors.ok : AppColors.muted)),
+                    ])),
+                const SizedBox(width: 8),
+                SizedBox(
+                    width: width,
+                    child: BigAmountField(
+                        key: partKey,
+                        controller: part,
+                        fontSize: 17,
+                        textAlign: TextAlign.end,
+                        onChanged: onChanged)),
+              ]),
+              if (paid != null) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  const SizedBox(width: 42),
+                  Expanded(
+                      child: Text(paidLabel,
+                          textAlign: TextAlign.end,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              height: 1.35,
+                              color: AppColors.muted))),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                      width: width,
+                      child: BigAmountField(
+                          key: paidKey,
+                          controller: paid,
+                          fontSize: 15,
+                          textAlign: TextAlign.end,
+                          onChanged: onChanged)),
+                ]),
+              ],
+            ]);
+      });
+}
+
+/// "৳5,000 from Arif Rahman goes into Dhaka cash." for each flyer, one per
+/// line. The amounts are BDT; a CNY account says how its balance changes.
+String flyerPaymentsEffect(List<FlyerPaid> rows,
+        {required String accountName, required String accountCurrency}) =>
+    [
+      for (final row in rows)
+        tr('{amount} from {flyer} goes into {account}.', {
+          'amount': wholeBdt(row.amount),
+          'flyer': row.name,
+          'account': accountName
+        }),
+      if (accountCurrency != 'BDT')
+        tr('The amounts are in BDT; the {currency} balance changes at the saved rate.',
+            {'currency': accountCurrency}),
+    ].join('\n');
+
+/// "Ahmed Khan ৳5,000, Rakib Hasan ৳3,000" for a note about payments.
+String flyerPaymentsList(Iterable<FlyerPaid> rows) =>
+    [for (final row in rows) '${row.name} ${wholeBdt(row.amount)}'].join(', ');
+
+/// "Recording payments · 1 of 2" beside a bar while flyer payments go out.
+class RecordingProgress extends StatelessWidget {
+  const RecordingProgress({super.key, required this.done, required this.total});
+  final int done, total;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        Expanded(child: MeterBar(value: total == 0 ? 1 : done / total)),
+        const SizedBox(width: 10),
+        Text(
+            tr('Recording payments · {done} of {total}',
+                {'done': done, 'total': total}),
+            style: const TextStyle(fontSize: 13, color: AppColors.muted)),
       ]));
 }

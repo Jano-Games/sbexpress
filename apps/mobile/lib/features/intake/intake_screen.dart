@@ -273,9 +273,19 @@ class _IntakeScreenState extends State<IntakeScreen> {
     });
   }
 
+  /// The piece price for [name], whatever its case: the server may send
+  /// "mobile" while the rates say "Mobile".
+  double? _pieceRate(String name) {
+    final lower = name.trim().toLowerCase();
+    for (final entry in _pcsRates.entries) {
+      if (entry.key.trim().toLowerCase() == lower) return entry.value;
+    }
+    return null;
+  }
+
   bool _isPiece(String name) =>
-      _pcsRates.containsKey(name) ||
-      RegExp('mobile|laptop|drone', caseSensitive: false).hasMatch(name);
+      _pieceRate(name) != null ||
+      RegExp('mobile|phone|laptop|drone', caseSensitive: false).hasMatch(name);
 
   void _toggleCategory(String name) {
     setState(() {
@@ -286,7 +296,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
       } else {
         _picked.add(name);
         if (_isPiece(name)) {
-          _devices[name] = _DeviceDraft(rate: _pcsRates[name] ?? 0);
+          _devices[name] = _DeviceDraft(rate: _pieceRate(name) ?? 0);
         }
       }
     });
@@ -297,11 +307,19 @@ class _IntakeScreenState extends State<IntakeScreen> {
     if (name.isEmpty || _savingCategory) return;
     setState(() => _savingCategory = true);
     try {
-      await AppScope.of(context).settings.addCategory(name);
+      // A name that is already there, in any case, picks the existing chip.
+      final lower = name.toLowerCase();
+      final existing = _categories
+          .where((category) => category.toLowerCase() == lower)
+          .firstOrNull;
+      if (existing == null) {
+        await AppScope.of(context).settings.addCategory(name);
+      }
       if (!mounted) return;
+      final chosen = existing ?? name;
       _categoryName.clear();
-      if (!_categories.contains(name)) _categories = [..._categories, name];
-      if (!_picked.contains(name)) _toggleCategory(name);
+      if (existing == null) _categories = [..._categories, name];
+      if (!_picked.contains(chosen)) _toggleCategory(chosen);
       setState(() => _addingCategory = false);
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -660,23 +678,31 @@ class _IntakeScreenState extends State<IntakeScreen> {
           if (_addingCategory)
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               TextField(
+                  key: const Key('intake-category-name'),
                   controller: _categoryName,
                   autofocus: true,
+                  textCapitalization: TextCapitalization.words,
+                  onSubmitted: (_) => _addCategory(),
                   decoration:
                       InputDecoration(hintText: tr('New category name'))),
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(
                     child: AppButton(
+                        key: const Key('intake-category-add'),
                         label: tr('Add'),
                         kind: AppButtonKind.tonal,
                         busy: _savingCategory,
                         onPressed: _addCategory)),
                 const SizedBox(width: 8),
                 TextButton(
+                    key: const Key('intake-category-cancel'),
                     onPressed: _savingCategory
                         ? null
-                        : () => setState(() => _addingCategory = false),
+                        : () => setState(() {
+                              _categoryName.clear();
+                              _addingCategory = false;
+                            }),
                     child: Text(tr('Cancel'))),
               ]),
             ]),

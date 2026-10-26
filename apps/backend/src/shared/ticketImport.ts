@@ -36,7 +36,11 @@ export interface TicketJourney {
 
 export interface ParsedTicket {
   agency: string | null
+  /** "SURNAME / GIVEN NAMES" with trailing titles (MR, SD …) removed. */
   passenger: string | null
+  /** Title-cased parts of the passenger name, for a new flyer profile. */
+  firstName: string | null
+  lastName: string | null
   pnr: string | null
   ticketNumber: string | null
   issuedOn: string | null
@@ -177,9 +181,10 @@ export function parseTicketText(raw: string): ParsedTicket {
   const references = /Airline PNR\s+Ticket Number\s+([A-Z0-9]{5,8})\s+(\d{3}-?\d{6,11})/i.exec(text)
   const passenger = /Date of Issue\s+([A-Z][A-Z' .-]*\/[A-Z' .-]+?)\s+(?:[A-Z]{1,2}\d{6,8}\s+)?(\d{1,2}\s+[A-Za-z]+\s+\d{4})/.exec(text)
   const agency = /^([A-Z][A-Z&.' -]{2,60}?)\s+\+?\d[\d -]{6,}/.exec(text)
+  const name = passengerName(passenger?.[1] ?? null)
   return {
     agency: agency?.[1]?.trim() ?? null,
-    passenger: passenger?.[1]?.replace(/\s*\/\s*/, ' / ').trim() ?? null,
+    ...name,
     pnr: references?.[1] ?? /\bPNR\s*:?\s*([A-Z0-9]{6})\b/i.exec(text)?.[1] ?? null,
     ticketNumber: references?.[2] ?? /\b(\d{3}-\d{10})\b/.exec(text)?.[1] ?? null,
     issuedOn: passenger?.[2] ? isoDayFirst(passenger[2]) : null,
@@ -188,6 +193,30 @@ export function parseTicketText(raw: string): ParsedTicket {
 }
 
 const TITLES = new Set(['MR', 'MRS', 'MS', 'MISS', 'MSTR', 'MD', 'MST', 'SD', 'DR'])
+/** Airline title codes printed after the given names. MD and MST are kept: they are part of Bangladeshi names. */
+const TRAILING_TITLES = new Set(['MR', 'MRS', 'MS', 'MISS', 'MSTR', 'SD', 'DR', 'CHD', 'INF'])
+
+const titleCase = (words: string) =>
+  words
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.replace(/(^|['-])([a-z])/g, (_, lead: string, ch: string) => lead + ch.toUpperCase()))
+    .join(' ')
+
+/** "SHAHRIAR / MD RIFAT SD" → passenger "SHAHRIAR / MD RIFAT", first "Md Rifat", last "Shahriar". */
+export function passengerName(raw: string | null): { passenger: string | null; firstName: string | null; lastName: string | null } {
+  if (!raw) return { passenger: null, firstName: null, lastName: null }
+  const [surname = '', given = ''] = raw.split('/').map((part) => part.trim().replace(/\s+/g, ' '))
+  const givenWords = given.split(' ').filter(Boolean)
+  while (givenWords.length > 1 && TRAILING_TITLES.has(givenWords[givenWords.length - 1]!.toUpperCase())) givenWords.pop()
+  const first = givenWords.join(' ')
+  return {
+    passenger: first ? `${surname} / ${first}` : surname,
+    firstName: first ? titleCase(first) : null,
+    lastName: surname ? titleCase(surname) : null,
+  }
+}
 
 export const nameTokens = (name: string) =>
   name

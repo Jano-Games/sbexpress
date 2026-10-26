@@ -17,10 +17,22 @@ import 'flyer_detail_screen.dart';
 /// New flyer: profile and travel documents in one go. The documents are
 /// sent right after the flyer is saved, then the flyer's page opens.
 class FlyerFormScreen extends StatefulWidget {
-  const FlyerFormScreen({super.key, this.pickFile});
+  const FlyerFormScreen(
+      {super.key,
+      this.pickFile,
+      this.initialFirstName,
+      this.initialLastName,
+      this.returnName = false});
 
   /// Picks one document photo or PDF; null when cancelled. Tests replace it.
   final Future<PickedPhoto?> Function(FileSource source)? pickFile;
+
+  /// Names filled in from where the form was opened, e.g. a ticket.
+  final String? initialFirstName, initialLastName;
+
+  /// Pops with the new flyer's name instead of opening the flyer's page, so
+  /// the screen that asked can pick the flyer.
+  final bool returnName;
 
   @override
   State<FlyerFormScreen> createState() => _FlyerFormScreenState();
@@ -30,8 +42,8 @@ class FlyerFormScreen extends StatefulWidget {
 const _documentKinds = ['student_id', 'visa', 'admission'];
 
 class _FlyerFormScreenState extends State<FlyerFormScreen> {
-  final _first = TextEditingController();
-  final _last = TextEditingController();
+  late final _first = TextEditingController(text: widget.initialFirstName);
+  late final _last = TextEditingController(text: widget.initialLastName);
   final _bd = TextEditingController();
   final _cn = TextEditingController();
   final _university = TextEditingController();
@@ -121,6 +133,19 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
         await uploads.start();
       }
       if (!mounted) return;
+      if (widget.returnName) {
+        // Files that did not go up can be added on the flyer's page.
+        final failed = uploads?.failedCount ?? 0;
+        if (failed > 0) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+              content: Text(trn(
+                  failed,
+                  "{n} file did not upload. Add it on the flyer's page.",
+                  "{n} files did not upload. Add them on the flyer's page."))));
+        }
+        Navigator.of(context).pop(name);
+        return;
+      }
       // The list that opened the form reloads on `true`.
       await Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(

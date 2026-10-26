@@ -109,6 +109,8 @@ class AdminOverview {
     this.flyerReceivables,
     this.payables,
     this.stageCounts,
+    this.flyersMissingDocs,
+    this.flyersMissingDocsCount,
   });
 
   final String weekLabel;
@@ -141,6 +143,12 @@ class AdminOverview {
   /// Shipments per status, e.g. `{'pending': 2, 'in_transit': 1}`; null on a
   /// server that does not send it.
   final Map<String, int>? stageCounts;
+
+  /// Active flyers without every travel document, newest first and at most
+  /// ten, and how many there are in all. Null on a server that does not
+  /// send them.
+  final List<FlyerMissingDocs>? flyersMissingDocs;
+  final int? flyersMissingDocsCount;
 
   factory AdminOverview.fromJson(Map<String, Object?> json) {
     final cash = asJsonMap(json['cash'], 'cash');
@@ -187,8 +195,29 @@ class AdminOverview {
                   in asJsonMap(json['stageCounts'], 'stageCounts').entries)
                 entry.key: asInt(entry.value, entry.key)
             },
+      flyersMissingDocs: json['flyersMissingDocs'] == null
+          ? null
+          : [
+              for (final row in requiredMapList(json, 'flyersMissingDocs'))
+                FlyerMissingDocs.fromJson(row)
+            ],
+      flyersMissingDocsCount: optionalInt(json, 'flyersMissingDocsCount'),
     );
   }
+}
+
+/// A flyer and the travel documents not on file: `student_id`, `visa`,
+/// `admission`.
+class FlyerMissingDocs {
+  const FlyerMissingDocs({required this.name, required this.missing});
+
+  final String name;
+  final List<String> missing;
+
+  factory FlyerMissingDocs.fromJson(Map<String, Object?> json) =>
+      FlyerMissingDocs(
+          name: requiredString(json, 'name'),
+          missing: requiredStringList(json, 'missing'));
 }
 
 class SetupStatus {

@@ -165,22 +165,14 @@ class _FieldLabel extends StatelessWidget {
 class _Hero extends StatelessWidget {
   const _Hero();
 
-  static const _soft = Color(0xCCFFFFFF);
-
   @override
   Widget build(BuildContext context) {
-    Widget place(String country, String city, {bool end = false}) => Column(
-            crossAxisAlignment:
-                end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              Text(country, style: const TextStyle(fontSize: 12, color: _soft)),
-              Text(city,
-                  style: const TextStyle(
-                      fontSize: 18,
-                      height: 1.3,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white)),
-            ]);
+    Widget place(String country) => Text(country,
+        style: const TextStyle(
+            fontSize: 22,
+            height: 1.3,
+            fontWeight: FontWeight.w700,
+            color: Colors.white));
     return Container(
         decoration: const BoxDecoration(
             color: AppColors.primary,
@@ -195,7 +187,7 @@ class _Hero extends StatelessWidget {
                       const BrandLockup(onDark: true),
                       const SizedBox(height: 32),
                       Row(children: [
-                        place(tr('China'), tr('Chengdu')),
+                        place(tr('China')),
                         Expanded(
                             child: SizedBox(
                                 height: 36,
@@ -220,7 +212,7 @@ class _Hero extends StatelessWidget {
                                               size: 19,
                                               color: AppColors.primary)),
                                     ]))),
-                        place(tr('Bangladesh'), tr('Dhaka'), end: true),
+                        place(tr('Bangladesh')),
                       ]),
                       const SizedBox(height: 28),
                       Text(tr('All your air cargo work,\nin one app.'),

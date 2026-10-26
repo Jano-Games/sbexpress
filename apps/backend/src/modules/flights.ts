@@ -174,6 +174,8 @@ export const flightRoutes = new Hono<AppEnv>()
       ticket: {
         agency: parsed.agency,
         passenger: parsed.passenger,
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
         pnr: parsed.pnr,
         ticketNumber: parsed.ticketNumber,
         issuedOn: parsed.issuedOn,

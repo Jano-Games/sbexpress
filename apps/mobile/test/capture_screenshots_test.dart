@@ -312,6 +312,7 @@ void main() {
     await _scrollShot(tester, '25c-flight-detail-bookings-list');
     await _flowShots(tester, scope);
     await _quickShots(tester, scope);
+    await _round5Shots(tester, scope);
     await _shot(
         tester,
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
@@ -415,6 +416,7 @@ void main() {
       }
     }
     await _flowCompactShots(tester, scope);
+    await _round5Shots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
     await _shot(
         tester,
@@ -439,6 +441,159 @@ void main() {
 }
 
 double _textScale = 1;
+
+/// The same session on an API that answers [intercept] before the fixtures.
+AppScope _interceptScope(AppScope source,
+    Future<http.Response?> Function(http.Request request) intercept) {
+  final ApiClient api = screenFixtureApi(intercept: intercept);
+  return AppScope(
+    session: source.session,
+    shipments: ShipmentRepository(api),
+    dashboard: DashboardRepository(api),
+    tasks: TaskRepository(api),
+    review: ReviewRepository(api),
+    media: MediaRepository(api),
+    flights: FlightRepository(api),
+    flyers: FlyerRepository(api),
+    customers: CustomerRepository(api),
+    finance: FinanceRepository(api),
+    settings: SettingsRepository(api),
+    child: const SizedBox.shrink(),
+  );
+}
+
+/// Scrolls the first list until [finder] shows, up or down.
+Future<void> _revealBy(WidgetTester tester, Finder finder, double dy) async {
+  await tester.scrollUntilVisible(finder, dy,
+      scrollable: find.byType(Scrollable).first);
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+}
+
+/// Opens the account dropdown with [key] and picks Dhaka cash.
+Future<void> _receivedInDhaka(WidgetTester tester, Key key) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await _revealBy(tester, find.byKey(key), 150);
+  await tester.tap(find.byKey(key));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Dhaka cash · BDT').last);
+  await tester.pumpAndSettle();
+}
+
+/// Round 5: flyers paying when a flight is saved, adding a flyer where one
+/// is needed, the ticket's passenger as a new flyer, flyers missing
+/// documents and the booking's new category. [compact] saves the 320 px
+/// versions and checks each for overflow.
+Future<void> _round5Shots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r5' : '60';
+  Future<void> scrollShots(String name) async {
+    await tester.drag(find.byType(ListView).first, const Offset(0, 3000));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 4; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -420));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$name $i');
+      await _saveShot(tester, '$name-$i');
+    }
+  }
+
+  // A new flight whose two flyers pay part, one of them already.
+  await _shot(tester, _scoped(_teamScope(scope), const FlightFormScreen()),
+      '$prefix-a-flight-form-paid', find.byType(FlightFormScreen));
+  for (final name in ['Arif Rahman', 'Rakib Hasan']) {
+    await _revealBy(tester, find.text(name), 150);
+    await tester.tap(find.text(name));
+    await tester.pumpAndSettle();
+  }
+  final cost = find.byWidgetPredicate((w) =>
+      w is TextField &&
+      w.decoration?.labelText == tr('Actual ticket cost (BDT)'));
+  await _revealBy(tester, cost, 150);
+  await tester.enterText(cost, '42000');
+  await tester.pumpAndSettle();
+  await _revealBy(tester, find.byKey(const Key('flight-flyers-pay')), 150);
+  await tester.tap(find.byKey(const Key('flight-flyers-pay')));
+  await tester.pumpAndSettle();
+  for (final (key, value) in [
+    ('flight-part-Arif Rahman', '15000'),
+    ('flight-part-Rakib Hasan', '15000'),
+    ('flight-paid-Arif Rahman', '5000'),
+  ]) {
+    await _revealBy(tester, find.byKey(ValueKey(key)), 150);
+    await tester.enterText(find.byKey(ValueKey(key)), value);
+    await tester.pumpAndSettle();
+  }
+  await _receivedInDhaka(tester, const Key('flight-received-in'));
+  await _revealBy(
+      tester, find.byKey(const ValueKey('flight-part-Arif Rahman')), -150);
+  await _saveShot(tester, '$prefix-a-flight-form-paid');
+  if (compact) await scrollShots('$prefix-a-flight-form-paid');
+
+  // An existing flight: Rakib pays 4,000 more now.
+  await _shot(
+      tester,
+      _scoped(scope, const TicketFlyersScreen(code: flowFlightCode)),
+      '$prefix-b-ticket-flyers-paid',
+      find.byType(TicketFlyersScreen));
+  await _revealBy(tester, find.byKey(const ValueKey('paid-Rakib Hasan')), 150);
+  await tester.enterText(
+      find.byKey(const ValueKey('paid-Rakib Hasan')), '4000');
+  await tester.pumpAndSettle();
+  await _receivedInDhaka(tester, const Key('ticket-received-in'));
+  await _revealBy(tester, find.byKey(const ValueKey('part-Arif Rahman')), -150);
+  await _saveShot(tester, '$prefix-b-ticket-flyers-paid');
+  await tester.tap(find.byKey(const Key('ticket-save')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-c-flyer-payments-confirm');
+  await tester.tap(find.text(tr('Go back')));
+  await tester.pumpAndSettle();
+
+  // A ticket whose passenger is nobody yet.
+  final unmatched = _interceptScope(scope, (request) async {
+    if (request.url.path != '/api/flights/ticket') return null;
+    final body = ticketImportBody();
+    body['ticket'] = {
+      ...(body['ticket'] as Map<String, Object?>),
+      'passenger': 'SHAHRIAR / MD RIFAT SD',
+    };
+    body['flyerMatches'] = <Object>[];
+    return http.Response(jsonEncode(body), 200,
+        headers: {'content-type': 'application/json'});
+  });
+  await _shot(
+      tester,
+      _scoped(unmatched,
+          TicketImportScreen(pickPdf: () async => utf8.encode('%PDF-1.4'))),
+      '$prefix-d-ticket-new-flyer',
+      find.byType(TicketImportScreen));
+  await tester.tap(find.byKey(const Key('ticket-pick')));
+  await tester.pumpAndSettle();
+  await _revealBy(tester, find.byKey(const Key('ticket-add-flyer')), 150);
+  await _saveShot(tester, '$prefix-d-ticket-new-flyer');
+  await tester.tap(find.byKey(const Key('ticket-add-flyer')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-e-flyer-form-prefilled');
+
+  // Flyers missing documents on Home.
+  await _shot(
+      tester,
+      _scoped(scope, AdminHomeScreen(dashboard: scope.dashboard), tab: 0),
+      '$prefix-f-home-documents',
+      find.byType(AdminHomeScreen));
+  await _revealBy(tester, find.byKey(const Key('attention-docs-more')), 150);
+  await _saveShot(tester, '$prefix-f-home-documents');
+
+  // The booking's categories: + New, then its input.
+  await _shot(tester, _scoped(scope, const IntakeScreen()),
+      '$prefix-g-booking-categories', find.byType(IntakeScreen));
+  await _revealBy(tester, find.byKey(const Key('intake-cargo')), 150);
+  await _saveShot(tester, '$prefix-g-booking-categories');
+  await tester.tap(find.byKey(const Key('intake-new-category')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-h-booking-new-category');
+}
 
 /// The same session on an API that also answers with the team fixtures.
 AppScope _teamScope(AppScope source,

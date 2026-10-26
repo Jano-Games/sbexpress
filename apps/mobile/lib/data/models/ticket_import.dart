@@ -11,10 +11,17 @@ class TicketImport {
     required this.issuedOn,
     required this.flyerMatches,
     required this.journeys,
+    this.firstName,
+    this.lastName,
   });
 
   final String? agency;
+
+  /// "SHAHRIAR / MD RIFAT", without the airline title after the names.
   final String? passenger;
+
+  /// Title-cased parts of the passenger's name for a new flyer profile.
+  final String? firstName, lastName;
   final String? pnr;
   final String? ticketNumber;
   final String? issuedOn;
@@ -25,9 +32,13 @@ class TicketImport {
 
   factory TicketImport.fromJson(Map<String, Object?> json) {
     final ticket = asJsonMap(json['ticket'], 'ticket');
+    // Older servers send the name as printed, title and all.
+    final name = passengerName(requiredNullableString(ticket, 'passenger'));
     return TicketImport(
       agency: requiredNullableString(ticket, 'agency'),
-      passenger: requiredNullableString(ticket, 'passenger'),
+      passenger: name.passenger,
+      firstName: optionalString(ticket, 'firstName') ?? name.firstName,
+      lastName: optionalString(ticket, 'lastName') ?? name.lastName,
       pnr: requiredNullableString(ticket, 'pnr'),
       ticketNumber: requiredNullableString(ticket, 'ticketNumber'),
       issuedOn: requiredNullableString(ticket, 'issuedOn'),
@@ -41,6 +52,55 @@ class TicketImport {
       ],
     );
   }
+}
+
+/// Airline title codes printed after the given names. MD and MST stay: they
+/// are part of Bangladeshi names.
+const _trailingTitles = {
+  'MR',
+  'MRS',
+  'MS',
+  'MISS',
+  'MSTR',
+  'SD',
+  'DR',
+  'CHD',
+  'INF'
+};
+
+/// "MD RIFAT" → "Md Rifat"; a letter after ' or - is capitalised too.
+String _titleCase(String words) => words
+    .toLowerCase()
+    .split(RegExp(r'\s+'))
+    .where((word) => word.isNotEmpty)
+    .map((word) => word.replaceAllMapped(RegExp(r"(^|['-])([a-z])"),
+        (m) => '${m.group(1)}${m.group(2)!.toUpperCase()}'))
+    .join(' ');
+
+/// "SHAHRIAR / MD RIFAT SD" → passenger "SHAHRIAR / MD RIFAT", first name
+/// "Md Rifat", last name "Shahriar". Matches the server's cleanup.
+({String? passenger, String? firstName, String? lastName}) passengerName(
+    String? raw) {
+  if (raw == null || raw.trim().isEmpty) {
+    return (passenger: null, firstName: null, lastName: null);
+  }
+  final parts = [
+    for (final part in raw.split('/'))
+      part.trim().replaceAll(RegExp(r'\s+'), ' ')
+  ];
+  final surname = parts.first;
+  final given = parts.length > 1 ? parts[1] : '';
+  final words = given.split(' ').where((word) => word.isNotEmpty).toList();
+  while (
+      words.length > 1 && _trailingTitles.contains(words.last.toUpperCase())) {
+    words.removeLast();
+  }
+  final first = words.join(' ');
+  return (
+    passenger: first.isEmpty ? surname : '$surname / $first',
+    firstName: first.isEmpty ? null : _titleCase(first),
+    lastName: surname.isEmpty ? null : _titleCase(surname),
+  );
 }
 
 /// `to_bangladesh`, `from_bangladesh` or `other`.
@@ -154,7 +214,7 @@ class TicketFlightDraft {
       return 'Ticket amounts must be zero or more.';
     }
     if (agencyShare > actualCost) {
-      return 'Agency share cannot exceed the ticket cost.';
+      return 'Our share cannot exceed the ticket cost.';
     }
     return null;
   }

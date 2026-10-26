@@ -23,7 +23,9 @@ import '../flights/flight_detail_screen.dart';
 import '../flights/flight_form_screen.dart';
 import '../flights/flights_screen.dart';
 import '../flights/ticket_import_screen.dart';
+import '../flyers/flyer_detail_screen.dart';
 import '../flyers/flyer_form_screen.dart';
+import '../flyers/flyers_screen.dart';
 import '../intake/intake_screen.dart';
 import '../shipments/shipments_screen.dart';
 import '../tasks/tasks_screen.dart';
@@ -201,14 +203,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     ];
   }
 
-  /// Overdue bills, flights missing costs, the server's notices and this
-  /// month's bills, most urgent first.
+  /// Overdue bills, flights missing costs, the server's notices, this
+  /// month's bills and flyers missing documents, most urgent first.
   List<Widget> _attention(AdminOverview data) {
     final collect = data.collect;
     final overdue = <Widget>[];
     final costs = <Widget>[];
     final weights = <Widget>[];
     final bills = <Widget>[];
+    final documents = _missingDocs(data);
     final other = <Widget>[];
     if (collect != null && collect.overdueCount > 0) {
       overdue.add(AttentionRow(
@@ -296,7 +299,36 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               'Due from {n} customers'),
           onTap: () => _push(const GetPaidScreen(initialTab: 1))));
     }
-    return [...overdue, ...costs, ...weights, ...bills, ...other];
+    return [...overdue, ...costs, ...weights, ...bills, ...documents, ...other];
+  }
+
+  /// Up to three flyers missing travel documents, then how many more.
+  List<Widget> _missingDocs(AdminOverview data) {
+    final flyers = data.flyersMissingDocs;
+    if (flyers == null) return const [];
+    final total = data.flyersMissingDocsCount ?? flyers.length;
+    final shown = flyers.take(3).toList();
+    return [
+      for (final flyer in shown)
+        AttentionRow(
+            key: ValueKey('attention-docs-${flyer.name}'),
+            icon: Icons.badge_outlined,
+            title: tr('{name} is missing {documents}', {
+              'name': flyer.name,
+              'documents': _documentList(flyer.missing)
+            }),
+            detail: tr('Flyer documents'),
+            onTap: () => _push(FlyerDetailScreen(name: flyer.name))),
+      if (total > shown.length)
+        AttentionRow(
+            key: const Key('attention-docs-more'),
+            icon: Icons.groups_2_outlined,
+            title: trn(
+                total - shown.length,
+                '{n} more flyer is missing documents',
+                '{n} more flyers are missing documents'),
+            onTap: () => _push(const FlyersScreen())),
+    ];
   }
 
   /// The next flight first, then the one after it and any landed flight
@@ -411,6 +443,25 @@ class _BillNotice extends _Notice {
       required this.code,
       required this.amount});
   final String closes, name, code, amount;
+}
+
+/// "visa and admission letter" from the server's document kinds.
+String _documentList(List<String> kinds) {
+  final names = [
+    for (final kind in kinds)
+      switch (kind) {
+        'student_id' => tr('student ID'),
+        'visa' => tr('visa'),
+        'admission' => tr('admission letter'),
+        _ => kind.replaceAll('_', ' '),
+      }
+  ];
+  if (names.isEmpty) return tr('documents');
+  if (names.length == 1) return names.single;
+  return tr('{list} and {last}', {
+    'list': names.sublist(0, names.length - 1).join(', '),
+    'last': names.last
+  });
 }
 
 final _weightText =
