@@ -15,6 +15,7 @@ import 'bn_flow.dart';
 import 'bn_hub.dart';
 import 'bn_quick.dart';
 import 'bn_round5.dart';
+import 'bn_round6.dart';
 import 'bn_shared.dart';
 import 'bn_team_ui.dart';
 
@@ -31,5 +32,6 @@ final Map<String, String> bnStrings = {
   ...bnFlow,
   ...bnQuick,
   ...bnRound5,
+  ...bnRound6,
   ...bnCore,
 };

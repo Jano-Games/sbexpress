@@ -7,6 +7,7 @@ import '../../data/models/shipment.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/finance_parts.dart';
+import '../../widgets/remove_parts.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
@@ -27,9 +28,14 @@ class CustomersScreen extends StatefulWidget {
 
 class _CustomersScreenState extends State<CustomersScreen> {
   final _query = TextEditingController();
+
+  /// Active and archived customers together; the tabs split them. An older
+  /// server sends no archived ones.
   List<CustomerSummary> _rows = const [];
   String? _error;
   var _loading = true;
+  var _loaded = false;
+  var _tab = 0;
 
   @override
   void initState() {
@@ -51,9 +57,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
       _error = null;
     });
     try {
-      final rows = await AppScope.of(context).customers.list();
+      final rows =
+          await AppScope.of(context).customers.list(includeArchived: true);
       if (!mounted) return;
-      setState(() => _rows = rows);
+      setState(() {
+        _rows = rows;
+        _loaded = true;
+      });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
@@ -79,9 +89,19 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final archivedTab = _tab == 1;
+    final activeRows = [
+      for (final row in _rows)
+        if (!row.archived) row
+    ];
+    final archivedRows = [
+      for (final row in _rows)
+        if (row.archived) row
+    ];
+    final rows = archivedTab ? archivedRows : activeRows;
     final query = _query.text.trim().toLowerCase();
     final visible = [
-      for (final row in _rows)
+      for (final row in rows)
         if (query.isEmpty ||
             row.name.toLowerCase().contains(query) ||
             row.code.toLowerCase().contains(query) ||
@@ -90,15 +110,15 @@ class _CustomersScreenState extends State<CustomersScreen> {
     ];
     final owing = [
       for (final row in visible)
-        if (row.balance > 0) row
+        if (!archivedTab && row.balance > 0) row
     ];
     final settled = [
       for (final row in visible)
-        if (row.balance <= 0) row
+        if (!archivedTab && row.balance <= 0) row
     ];
-    final totalDue = _rows.fold<double>(
+    final totalDue = activeRows.fold<double>(
         0, (sum, row) => sum + (row.balance > 0 ? row.balance : 0));
-    final owingCount = _rows.where((row) => row.balance > 0).length;
+    final owingCount = activeRows.where((row) => row.balance > 0).length;
     return WorkspaceScaffold(
         title: tr('Customers'),
         subtitle: tr('Contacts, shipments and receivables'),
@@ -119,28 +139,58 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   icon: const Icon(Icons.add_rounded, size: 19),
                   label: Text(tr('New'))))
         ],
-        toolbar: SearchBox(
-            controller: _query,
-            hint: tr('Search name, code or phone'),
-            onChanged: (_) => setState(() {})),
+        toolbar: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SearchBox(
+                  controller: _query,
+                  hint: tr('Search name, code or phone'),
+                  onChanged: (_) => setState(() {})),
+              const SizedBox(height: 10),
+              ScreenTabs(
+                  key: const Key('customers-tabs'),
+                  labels: activeArchivedLabels(
+                      active: _loaded ? activeRows.length : null,
+                      archived: _loaded ? archivedRows.length : null),
+                  index: _tab,
+                  onChanged: (i) => setState(() => _tab = i)),
+            ]),
         children: [
           if (_loading) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-          if (_rows.isNotEmpty) ...[
+          if (!archivedTab && activeRows.isNotEmpty) ...[
             _ReceivablesSummary(
-                customers: _rows.length, owing: owingCount, totalDue: totalDue),
+                customers: activeRows.length,
+                owing: owingCount,
+                totalDue: totalDue),
             const SizedBox(height: 18),
           ],
-          if (!_loading && _error == null && _rows.isEmpty)
-            EmptyNote(
-                icon: Icons.storefront_outlined,
-                title: tr('No customers'),
-                body: tr('New customers you add will appear here.'))
-          else if (_rows.isNotEmpty && visible.isEmpty)
+          if (!_loading && _error == null && rows.isEmpty)
+            archivedTab
+                ? EmptyNote(
+                    icon: Icons.archive_outlined,
+                    title: tr('No archived customers'),
+                    body: tr(
+                        'Customers you archive appear here. Their history stays.'))
+                : EmptyNote(
+                    icon: Icons.storefront_outlined,
+                    title: tr('No customers'),
+                    body: tr('New customers you add will appear here.'))
+          else if (rows.isNotEmpty && visible.isEmpty)
             EmptyNote(
                 icon: Icons.search_off_rounded,
                 title: tr('No matching customers'),
                 body: tr('Try another name, code or phone.')),
+          if (archivedTab && visible.isNotEmpty) ...[
+            SectionTitle(
+                title: tr('Archived customers'),
+                action: _Count(visible.length)),
+            ListCard(children: [
+              for (final row in visible)
+                _CustomerRow(row: row, onOpen: () => _open(row)),
+            ]),
+          ],
           if (owing.isNotEmpty) ...[
             SectionTitle(title: tr('Owe money'), action: _Count(owing.length)),
             ListCard(children: [
@@ -233,7 +283,9 @@ class _CustomerRow extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(children: [
               InitialAvatar(
-                  name: row.name, tone: owes ? ChipTone.red : ChipTone.neutral),
+                  name: row.name,
+                  tone:
+                      owes && !row.archived ? ChipTone.red : ChipTone.neutral),
               const SizedBox(width: 12),
               Expanded(
                   child: SplitRow(
@@ -247,11 +299,18 @@ class _CustomerRow extends StatelessWidget {
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Text(row.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 15,
                                           height: 1.35,
-                                          fontWeight: FontWeight.w700)),
-                                  if (row.pricingPending > 0)
+                                          fontWeight: FontWeight.w700,
+                                          color: row.archived
+                                              ? AppColors.inkSoft
+                                              : AppColors.ink)),
+                                  if (row.archived)
+                                    StatusPill(
+                                        label: tr('Archived'),
+                                        tone: ChipTone.neutral)
+                                  else if (row.pricingPending > 0)
                                     StatusPill(
                                         label: tr('{n} to price',
                                             {'n': row.pricingPending}),
@@ -313,6 +372,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   CustomerDetail? _detail;
   String? _error;
   var _loading = true;
+  var _archiving = false;
+  var _deleting = false;
   var _tab = 0;
 
   @override
@@ -349,6 +410,44 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     if (mounted) await _load();
   }
 
+  /// Archiving asks first unless the operator already chose "Archive
+  /// instead"; restoring does not ask. An older server answers 404.
+  Future<void> _setArchived(bool archived, {bool confirm = true}) async {
+    final detail = _detail;
+    if (detail == null) return;
+    final customers = AppScope.of(context).customers;
+    final done = await changeArchived(context,
+        archived: archived,
+        name: detail.name,
+        confirm: confirm,
+        outdated:
+            tr('The server needs an update before customers can be archived.'),
+        send: () => customers.archive(detail.code, archived: archived),
+        onBusy: (busy) {
+          if (mounted) setState(() => _archiving = busy);
+        });
+    if (done && mounted) await _load();
+  }
+
+  /// The server refuses while the customer has shipments, credit or
+  /// statement links; the refusal offers to archive instead.
+  Future<void> _delete() async {
+    final detail = _detail;
+    if (detail == null) return;
+    final customers = AppScope.of(context).customers;
+    await confirmAndDelete(context,
+        title: tr('Delete customer'),
+        question: tr('Delete customer {name}? This cannot be undone.',
+            {'name': detail.name}),
+        refusedTitle: tr('This customer cannot be deleted'),
+        delete: () => customers.delete(detail.code),
+        archiveInstead:
+            detail.archived ? null : () => _setArchived(true, confirm: false),
+        onBusy: (busy) {
+          if (mounted) setState(() => _deleting = busy);
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
@@ -366,9 +465,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 child: Padding(
                     padding: const EdgeInsets.only(right: 16),
                     child: StatusPill(
-                        label: detail.terms == 'monthly'
-                            ? tr('Monthly terms')
-                            : tr('Instant terms'),
+                        label: detail.archived
+                            ? tr('Archived')
+                            : detail.terms == 'monthly'
+                                ? tr('Monthly terms')
+                                : tr('Instant terms'),
                         tone: ChipTone.neutral))),
         ],
         toolbar: ScreenTabs(labels: [
@@ -390,6 +491,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         children: [
           if (_loading && detail == null) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+          if (detail != null && detail.archived) ...[
+            ArchivedBanner(
+                archivedAt: detail.archivedAt,
+                restoreLabel: tr('Restore customer'),
+                busy: _archiving,
+                onRestore: () => _setArchived(false)),
+            const SizedBox(height: 14),
+          ],
           if (detail != null)
             ...switch (_tab) {
               0 => _summary(detail),
@@ -494,6 +603,15 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             onTap: () => _push(CustomerCreditScreen(
                 code: detail.code, name: detail.name, orders: detail.orders))),
       ]),
+      const SizedBox(height: 22),
+      ProfileEndActions(
+          archived: detail.archived,
+          archiveLabel: tr('Archive customer'),
+          deleteLabel: tr('Delete customer'),
+          archiving: _archiving,
+          deleting: _deleting,
+          onArchive: () => _setArchived(true),
+          onDelete: _delete),
     ];
   }
 

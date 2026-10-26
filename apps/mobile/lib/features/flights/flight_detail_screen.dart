@@ -10,6 +10,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
+import '../../widgets/remove_parts.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
@@ -32,6 +33,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
   FlightDetail? _detail;
   String? _error;
   var _loading = true;
+  var _deleting = false;
 
   @override
   void initState() {
@@ -65,6 +67,21 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) await _load();
+  }
+
+  /// The server refuses while the flight has bookings, a ticket cost or
+  /// payments, and says which.
+  Future<void> _delete(FlightSummary summary) {
+    final flights = AppScope.of(context).flights;
+    return confirmAndDelete(context,
+        title: tr('Delete flight'),
+        question: tr('Delete flight {code}? This cannot be undone.',
+            {'code': summary.displayCode}),
+        refusedTitle: tr('This flight cannot be deleted'),
+        delete: () => flights.delete(widget.code),
+        onBusy: (busy) {
+          if (mounted) setState(() => _deleting = busy);
+        });
   }
 
   @override
@@ -130,6 +147,12 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                         onTap: () =>
                             _push(AdminShipmentScreen(code: booking.code))),
                 ]),
+              const SizedBox(height: 24),
+              QuietDeleteButton(
+                  key: const Key('flight-delete'),
+                  label: tr('Delete flight'),
+                  busy: _deleting,
+                  onPressed: () => _delete(summary)),
             ],
           ],
         ),

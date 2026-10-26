@@ -16,6 +16,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/finance_parts.dart' show monthName;
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
+import '../../widgets/remove_parts.dart';
 import '../../widgets/ui.dart';
 import '../flights/flight_detail_screen.dart';
 import 'add_cost_sheet.dart';
@@ -40,6 +41,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
   String? _error;
   String? _link;
   var _loading = true;
+  var _deleting = false;
   var _tab = 0;
   PhotoUploadController? _photos;
 
@@ -151,6 +153,21 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
     if (mounted) await _load();
   }
 
+  /// The server refuses once the shipment has an invoice, payments, costs,
+  /// receipts or credit, and says which.
+  Future<void> _delete() {
+    final shipments = AppScope.of(context).shipments;
+    return confirmAndDelete(context,
+        title: tr('Delete shipment'),
+        question: tr('Delete shipment {code}? This cannot be undone.',
+            {'code': widget.code}),
+        refusedTitle: tr('This shipment cannot be deleted'),
+        delete: () => shipments.delete(widget.code),
+        onBusy: (busy) {
+          if (mounted) setState(() => _deleting = busy);
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
@@ -189,7 +206,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
         children: [
           if (_loading && detail == null) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-          if (detail != null && _tab == 0)
+          if (detail != null && _tab == 0) ...[
             _Summary(
                 detail: detail,
                 link: _link,
@@ -200,6 +217,13 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
                     : () => _openFlight(detail.flightCode!),
                 onAddCost: (category) => _addCost(detail, category),
                 onOpenCosts: _openCosts),
+            const SizedBox(height: 20),
+            QuietDeleteButton(
+                key: const Key('shipment-delete'),
+                label: tr('Delete shipment'),
+                busy: _deleting,
+                onPressed: _delete),
+          ],
           if (detail != null && _tab == 1) ...[
             _DueHero(detail: detail),
             const SizedBox(height: 12),

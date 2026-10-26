@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/data_changes.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/hub_flight.dart';
 import '../../l10n/l10n.dart';
@@ -32,9 +33,21 @@ class _FlightsScreenState extends State<FlightsScreen> {
   @override
   void initState() {
     super.initState();
+    dataChanges.addListener(_onDataChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
+  }
+
+  @override
+  void dispose() {
+    dataChanges.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  /// A flight was deleted on another screen.
+  void _onDataChanged() {
+    if (mounted) _load();
   }
 
   Future<void> _load() async {

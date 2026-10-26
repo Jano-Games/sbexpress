@@ -5,6 +5,8 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/flyer.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/finance_parts.dart' show localTime, shortDate;
+import '../../widgets/remove_parts.dart';
 import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import 'flyer_detail_screen.dart';
@@ -19,9 +21,13 @@ class FlyersScreen extends StatefulWidget {
 
 class _FlyersScreenState extends State<FlyersScreen> {
   final _query = TextEditingController();
+
+  /// Active and archived flyers together; the tabs split them.
   List<FlyerSummary> _rows = const [];
   String? _error;
   var _loading = true;
+  var _loaded = false;
+  var _tab = 0;
 
   @override
   void initState() {
@@ -43,9 +49,13 @@ class _FlyersScreenState extends State<FlyersScreen> {
       _error = null;
     });
     try {
-      final rows = await AppScope.of(context).flyers.list();
+      final rows =
+          await AppScope.of(context).flyers.list(includeArchived: true);
       if (!mounted) return;
-      setState(() => _rows = rows);
+      setState(() {
+        _rows = rows;
+        _loaded = true;
+      });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
@@ -71,9 +81,19 @@ class _FlyersScreenState extends State<FlyersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final archivedTab = _tab == 1;
+    final activeRows = [
+      for (final row in _rows)
+        if (!row.archived) row
+    ];
+    final archivedRows = [
+      for (final row in _rows)
+        if (row.archived) row
+    ];
+    final rows = archivedTab ? archivedRows : activeRows;
     final query = _query.text.trim().toLowerCase();
     final visible = [
-      for (final row in _rows)
+      for (final row in rows)
         if (query.isEmpty ||
             row.name.toLowerCase().contains(query) ||
             row.bdPhone.toLowerCase().contains(query) ||
@@ -81,8 +101,8 @@ class _FlyersScreenState extends State<FlyersScreen> {
             row.university.toLowerCase().contains(query))
           row,
     ];
-    final active = _rows.where((row) => !row.archived).length;
-    final pending = _rows.where((row) => !row.archived && !docsVerified(row));
+    final active = activeRows.length;
+    final pending = activeRows.where((row) => !docsVerified(row));
     return WorkspaceScaffold(
         title: tr('Flyers'),
         subtitle: tr('Profiles and travel documents'),
@@ -93,26 +113,39 @@ class _FlyersScreenState extends State<FlyersScreen> {
               padding: const EdgeInsets.only(right: 12),
               child: BarPillButton(label: tr('New'), onPressed: _create)),
         ],
-        toolbar: TextField(
-          controller: _query,
-          onChanged: (_) => setState(() {}),
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-              hintText: tr('Search name, phone or university'),
-              fillColor: AppColors.paper,
-              enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.line)),
-              focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 2)),
-              prefixIcon: const Icon(Icons.search_rounded)),
-        ),
+        toolbar: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _query,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                    hintText: tr('Search name, phone or university'),
+                    fillColor: AppColors.paper,
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: AppColors.line)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                            color: AppColors.primary, width: 2)),
+                    prefixIcon: const Icon(Icons.search_rounded)),
+              ),
+              const SizedBox(height: 10),
+              ScreenTabs(
+                  key: const Key('flyers-tabs'),
+                  labels: activeArchivedLabels(
+                      active: _loaded ? activeRows.length : null,
+                      archived: _loaded ? archivedRows.length : null),
+                  index: _tab,
+                  onChanged: (i) => setState(() => _tab = i)),
+            ]),
         children: [
           if (_loading && _rows.isEmpty) const LinearProgressIndicator(),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-          if (_rows.isNotEmpty) ...[
+          if (!archivedTab && activeRows.isNotEmpty) ...[
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                   child: _SummaryTile(
@@ -129,14 +162,20 @@ class _FlyersScreenState extends State<FlyersScreen> {
             ]),
             const SizedBox(height: 18),
           ],
-          if (!_loading && _error == null && _rows.isEmpty)
-            EmptyNote(
-                icon: Icons.badge_outlined,
-                title: tr('No flyers'),
-                body: tr('New profiles will appear here.'))
-          else if (_rows.isNotEmpty) ...[
+          if (!_loading && _error == null && rows.isEmpty)
+            archivedTab
+                ? EmptyNote(
+                    icon: Icons.archive_outlined,
+                    title: tr('No archived flyers'),
+                    body: tr(
+                        'Flyers you archive appear here. Their history stays.'))
+                : EmptyNote(
+                    icon: Icons.badge_outlined,
+                    title: tr('No flyers'),
+                    body: tr('New profiles will appear here.'))
+          else if (rows.isNotEmpty) ...[
             SectionTitle(
-                title: tr('All flyers'),
+                title: archivedTab ? tr('Archived flyers') : tr('All flyers'),
                 action: SectionCount(
                     trn(visible.length, '{n} profile', '{n} profiles'))),
             if (visible.isEmpty)
@@ -149,10 +188,12 @@ class _FlyersScreenState extends State<FlyersScreen> {
                 for (final row in visible)
                   _FlyerRow(row: row, onTap: () => _open(row)),
               ]),
-            const SizedBox(height: 14),
-            TipNote(
-                text: tr(
-                    'A flyer counts as verified once the student ID and visa are both checked. Open a profile to verify files.')),
+            if (!archivedTab) ...[
+              const SizedBox(height: 14),
+              TipNote(
+                  text: tr(
+                      'A flyer counts as verified once the student ID and visa are both checked. Open a profile to verify files.')),
+            ],
           ],
         ]);
   }
@@ -224,6 +265,8 @@ class _FlyerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final verified = docsVerified(row);
+    final archivedOn =
+        row.archivedAt == null ? null : localTime(row.archivedAt!);
     final detail = [
       if (row.bdPhone.isNotEmpty) row.bdPhone,
       if (row.university.isNotEmpty) row.university,
@@ -234,7 +277,7 @@ class _FlyerRow extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(children: [
               InitialsAvatar(row.name,
-                  tone: row.documentCount == 0
+                  tone: row.archived || row.documentCount == 0
                       ? AvatarTone.muted
                       : AvatarTone.soft),
               const SizedBox(width: 12),
@@ -248,9 +291,12 @@ class _FlyerRow extends StatelessWidget {
                                   child: Text(row.name,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 15,
-                                          fontWeight: FontWeight.w700))),
+                                          fontWeight: FontWeight.w700,
+                                          color: row.archived
+                                              ? AppColors.inkSoft
+                                              : AppColors.ink))),
                               const SizedBox(width: 8),
                               ConstrainedBox(
                                   constraints: BoxConstraints(
@@ -276,7 +322,21 @@ class _FlyerRow extends StatelessWidget {
                               fontSize: 13, color: AppColors.muted)),
                     ],
                     const SizedBox(height: 6),
-                    if (row.documentCount == 0)
+                    if (row.archived)
+                      Row(children: [
+                        const Icon(Icons.archive_outlined,
+                            size: 15, color: AppColors.muted),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: Text(
+                                archivedOn == null
+                                    ? tr('Archived')
+                                    : tr('Archived {date}',
+                                        {'date': shortDate(archivedOn)}),
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.muted))),
+                      ])
+                    else if (row.documentCount == 0)
                       Row(children: [
                         const Icon(Icons.upload_rounded,
                             size: 15, color: AppColors.accentInk),

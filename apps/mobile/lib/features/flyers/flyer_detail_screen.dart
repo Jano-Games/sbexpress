@@ -16,6 +16,7 @@ import '../../data/uploads/upload_queue.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/quick_parts.dart' show QueuedFilesCard;
+import '../../widgets/remove_parts.dart';
 import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import '../flights/flight_detail_screen.dart';
@@ -42,6 +43,8 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
   String? _error;
   var _loading = true;
   var _busy = false;
+  var _archiving = false;
+  var _deleting = false;
   var _kind = 'student_id';
   PhotoUploadController? _photos;
 
@@ -112,21 +115,46 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     }
   }
 
-  Future<void> _archive() async {
+  /// Archiving asks first unless the operator already chose "Archive
+  /// instead"; restoring does not ask.
+  Future<void> _setArchived(bool archived, {bool confirm = true}) async {
     final flyer = _flyer;
     if (flyer == null) return;
-    setState(() => _busy = true);
-    try {
-      await AppScope.of(context)
-          .flyers
-          .archive(flyer.name, archived: !flyer.archived);
-      await _load();
-    } on ApiException catch (error) {
-      if (!mounted || error.status == 401) return;
-      setState(() => _error = error.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    final flyers = AppScope.of(context).flyers;
+    final done = await changeArchived(context,
+        archived: archived,
+        name: flyer.name,
+        confirm: confirm,
+        send: () => flyers.archive(flyer.name, archived: archived),
+        onBusy: (busy) {
+          if (mounted) setState(() => _archiving = busy);
+        });
+    if (done && mounted) await _load();
+  }
+
+  /// The server refuses while the flyer has flights, shipments, payments or
+  /// stored documents; the refusal offers to archive instead.
+  Future<void> _delete() async {
+    final flyer = _flyer;
+    if (flyer == null) return;
+    final flyers = AppScope.of(context).flyers;
+    await confirmAndDelete(context,
+        title: tr('Delete flyer'),
+        question: tr('Delete flyer {name}? This cannot be undone.',
+            {'name': flyer.name}),
+        refusedTitle: tr('This flyer cannot be deleted'),
+        delete: () => flyers.delete(flyer.name),
+        archiveInstead:
+            flyer.archived ? null : () => _setArchived(true, confirm: false),
+        onBusy: (busy) {
+          if (mounted) setState(() => _deleting = busy);
+        });
+  }
+
+  Future<void> _openFlight(String code) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => FlightDetailScreen(code: code)));
+    if (mounted) await _load();
   }
 
   Future<void> _verify(FlyerDocument document, bool verified) async {
@@ -253,6 +281,14 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
         if (_loading && flyer == null) const LinearProgressIndicator(),
         if (_error != null) ErrorNote(message: _error!, onRetry: _load),
         if (flyer != null) ...[
+          if (flyer.archived) ...[
+            ArchivedBanner(
+                archivedAt: flyer.archivedAt,
+                restoreLabel: tr('Restore flyer'),
+                busy: _archiving,
+                onRestore: () => _setArchived(false)),
+            const SizedBox(height: 14),
+          ],
           _ProfileCard(flyer: flyer),
           const SizedBox(height: 22),
           SectionTitle(title: tr('Contact')),
@@ -284,37 +320,17 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
             SurfaceGroup(children: [
               for (final flight in flyer.flights)
                 _FlightRow(
-                    flight: flight,
-                    onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                            builder: (_) =>
-                                FlightDetailScreen(code: flight.code)))),
+                    flight: flight, onTap: () => _openFlight(flight.code)),
             ]),
           const SizedBox(height: 22),
-          if (flyer.archived)
-            AppButton(
-                label: tr('Reactivate flyer'),
-                icon: Icons.unarchive_outlined,
-                kind: AppButtonKind.teal,
-                busy: _busy,
-                onPressed: _archive)
-          else
-            AppButton(
-                label: tr('Archive flyer'),
-                icon: Icons.archive_outlined,
-                kind: AppButtonKind.danger,
-                busy: _busy,
-                onPressed: _archive),
-          const SizedBox(height: 8),
-          Text(
-              flyer.archived
-                  ? tr(
-                      'This flyer is archived. Reactivate to show this flyer in the list again.')
-                  : tr(
-                      'Archived flyers leave the list. You can reactivate them.'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.muted, height: 1.45)),
+          ProfileEndActions(
+              archived: flyer.archived,
+              archiveLabel: tr('Archive flyer'),
+              deleteLabel: tr('Delete flyer'),
+              archiving: _archiving,
+              deleting: _deleting,
+              onArchive: () => _setArchived(true),
+              onDelete: _delete),
         ],
       ],
     );
@@ -484,7 +500,9 @@ class _ProfileCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            InitialsAvatar(flyer.name, size: 56, tone: AvatarTone.filled),
+            InitialsAvatar(flyer.name,
+                size: 56,
+                tone: flyer.archived ? AvatarTone.muted : AvatarTone.filled),
             const SizedBox(width: 14),
             Expanded(
                 child: Column(

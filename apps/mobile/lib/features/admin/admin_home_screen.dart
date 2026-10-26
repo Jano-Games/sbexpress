@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/data_changes.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/session_user.dart';
@@ -57,7 +58,19 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
+    dataChanges.addListener(_onDataChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    dataChanges.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  /// Something was deleted, archived or restored on another screen.
+  void _onDataChanged() {
+    if (mounted) _load();
   }
 
   Future<void> _load() async {

@@ -38,6 +38,12 @@ class ShipmentRepository {
         asJsonMap(json['shipment'], 'shipment'));
   }
 
+  /// Refused with a 400 once the shipment has an invoice, payments, costs,
+  /// receipts or credit.
+  Future<void> delete(String code) async {
+    await api.deleteJson(_path(code));
+  }
+
   Future<void> advance(String code) => api.postJson('${_path(code)}/advance');
 
   Future<void> weigh(String code, double kg) =>

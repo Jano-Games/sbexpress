@@ -39,6 +39,7 @@ function summary(x: SupplierFull) {
     phone: x.phone,
     address: x.address,
     terms: x.terms,
+    archivedAt: x.archivedAt?.toISOString() ?? null,
     orderCount: x.shipments.length,
     deliveredCount: x.shipments.filter((s) => s.status === 'delivered').length,
     shippedKg:
@@ -75,7 +76,9 @@ export async function buildStatement(code: string, month: string) {
 
 export const supplierRoutes = new Hono<AppEnv>()
   .get('/', requireRole('admin'), async (c) => {
-    const suppliers = await prisma.supplier.findMany({ include: INCLUDE, orderBy: { createdAt: 'asc' } })
+    // Archived customers stay out of lists and pickers unless asked for.
+    const where = c.req.query('includeArchived') === '1' ? {} : { archivedAt: null }
+    const suppliers = await prisma.supplier.findMany({ where, include: INCLUDE, orderBy: { createdAt: 'asc' } })
     return c.json({ suppliers: suppliers.map(summary) })
   })
 
@@ -128,6 +131,15 @@ export const supplierRoutes = new Hono<AppEnv>()
       data: { ...body, terms: body.terms as SupplierTerms | undefined },
     })
     return c.json({ code: updated.code })
+  })
+
+  /** Hide a customer who has history (or bring them back); nothing is removed. */
+  .post('/:code/archive', requireRole('admin'), async (c) => {
+    const { archived } = z.object({ archived: z.boolean() }).parse(await c.req.json())
+    const supplier = await prisma.supplier.findUnique({ where: { code: c.req.param('code')! } })
+    if (!supplier) throw notFound('Customer not found')
+    await prisma.supplier.update({ where: { id: supplier.id }, data: { archivedAt: archived ? new Date() : null } })
+    return c.json({ ok: true, archived })
   })
 
   .delete('/:code', requireRole('admin'), async (c) => {

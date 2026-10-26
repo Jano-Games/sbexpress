@@ -558,7 +558,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
   })
   it('stores a digest and encrypted token without exposing database ids', async () => {
     const link=await call('/shipments/SH-AUDIT/track-link','POST',{scope:'invoice'})
-    expect(link.status).toBe(201); expect(link.data.token).toHaveLength(43)
+    expect(link.status).toBe(201); expect(link.data.token).toHaveLength(22)
     const stored=await prisma.publicLink.findFirst()
     expect(stored.tokenHash).not.toBe(link.data.token)
     const page=await call(`/track/${link.data.token}`,'GET',undefined,'public')
@@ -1460,7 +1460,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
     expect(await prisma.invoice.count()).toBe(0)
     const link=await prisma.publicLink.findFirst()
     expect(link.scope).toBe('tracking_only')
-    expect(created.data.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(created.data.token).toMatch(/^[A-Za-z0-9_-]{22}$/)
     expect(Buffer.from(created.data.token,'base64url')).toHaveLength(32)
     expect(new URL(created.data.url).pathname).toBe('/t/'+created.data.token)
     expect(link.tokenHash).not.toBe(created.data.token)

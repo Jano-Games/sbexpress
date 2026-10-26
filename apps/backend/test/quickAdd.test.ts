@@ -7,7 +7,7 @@ vi.hoisted(() => {
   process.env.REDIS_URL ??= 'redis://localhost:6379'
 })
 const db = vi.hoisted(() => ({
-  supplier: { findMany: vi.fn() },
+  supplier: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   shipment: { findUnique: vi.fn() },
   shipmentMedia: { count: vi.fn(), create: vi.fn(), findMany: vi.fn() },
 }))
@@ -90,5 +90,31 @@ describe('Device photos', () => {
     })
     expect(response.status).toBe(201)
     expect(db.shipmentMedia.create.mock.calls[0]![0].data).toMatchObject({ purpose: 'general', deviceKey: null })
+  })
+})
+
+describe('Customer archive', () => {
+  it('hides archived customers from the list unless asked for', async () => {
+    db.supplier.findMany.mockResolvedValue([])
+    const app = appFor('admin', supplierRoutes)
+    await app.request('/')
+    expect(db.supplier.findMany.mock.calls[0]![0]).toMatchObject({ where: { archivedAt: null } })
+    await app.request('/?includeArchived=1')
+    expect(db.supplier.findMany.mock.calls[1]![0]).toMatchObject({ where: {} })
+  })
+
+  it('archives and restores a customer without deleting anything', async () => {
+    db.supplier.findUnique.mockResolvedValue({ id: 'sup-1', code: 'SUP-001', archivedAt: null })
+    const app = appFor('admin', supplierRoutes)
+    const archive = await app.request('/SUP-001/archive', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ archived: true }) })
+    expect(archive.status).toBe(200)
+    expect(db.supplier.update.mock.calls[0]![0]).toMatchObject({ where: { id: 'sup-1' }, data: { archivedAt: expect.any(Date) } })
+    await app.request('/SUP-001/archive', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ archived: false }) })
+    expect(db.supplier.update.mock.calls[1]![0]).toMatchObject({ data: { archivedAt: null } })
+  })
+
+  it('is admin only', async () => {
+    const response = await appFor('hub', supplierRoutes).request('/SUP-001/archive', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ archived: true }) })
+    expect(response.status).toBe(403)
   })
 })

@@ -146,6 +146,12 @@ void main() {
         scrollable: find.byType(Scrollable).first);
     expect(find.text('BG147'), findsOneWidget);
     await _tap(t, find.text(tr('Archive flyer')));
+    // Archiving asks first and says what it does.
+    expect(sent.last.call, isNot('POST /api/flyers/Arif Rahman/archive'));
+    expect(find.text(tr('Archive {name}?', {'name': 'Arif Rahman'})),
+        findsOneWidget);
+    await t.tap(find.byKey(const Key('remove-confirm')));
+    await t.pumpAndSettle();
     expect(sent.last.call, 'POST /api/flyers/Arif Rahman/archive');
     expect(sent.last.body, {'archived': true});
     expect(t.takeException(), isNull);

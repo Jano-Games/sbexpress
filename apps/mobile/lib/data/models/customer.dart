@@ -17,6 +17,7 @@ class CustomerSummary {
     required this.creditBalance,
     required this.pricingPending,
     required this.discountTotal,
+    this.archivedAt,
   });
 
   final String code;
@@ -34,6 +35,12 @@ class CustomerSummary {
   final int pricingPending;
   final double discountTotal;
 
+  /// When the customer was archived; null while active and on an older
+  /// server, which does not send it.
+  final String? archivedAt;
+
+  bool get archived => archivedAt != null;
+
   factory CustomerSummary.fromJson(Map<String, Object?> json) {
     return CustomerSummary(
       code: requiredString(json, 'code'),
@@ -50,6 +57,7 @@ class CustomerSummary {
       creditBalance: requiredDouble(json, 'creditBalance'),
       pricingPending: requiredInt(json, 'pricingPending'),
       discountTotal: requiredDouble(json, 'discountTotal'),
+      archivedAt: optionalString(json, 'archivedAt'),
     );
   }
 }
@@ -118,6 +126,7 @@ class CustomerDetail extends CustomerSummary {
     required super.creditBalance,
     required super.pricingPending,
     required super.discountTotal,
+    super.archivedAt,
     required this.orders,
     required this.payments,
     required this.invoices,
@@ -144,6 +153,7 @@ class CustomerDetail extends CustomerSummary {
       creditBalance: base.creditBalance,
       pricingPending: base.pricingPending,
       discountTotal: base.discountTotal,
+      archivedAt: base.archivedAt,
       orders: [
         for (final row in requiredMapList(json, 'orders'))
           AdminShipment.fromJson(row)

@@ -26,6 +26,12 @@ class FlightRepository {
     return FlightDetail.fromJson(asJsonMap(json['flight'], 'flight'));
   }
 
+  /// Refused with a 400 while the flight has bookings, a ticket cost or
+  /// payments.
+  Future<void> delete(String code) async {
+    await api.deleteJson(_path(code));
+  }
+
   /// Reads an e-ticket PDF into flight drafts; the file is not stored.
   Future<TicketImport> readTicket(List<int> pdfBytes) async {
     final json = await api.postJson('/api/flights/ticket',

@@ -42,17 +42,7 @@ ApiClient screenFixtureApi(
             headers: {'content-type': 'application/json'});
       }
       if (path == '/api/suppliers/C-14') {
-        return http.Response(
-            jsonEncode({
-              'supplier': {
-                ...Map<String, Object?>.from(
-                    (_customersBody()['suppliers'] as List).first as Map),
-                'orders': _overviewBody()['activeShipments'],
-                'payments': [],
-                'invoices': [],
-              }
-            }),
-            200);
+        return http.Response(jsonEncode(customerDetailBody()), 200);
       }
       if (path.endsWith('/media')) {
         return http.Response(
@@ -760,6 +750,19 @@ Map<String, Object?> _flightDetailFull() {
   });
   return {'flight': flight};
 }
+
+/// `GET /api/suppliers/C-14`. [archivedAt] marks Nila Store archived; an
+/// older server sends no `archivedAt` at all.
+Map<String, Object?> customerDetailBody({String? archivedAt}) => {
+      'supplier': {
+        ...Map<String, Object?>.from(
+            (_customersBody()['suppliers'] as List).first as Map),
+        if (archivedAt != null) 'archivedAt': archivedAt,
+        'orders': _overviewBody()['activeShipments'],
+        'payments': [],
+        'invoices': [],
+      }
+    };
 
 Map<String, Object?> _customersBody() => {
       'suppliers': [

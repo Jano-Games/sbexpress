@@ -150,6 +150,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
 
     const supplier = await prisma.supplier.findUnique({ where: { code: body.supplierCode } })
     if (!supplier) throw badRequest(`Unknown customer ${body.supplierCode}`)
+    if (supplier.archivedAt) throw badRequest(`${supplier.code} is archived — restore the customer first`)
     const flight = body.flightCode ? await prisma.flight.findUnique({ where: { code: body.flightCode }, include: {flyers:{include:{flyer:true}}} }) : null
     if (body.flightCode && !flight) throw badRequest(`Unknown flight ${body.flightCode}`)
     if(flight && flight.status!=='upcoming')throw badRequest('Choose an upcoming flight')
@@ -234,6 +235,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
     if (body.supplierCode !== undefined && body.supplierCode !== shipment.supplier.code) {
       const supplier = await prisma.supplier.findUnique({ where: { code: body.supplierCode } })
       if (!supplier) throw badRequest(`Unknown customer ${body.supplierCode}`)
+      if (supplier.archivedAt) throw badRequest(`${supplier.code} is archived — restore the customer first`)
       data.supplierId = supplier.id
       changed.push(`supplier → ${supplier.code}`)
     }

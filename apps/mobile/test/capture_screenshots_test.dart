@@ -313,6 +313,7 @@ void main() {
     await _flowShots(tester, scope);
     await _quickShots(tester, scope);
     await _round5Shots(tester, scope);
+    await _round6Shots(tester, scope);
     await _shot(
         tester,
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
@@ -417,6 +418,7 @@ void main() {
     }
     await _flowCompactShots(tester, scope);
     await _round5Shots(tester, scope, compact: true);
+    await _round6Shots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
     await _shot(
         tester,
@@ -593,6 +595,231 @@ Future<void> _round5Shots(WidgetTester tester, AppScope scope,
   await tester.tap(find.byKey(const Key('intake-new-category')));
   await tester.pumpAndSettle();
   await _saveShot(tester, '$prefix-h-booking-new-category');
+}
+
+/// Round 6: the quiet delete on flights, shipments, flyers and customers,
+/// its confirm and the server's refusal (with "Archive instead" for
+/// profiles), archived profiles with Restore, the Active / Archived lists and
+/// an older server that cannot archive customers. [compact] saves the 320 px
+/// versions and checks each for overflow.
+Future<void> _round6Shots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r6' : '70';
+  final r6 = _round6Scope(scope);
+
+  /// Scrolls to the end, checking nothing overflows on the way.
+  Future<void> toEnd(String name) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$name $i');
+    }
+    await _saveShot(tester, name);
+  }
+
+  Future<void> tapShot(Key key, String name) async {
+    await tester.ensureVisible(find.byKey(key));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(key));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: name);
+    await _saveShot(tester, name);
+  }
+
+  /// "Go back" or "Close" in the open dialog.
+  Future<void> closeDialog() async {
+    await tester.tap(find
+        .descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextButton))
+        .first);
+    await tester.pumpAndSettle();
+  }
+
+  // A flight: the delete at the end, its confirm and the refusal.
+  await _shot(
+      tester,
+      _scoped(r6, const FlightDetailScreen(code: 'BG305-20261021-ab12cd')),
+      '$prefix-a-flight-delete',
+      find.byType(FlightDetailScreen));
+  await toEnd('$prefix-a-flight-delete');
+  await tapShot(const Key('flight-delete'), '$prefix-b-flight-delete-confirm');
+  await tapShot(const Key('remove-confirm'), '$prefix-c-flight-delete-refused');
+  await closeDialog();
+
+  // A shipment: the delete at the end of Summary.
+  await _shot(tester, _scoped(r6, const AdminShipmentScreen(code: 'SH-18')),
+      '$prefix-d-shipment-delete', find.byType(AdminShipmentScreen));
+  await toEnd('$prefix-d-shipment-delete');
+  await tapShot(
+      const Key('shipment-delete'), '$prefix-e-shipment-delete-confirm');
+  await closeDialog();
+
+  // A flyer: archive and delete; a refused delete offers to archive.
+  await _shot(tester, _scoped(r6, const FlyerDetailScreen(name: 'Arif Rahman')),
+      '$prefix-f-flyer-end', find.byType(FlyerDetailScreen));
+  await toEnd('$prefix-f-flyer-end');
+  await tapShot(
+      const Key('profile-archive'), '$prefix-g-flyer-archive-confirm');
+  await closeDialog();
+  await tapShot(const Key('profile-delete'), '$prefix-h-flyer-delete-confirm');
+  await tapShot(const Key('remove-confirm'), '$prefix-i-flyer-delete-refused');
+  await closeDialog();
+
+  // An archived flyer: the chip and Restore.
+  await _shot(tester, _scoped(r6, const FlyerDetailScreen(name: 'Nadia Islam')),
+      '$prefix-j-flyer-archived', find.byType(FlyerDetailScreen));
+  await toEnd('$prefix-j-flyer-archived-end');
+
+  // The flyers list: Active, then Archived.
+  await _shot(tester, _scoped(r6, const FlyersScreen()),
+      '$prefix-k-flyers-active', find.byType(FlyersScreen));
+  await tester.tap(find.text(tr('Archived · {n}', {'n': 1})));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-l-flyers-archived');
+
+  // A customer: archive and delete at the end of Summary.
+  await _shot(tester, _scoped(r6, const CustomerDetailScreen(code: 'C-14')),
+      '$prefix-m-customer-end', find.byType(CustomerDetailScreen));
+  await toEnd('$prefix-m-customer-end');
+  await tapShot(
+      const Key('profile-archive'), '$prefix-n-customer-archive-confirm');
+  await closeDialog();
+  await tapShot(
+      const Key('profile-delete'), '$prefix-o-customer-delete-confirm');
+  await tapShot(
+      const Key('remove-confirm'), '$prefix-p-customer-delete-refused');
+  await closeDialog();
+
+  // An archived customer: the chip in the header and Restore.
+  await _shot(tester, _scoped(r6, const CustomerDetailScreen(code: 'C-31')),
+      '$prefix-q-customer-archived', find.byType(CustomerDetailScreen));
+  await toEnd('$prefix-q-customer-archived-end');
+
+  // The customers list: Active, then Archived.
+  await _shot(tester, _scoped(r6, const CustomersScreen()),
+      '$prefix-r-customers-active', find.byType(CustomersScreen));
+  await tester.tap(find.text(tr('Archived · {n}', {'n': 1})));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-s-customers-archived');
+
+  // An older server answers 404 to the customer archive.
+  await _shot(
+      tester,
+      _scoped(_round6Scope(scope, outdated: true),
+          const CustomerDetailScreen(code: 'C-14')),
+      '$prefix-t-customer-archive-outdated',
+      find.byType(CustomerDetailScreen));
+  await toEnd('$prefix-t-customer-archive-outdated');
+  await tester.tap(find.byKey(const Key('profile-archive')));
+  await tester.pumpAndSettle();
+  await tapShot(
+      const Key('remove-confirm'), '$prefix-t-customer-archive-outdated');
+  await closeDialog();
+}
+
+const _r6ArchivedAt = '2026-10-20T08:00:00.000Z';
+
+/// The fixtures plus an archived flyer (Nadia Islam) and customer (Sky
+/// Mobile, C-31). Every delete is refused as the server would; [outdated]
+/// answers archive calls with 404 like an older server.
+AppScope _round6Scope(AppScope source, {bool outdated = false}) {
+  Map<String, Object?> customer(String code, String name,
+      {bool settled = true, String? archivedAt}) {
+    final row = Map<String, Object?>.from(
+        customerDetailBody()['supplier'] as Map<String, Object?>)
+      ..remove('orders')
+      ..remove('payments')
+      ..remove('invoices');
+    return {
+      ...row,
+      'code': code,
+      'name': name,
+      if (settled) ...{
+        'balance': 0,
+        'billed': row['paid'],
+        'pricingPending': 0,
+      },
+      'archivedAt': archivedAt,
+    };
+  }
+
+  final ApiClient api = screenFixtureApi(intercept: (request) async {
+    final path = Uri.decodeComponent(request.url.path);
+    Object? body;
+    var status = 200;
+    if (request.method == 'DELETE') {
+      status = 400;
+      body = {
+        'error': path.startsWith('/api/flights/')
+            ? 'BG305-20261021-ab12cd has 2 booking(s) — move or delete them first'
+            : path.startsWith('/api/shipments/')
+                ? 'Financial history exists; this shipment cannot be deleted'
+                : path.startsWith('/api/flyers/')
+                    ? 'This flyer has shipment or settlement history. Archive the profile instead.'
+                    : 'C-14 has 4 shipment(s) — delete or reassign them first'
+      };
+    } else if (request.method == 'POST' && path.endsWith('/archive')) {
+      if (outdated) return http.Response('404 Not Found', 404);
+      body = {'ok': true};
+    } else if (path == '/api/flyers') {
+      body = {
+        'flyers': [
+          ...teamFlyers(),
+          {
+            ...teamFlyers().last,
+            'name': 'Nadia Islam',
+            'firstName': 'Nadia',
+            'lastName': 'Islam',
+            'archivedAt': _r6ArchivedAt,
+          },
+        ]
+      };
+    } else if (path == '/api/flyers/Nadia Islam') {
+      body = {
+        'flyer': {
+          ...teamFlyerDetail(),
+          'name': 'Nadia Islam',
+          'firstName': 'Nadia',
+          'lastName': 'Islam',
+          'archivedAt': _r6ArchivedAt,
+        }
+      };
+    } else if (path == '/api/suppliers') {
+      body = {
+        'suppliers': [
+          customer('C-14', 'Nila Store', settled: false),
+          customer('C-15', 'Rahman Traders'),
+          customer('C-31', 'Sky Mobile', archivedAt: _r6ArchivedAt),
+        ]
+      };
+    } else if (path == '/api/suppliers/C-31') {
+      final detail = customerDetailBody(archivedAt: _r6ArchivedAt);
+      body = {
+        'supplier': {
+          ...detail['supplier'] as Map<String, Object?>,
+          'code': 'C-31',
+          'name': 'Sky Mobile',
+        }
+      };
+    }
+    if (body == null) return teamFixtures(request);
+    return http.Response.bytes(utf8.encode(jsonEncode(body)), status,
+        headers: {'content-type': 'application/json; charset=utf-8'});
+  });
+  return AppScope(
+    session: source.session,
+    shipments: ShipmentRepository(api),
+    dashboard: DashboardRepository(api),
+    tasks: TaskRepository(api),
+    review: ReviewRepository(api),
+    media: MediaRepository(api),
+    flights: FlightRepository(api),
+    flyers: FlyerRepository(api),
+    customers: CustomerRepository(api),
+    finance: FinanceRepository(api),
+    settings: SettingsRepository(api),
+    child: const SizedBox.shrink(),
+  );
 }
 
 /// The same session on an API that also answers with the team fixtures.

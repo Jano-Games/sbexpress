@@ -11,8 +11,12 @@ class CustomerRepository {
 
   final ApiClient api;
 
-  Future<List<CustomerSummary>> list() async {
-    final json = await api.getJson('/api/suppliers');
+  /// Active customers. [includeArchived] adds the archived ones; an older
+  /// server ignores it and has no archived customers.
+  Future<List<CustomerSummary>> list({bool includeArchived = false}) async {
+    final json = await api.getJson(includeArchived
+        ? '/api/suppliers?includeArchived=1'
+        : '/api/suppliers');
     return [
       for (final row in requiredMapList(json, 'suppliers'))
         CustomerSummary.fromJson(row)
@@ -22,6 +26,18 @@ class CustomerRepository {
   Future<CustomerDetail> detail(String code) async {
     final json = await api.getJson(_path(code));
     return CustomerDetail.fromJson(asJsonMap(json['supplier'], 'supplier'));
+  }
+
+  /// Hides the customer from lists and new bookings, or brings them back.
+  /// An older server answers 404.
+  Future<void> archive(String code, {required bool archived}) async {
+    await api.postJson('${_path(code)}/archive', body: {'archived': archived});
+  }
+
+  /// Refused with a 400 while the customer has shipments, credit or
+  /// statement links.
+  Future<void> delete(String code) async {
+    await api.deleteJson(_path(code));
   }
 
   /// The code the next new customer gets. Older servers answer 404.
