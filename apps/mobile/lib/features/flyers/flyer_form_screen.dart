@@ -19,6 +19,10 @@ import 'flyer_detail_screen.dart';
 
 /// New flyer: profile and travel documents in one go. The documents are
 /// sent right after the flyer is saved, then the flyer's page opens.
+///
+/// With [editing] it changes that flyer's details instead and pops with the
+/// flyer's name, which changes with the first or last name. Documents stay
+/// on the flyer's page.
 class FlyerFormScreen extends StatefulWidget {
   const FlyerFormScreen(
       {super.key,
@@ -26,7 +30,11 @@ class FlyerFormScreen extends StatefulWidget {
       this.scanDocument,
       this.initialFirstName,
       this.initialLastName,
-      this.returnName = false});
+      this.returnName = false,
+      this.editing});
+
+  /// The flyer being edited; null for a new flyer.
+  final FlyerDetail? editing;
 
   /// Picks one document photo or PDF; null when cancelled. Tests replace it.
   final Future<PickedPhoto?> Function(FileSource source)? pickFile;
@@ -74,6 +82,24 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
   var _reading = false;
   PickedPhoto? _unread;
   ({TravelDocument kind, bool filled})? _scanned;
+
+  @override
+  void initState() {
+    super.initState();
+    final flyer = widget.editing;
+    if (flyer == null) return;
+    // The server writes "—" for a field that was left empty.
+    String text(String value) => value.trim() == '—' ? '' : value.trim();
+    _first.text = text(flyer.firstName);
+    _last.text = text(flyer.lastName);
+    _bd.text = text(flyer.bdPhone);
+    _cn.text = text(flyer.cnPhone);
+    _university.text = text(flyer.university);
+    _batch.text = text(flyer.batch);
+    _program.text = text(flyer.program);
+    _wechat.text = text(flyer.wechat);
+    _emergency.text = text(flyer.emergencyContact);
+  }
 
   @override
   void dispose() {
@@ -203,7 +229,7 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
     });
     try {
       final scope = AppScope.of(context);
-      final name = await scope.flyers.create(FlyerDraft(
+      final draft = FlyerDraft(
         firstName: _first.text.trim(),
         lastName: _last.text.trim(),
         bdPhone: _bd.text.trim(),
@@ -213,7 +239,14 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
         program: _program.text.trim(),
         wechat: _wechat.text.trim(),
         emergencyContact: _emergency.text.trim(),
-      ));
+      );
+      final editing = widget.editing;
+      if (editing != null) {
+        final name = await scope.flyers.update(editing.name, draft);
+        if (mounted) Navigator.of(context).pop(name);
+        return;
+      }
+      final name = await scope.flyers.create(draft);
       UploadQueue? uploads;
       if (_files.isNotEmpty) {
         uploads = UploadQueue([
@@ -270,9 +303,12 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
   Widget build(BuildContext context) {
     final count = _files.length;
     final uploads = _uploads;
+    final editing = widget.editing;
     return WorkspaceScaffold(
-        title: tr('New flyer'),
-        subtitle: tr('Profile and travel documents in one go'),
+        title: editing == null ? tr('New flyer') : tr('Edit flyer'),
+        subtitle: editing == null
+            ? tr('Profile and travel documents in one go')
+            : editing.name,
         root: false,
         footer: FooterActions(
             error: _error,
@@ -298,10 +334,12 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
                             ]))),
                   AppButton(
                       key: const Key('flyer-save'),
-                      label: count == 0
-                          ? tr('Save flyer')
-                          : trn(count, 'Save flyer and upload {n} file',
-                              'Save flyer and upload {n} files'),
+                      label: editing != null
+                          ? tr('Save changes')
+                          : count == 0
+                              ? tr('Save flyer')
+                              : trn(count, 'Save flyer and upload {n} file',
+                                  'Save flyer and upload {n} files'),
                       icon: count == 0
                           ? Icons.check_rounded
                           : Icons.upload_rounded,
@@ -310,17 +348,20 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
                       onPressed: _save),
                 ])),
         children: [
-          DocumentScanCard(
-              key: const Key('flyer-scan'),
-              reading: _reading,
-              unreadable: _unread != null,
-              note: switch (_scanned) {
-                (:final kind, :final filled) => scanNote(kind, filled: filled),
-                null => null,
-              },
-              onScan: _scan,
-              onAttach: _attach),
-          const SizedBox(height: 14),
+          if (editing == null) ...[
+            DocumentScanCard(
+                key: const Key('flyer-scan'),
+                reading: _reading,
+                unreadable: _unread != null,
+                note: switch (_scanned) {
+                  (:final kind, :final filled) =>
+                    scanNote(kind, filled: filled),
+                  null => null,
+                },
+                onScan: _scan,
+                onAttach: _attach),
+            const SizedBox(height: 14),
+          ],
           FormCard(title: tr('Personal details'), children: [
             PairRow(
                 first: _field(tr('First name'), _first,
@@ -346,39 +387,41 @@ class _FlyerFormScreenState extends State<FlyerFormScreen> {
                 first: _field(tr('Program'), _program),
                 second: _field(tr('Batch'), _batch)),
           ]),
-          const SizedBox(height: 14),
-          PaperCard(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                Row(children: [
-                  Expanded(
-                      child: Text(tr('Documents'),
-                          style: const TextStyle(
-                              fontSize: 16,
-                              height: 1.35,
-                              fontWeight: FontWeight.w700))),
-                  Text(
-                      tr('{n} of {total} added',
-                          {'n': count, 'total': _documentKinds.length}),
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.muted)),
-                ]),
-                for (final kind in _documentKinds) ...[
+          if (editing == null) ...[
+            const SizedBox(height: 14),
+            PaperCard(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                  Row(children: [
+                    Expanded(
+                        child: Text(tr('Documents'),
+                            style: const TextStyle(
+                                fontSize: 16,
+                                height: 1.35,
+                                fontWeight: FontWeight.w700))),
+                    Text(
+                        tr('{n} of {total} added',
+                            {'n': count, 'total': _documentKinds.length}),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.muted)),
+                  ]),
+                  for (final kind in _documentKinds) ...[
+                    const SizedBox(height: 12),
+                    DocumentSlot(
+                        key: ValueKey('flyer-doc-$kind'),
+                        title: _title(kind),
+                        icon: _icon(kind),
+                        file: _files[kind],
+                        onPick: (source) => _pick(kind, source),
+                        onRemove: () => setState(() => _files.remove(kind))),
+                  ],
                   const SizedBox(height: 12),
-                  DocumentSlot(
-                      key: ValueKey('flyer-doc-$kind'),
-                      title: _title(kind),
-                      icon: _icon(kind),
-                      file: _files[kind],
-                      onPick: (source) => _pick(kind, source),
-                      onRemove: () => setState(() => _files.remove(kind))),
-                ],
-                const SizedBox(height: 12),
-                TipNote(
-                    text: tr(
-                        "Files upload right after the flyer is saved. Optional — you can add them later on the flyer's page too.")),
-              ])),
+                  TipNote(
+                      text: tr(
+                          "Files upload right after the flyer is saved. Optional — you can add them later on the flyer's page too.")),
+                ])),
+          ],
         ]);
   }
 }

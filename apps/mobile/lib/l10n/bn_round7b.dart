@@ -110,4 +110,7 @@ const bnRound7b = <String, String>{
   // Flyer's part: the Paid tick.
   'Paid the rest': 'বাকিটা পেইড',
   'Part paid': 'কিছু পেইড',
+  // Editing a flyer.
+  'Edit flyer': 'ফ্লায়ার এডিট',
+  'Save changes': 'পরিবর্তন সেভ করুন',
 };
