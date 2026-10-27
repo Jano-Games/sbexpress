@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/uploads/flutter_heic.dart';
-import '../../data/uploads/image_prepare.dart';
-import '../../data/uploads/picked_photo_file.dart';
+import '../../data/uploads/photo_tray.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../data/uploads/quick_uploads.dart';
+import '../../data/uploads/signed_photos.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/photo_parts.dart';
+import '../../widgets/round7_parts.dart' show CardHead;
 import '../../widgets/ui.dart';
 
 class DeviceUnitRef {
@@ -18,7 +20,8 @@ class DeviceUnitRef {
       required this.category,
       required this.model,
       required this.serial,
-      required this.hasPhoto});
+      required this.hasPhoto,
+      this.photoRef});
 
   final int itemIndex;
   final int unitIndex;
@@ -26,6 +29,9 @@ class DeviceUnitRef {
   final String model;
   final String serial;
   final bool hasPhoto;
+
+  /// The stored serial photo, when the server sends its reference.
+  final String? photoRef;
 }
 
 class DeviceUnitsScreen extends StatefulWidget {
@@ -71,7 +77,8 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
                 category: line.category,
                 model: row.model,
                 serial: row.serial,
-                hasPhoto: row.hasPhoto));
+                hasPhoto: row.hasPhoto,
+                photoRef: row.serialPhotoRef));
           }
         }
       } else {
@@ -87,7 +94,8 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
                 model: row.model,
                 serial: row.serial,
                 hasPhoto: row.serialPhotoRef != null &&
-                    row.serialPhotoRef!.isNotEmpty));
+                    row.serialPhotoRef!.isNotEmpty,
+                photoRef: row.serialPhotoRef));
           }
         }
       }
@@ -148,133 +156,152 @@ class _DeviceUnitsScreenState extends State<DeviceUnitsScreen> {
 }
 
 class ImeiGuideScreen extends StatefulWidget {
-  const ImeiGuideScreen({super.key, required this.code, required this.unit});
+  const ImeiGuideScreen(
+      {super.key, required this.code, required this.unit, this.pickPhotos});
 
   final String code;
   final DeviceUnitRef unit;
+
+  /// Camera or gallery, one photo; tests pass their own.
+  final Future<List<PickedPhoto>> Function(FileSource source)? pickPhotos;
 
   @override
   State<ImeiGuideScreen> createState() => _ImeiGuideScreenState();
 }
 
 class _ImeiGuideScreenState extends State<ImeiGuideScreen> {
-  PhotoUploadController? _photos;
+  /// The picked photo waits here until Upload.
+  PhotoTrayController? _tray;
+  SignedPhotoLoader? _photos;
   String? _saved;
+
+  /// The serial photo on the server: the unit's, then the one sent here.
+  late String? _photoRef = widget.unit.photoRef;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _photos ??= PhotoUploadController(
-      decodeHeic: flutterDecodeHeic,
-      upload: (image, progress) {
-        return AppScope.of(context).media.uploadDevicePhoto(
-              code: widget.code,
-              itemIndex: widget.unit.itemIndex,
-              unitIndex: widget.unit.unitIndex,
-              image: image,
-              onProgress: progress,
-            );
-      },
-    )..addListener(() {
-        if (!mounted) return;
-        setState(() {
-          if (_photos?.done == true) {
-            _saved = tr('Photo saved. The customer cannot see it.');
-          }
+    final media = AppScope.of(context).media;
+    _photos ??= media.photoLoader(widget.code);
+    _tray ??= PhotoTrayController(
+        decodeHeic: flutterDecodeHeic,
+        single: true,
+        upload: (image, progress) async {
+          final reference = await media.uploadDevicePhoto(
+            code: widget.code,
+            itemIndex: widget.unit.itemIndex,
+            unitIndex: widget.unit.unitIndex,
+            image: image,
+            onProgress: progress,
+          );
+          if (reference.isNotEmpty) _photoRef = reference;
+        },
+        onUploaded: () {
+          if (!mounted) return;
+          setState(
+              () => _saved = tr('Photo saved. The customer cannot see it.'));
         });
-      });
   }
 
   @override
   void dispose() {
+    _tray?.dispose();
     _photos?.dispose();
     super.dispose();
   }
 
-  Future<void> _pick(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source);
-    if (file == null) return;
-    try {
-      await _photos?.select(PickedPhoto(
-          bytes: await file.readAsBytes(),
-          name: file.name,
-          mime: file.mimeType));
-    } finally {
-      await deletePickedPhotoFile(file.path);
-    }
+  /// One photo: the camera's, or one from the gallery.
+  Future<List<PickedPhoto>> _pickOne(FileSource source) async {
+    if (source == FileSource.camera) return pickPhotos(source);
+    final photo = await pickDocument(source);
+    return photo == null ? const [] : [photo];
+  }
+
+  Future<void> _pick(FileSource source) async {
+    final photos = await (widget.pickPhotos ?? _pickOne)(source);
+    if (!mounted || photos.isEmpty) return;
+    setState(() => _saved = null);
+    await _tray?.add(photos);
+  }
+
+  void _open(String reference) {
+    showPhotoViewer(context,
+        photos: [ViewerPhoto.stored(reference, group: _label)],
+        loader: _photos);
+  }
+
+  String get _label {
+    final unit = widget.unit;
+    final name = unit.model.isEmpty ? unit.category : unit.model;
+    return unit.serial.isEmpty ? name : '$name · ${unit.serial}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final upload = _photos;
     final unit = widget.unit;
-    return WorkspaceScaffold(
-        title: unit.serial.isEmpty ? unit.category : unit.serial,
-        root: false,
-        children: [
-          Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                  '${widget.code} · ${unit.model.isEmpty ? unit.category : unit.model}',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.muted, height: 1.5))),
-          const _GuideFrame(),
-          const SizedBox(height: 12),
-          PaperCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(tr('1. Dial *#06#, or open the label on the box.')),
-                const SizedBox(height: 6),
-                Text(tr(
-                    '2. Keep the number inside the frame. Avoid direct light.')),
-                const SizedBox(height: 6),
-                Text(tr(
-                    '3. The photo is saved as JPEG, its location is removed, and it stays out of customer links.')),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
+    final stored = _photoRef;
+    return PhotoTrayGuard(
+        tray: _tray,
+        child: WorkspaceScaffold(
+            title: unit.serial.isEmpty ? unit.category : unit.serial,
+            root: false,
             children: [
-              Expanded(
-                  child: AppButton(
-                      label: tr('Camera'),
-                      kind: AppButtonKind.current,
-                      onPressed: () => _pick(ImageSource.camera))),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: AppButton(
-                      label: tr('Gallery'),
-                      kind: AppButtonKind.quiet,
-                      onPressed: () => _pick(ImageSource.gallery))),
-            ],
-          ),
-          if (upload != null && upload.busy) ...[
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-                value: upload.progress == 0 ? null : upload.progress,
-                color: AppColors.teal,
-                backgroundColor: AppColors.tealSoft),
-          ],
-          if (upload?.prepared != null) ...[
-            const SizedBox(height: 8),
-            Text(locationStrippedNote,
-                style: const TextStyle(color: AppColors.muted)),
-          ],
-          if (upload?.error != null) ...[
-            const SizedBox(height: 8),
-            Text(upload!.error!,
-                style: const TextStyle(color: AppColors.danger, height: 1.35)),
-            const SizedBox(height: 8),
-            AppButton(
-                label: tr('Resend the same photo'), onPressed: upload.retry),
-          ],
-          if (_saved != null) ...[
-            const SizedBox(height: 12),
-            EmptyNote(title: tr('Saved'), body: _saved!),
-          ],
-        ]);
+              Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Text(
+                      '${widget.code} · ${unit.model.isEmpty ? unit.category : unit.model}',
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.muted, height: 1.5))),
+              if (stored != null && stored.isNotEmpty) ...[
+                PaperCard(
+                    key: const Key('imei-current'),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          CardHead(
+                              title: tr('Current photo'),
+                              subtitle:
+                                  tr('Uploading a new photo replaces it.')),
+                          const SizedBox(height: 12),
+                          AspectRatio(
+                              aspectRatio: 4 / 3,
+                              child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: StoredPhotoImage(
+                                      key: ValueKey('imei-photo-$stored'),
+                                      loader: _photos!,
+                                      reference: stored,
+                                      cacheWidth: 900,
+                                      onTap: () => _open(stored)))),
+                        ])),
+                const SizedBox(height: 12),
+              ] else ...[
+                const _GuideFrame(),
+                const SizedBox(height: 12),
+              ],
+              PaperCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('1. Dial *#06#, or open the label on the box.')),
+                    const SizedBox(height: 6),
+                    Text(tr(
+                        '2. Keep the number inside the frame. Avoid direct light.')),
+                    const SizedBox(height: 6),
+                    Text(tr(
+                        '3. The photo is saved as JPEG, its location is removed, and it stays out of customer links.')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              PaperCard(
+                  child: PhotoTray(
+                      tray: _tray!, onPick: _pick, group: tr('IMEI photos'))),
+              if (_saved != null) ...[
+                const SizedBox(height: 12),
+                EmptyNote(title: tr('Saved'), body: _saved!),
+              ],
+            ]));
   }
 }
 

@@ -50,6 +50,15 @@ Future<void> _reveal(WidgetTester t, Finder finder, {double dy = 200}) async {
 }
 
 Future<void> _type(WidgetTester t, Key key, String value) async {
+  // A part payment's amount field opens from "Part paid" next to the tick.
+  final name = key is ValueKey<String> ? key.value : '';
+  final paidField = RegExp(r'^(flight-)?paid-(.+)$').firstMatch(name);
+  if (paidField != null && find.byKey(key).evaluate().isEmpty) {
+    final open = find.byKey(ValueKey('part-paid-${paidField.group(2)}'));
+    await _reveal(t, open);
+    await t.tap(open);
+    await t.pumpAndSettle();
+  }
   await _reveal(t, find.byKey(key));
   await t.enterText(find.byKey(key), value);
   await t.pumpAndSettle();
@@ -125,7 +134,8 @@ void main() {
           find.text(
               tr('{amount} already recorded', {'amount': wholeBdt(6000)})),
           findsOneWidget);
-      expect(find.text(tr('Paid now, in addition')), findsNWidgets(2));
+      // Each flyer gets a "Paid the rest" tick; part payments open from it.
+      expect(find.text(tr('Paid the rest')), findsNWidgets(2));
       expect(find.byKey(const Key('ticket-received-in')), findsNothing);
       await _type(t, const ValueKey('paid-Arif Rahman'), '5000');
       await _type(t, const ValueKey('paid-Rakib Hasan'), '4000');
@@ -255,7 +265,7 @@ void main() {
       await _reveal(t, find.byKey(const Key('flight-flyers-pay')));
       await t.tap(find.byKey(const Key('flight-flyers-pay')));
       await t.pumpAndSettle();
-      expect(find.text(tr('Already paid')), findsNWidgets(2));
+      expect(find.byKey(const ValueKey('paid-tick-Arif Rahman')), findsNothing);
       await _type(t, const ValueKey('flight-part-Arif Rahman'), '15000');
       await _type(t, const ValueKey('flight-part-Rakib Hasan'), '15000');
       // More than the part is refused first.

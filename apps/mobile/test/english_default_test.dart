@@ -122,7 +122,8 @@ void main() {
     }
     await tester.tap(find.text('More'));
     await tester.pumpAndSettle();
-    expect(find.text('Language'), findsOneWidget);
+    expect(find.bySemanticsLabel('Language'), findsOneWidget);
+    expect(find.text('EN'), findsOneWidget);
 
     await tester.tap(find.text('বাংলা'));
     await tester.pumpAndSettle();
@@ -131,11 +132,12 @@ void main() {
     expect(find.text(bnStrings['More']!), findsWidgets);
     expect(find.text('Home'), findsNothing);
 
-    if (find.text(bnStrings['Language']!).evaluate().isEmpty) {
+    if (find.text('EN').evaluate().isEmpty) {
       await tester.tap(find.text(bnStrings['More']!).last);
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.text('English'));
+    expect(find.bySemanticsLabel(bnStrings['Language']!), findsOneWidget);
+    await tester.tap(find.text('EN'));
     await tester.pumpAndSettle();
     expect(appLanguage.value, AppLanguage.en);
     expect(find.text('More'), findsWidgets);

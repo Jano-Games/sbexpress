@@ -281,7 +281,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
     expect(included.status).toBe(201)
     expect(await prisma.invoice.count()).toBe(1)
     const withInvoice = (await call(`/track/${included.data.token}`, 'GET', undefined, 'public')).data.shipment
-    expect(withInvoice).toMatchObject({includesInvoice:true,totalBill:1000,due:1000,showPay:false,pricingState:'draft'});expect((await app.request(`/api/track/${included.data.token}/invoice.pdf`)).status).toBe(400);await issueInvoice()
+    expect(withInvoice).toMatchObject({includesInvoice:true,totalBill:1000,due:1000,showPay:true,pricingState:'issued'});expect((await app.request(`/api/track/${included.data.token}/invoice.pdf`)).status).toBe(200);await issueInvoice()
     expect(withInvoice.invoice).not.toBeNull()
     expect(withInvoice.billLines.length).toBeGreaterThan(0)
     expect(withInvoice.payMethods).toHaveLength(1)
@@ -302,7 +302,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
     expect(created.status).toBe(201)
     const inv=await prisma.invoice.findFirst()
     expect(Number(inv.total)).toBe(5050)
-    expect(inv.lines).toHaveLength(3);expect(inv.state).toBe('draft');expect(Number(inv.discount)).toBe(50)
+    expect(inv.lines).toHaveLength(3);expect(inv.state).toBe('issued');expect(Number(inv.discount)).toBe(50)
     expect((await prisma.publicLink.findFirst()).requestedAmount).toBeNull()
     const history=(await call('/shipments/SH-AUDIT/track-links')).data.links
     expect(history[0].url).toBe(created.data.url)
@@ -444,6 +444,7 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
     expect(detail.shipmentCosts).toEqual({cnTransport:1000,courier:1000,customs:1000,other:400})
     expect(detail.totalShipmentCosts).toBe(3400)
     expect(detail.margin).toBe(13600)
+    expect(detail.profitBreakdown).toMatchObject({shipmentCharges:66000,flightCosts:0,otherCosts:2400,profit:13600})
     await prisma.expense.create({data:{date:new Date(),shipmentId:shipment.id,category:'courier',amount:500,costField:'bdFare',reason:'Settle courier'}})
     expect((await call('/flights/COST-TEST')).data.flight.margin).toBe(13600)
     await prisma.shipment.update({where:{id:second.id},data:{flightId:null}})
@@ -1180,24 +1181,25 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
   })
 
 
-  it('keeps automatic draft prices current, holds issued invoices for review and requires explicit free pricing', async()=>{
+  it('issues automatic bills at booking, keeps them issued when the price changes and needs a free confirmation for ৳0', async()=>{
     const created=await call('/shipments','POST',{supplierCode:supplier.code,categories:['Garments'],bookedKg:2,chargeRate:100,paymentTerms:'cod'});const code=created.data.code;
+    expect((await call(`/shipments/${code}/invoice`)).data.invoice).toMatchObject({state:'issued',pricingMode:'automatic',needsReview:false,total:200});
     const link=await call(`/shipments/${code}/track-link`,'POST',{scope:'invoice'});
-    expect((await call(`/track/${link.data.token}`,'GET',undefined,'public')).data.shipment).toMatchObject({pricingState:'draft',showPay:false,showPaid:false,totalBill:200});
-    expect((await call(`/shipments/${code}/payments`,'POST',{amount:20,method:'Cash'})).status).toBe(400);
+    expect((await call(`/track/${link.data.token}`,'GET',undefined,'public')).data.shipment).toMatchObject({pricingState:'issued',showPay:true,showPaid:false,totalBill:200});
     expect((await call(`/shipments/${code}`,'PATCH',{bookedKg:3})).status).toBe(200);
-    expect((await call(`/shipments/${code}/invoice`)).data.invoice).toMatchObject({state:'draft',total:300});
-    await issueInvoice(code);
+    expect((await call(`/shipments/${code}/invoice`)).data.invoice).toMatchObject({state:'issued',needsReview:false,total:300});
+    expect((await call(`/shipments/${code}/payments`,'POST',{amount:20,method:'Cash'})).status).toBe(201);
     await call(`/shipments/${code}`,'PATCH',{bookedKg:4});
-    let inv=(await call(`/shipments/${code}/invoice`)).data.invoice;
-    expect(inv).toMatchObject({state:'issued',total:300,needsReview:true});expect(inv.suggestedLines.reduce((n:number,l:any)=>n+l.amount,0)).toBe(400);
-    expect((await call(`/shipments/${code}/payments`,'POST',{amount:20,method:'Cash'})).status).toBe(400);
-    await issueInvoice(code);expect((await call(`/shipments/${code}/invoice`)).data.invoice.total).toBe(400);
-    const free=await call('/shipments','POST',{supplierCode:supplier.code,categories:['Document'],bookedKg:0,chargeRate:0});
-    const zero=await call(`/shipments/${free.data.code}/track-link`,'POST',{scope:'invoice'});
+    expect((await call(`/shipments/${code}/invoice`)).data.invoice).toMatchObject({state:'issued',total:400,needsReview:false});
+    expect((await call(`/shipments/${code}/invoice-history`)).data.revisions).toHaveLength(3);
+    const unpriced=await call('/shipments','POST',{supplierCode:supplier.code,categories:['Document'],bookedKg:0,chargeRate:0});
+    expect((await call(`/shipments/${unpriced.data.code}/invoice`)).data.invoice).toMatchObject({state:'draft',total:0});
+    const zero=await call(`/shipments/${unpriced.data.code}/track-link`,'POST',{scope:'invoice'});
     expect((await call(`/track/${zero.data.token}`,'GET',undefined,'public')).data.shipment.showPaid).toBe(false);
-    expect((await call(`/shipments/${free.data.code}/invoice`,'POST',{lines:[{label:'Complimentary',amount:0}]})).status).toBe(400);
-    await issueInvoice(free.data.code);expect((await call(`/track/${zero.data.token}`,'GET',undefined,'public')).data.shipment.showPaid).toBe(true);
+    expect((await call(`/shipments/${unpriced.data.code}/invoice`,'POST',{lines:[{label:'Complimentary',amount:0}]})).status).toBe(400);
+    await issueInvoice(unpriced.data.code);expect((await call(`/track/${zero.data.token}`,'GET',undefined,'public')).data.shipment.showPaid).toBe(true);
+    const free=await call('/shipments','POST',{supplierCode:supplier.code,categories:['Document'],bookedKg:1,freeOfCharge:true});
+    expect((await call(`/shipments/${free.data.code}/invoice`)).data.invoice).toMatchObject({state:'issued',total:0});
   });
 
   it('preserves manually agreed drafts when shipment pricing changes',async()=>{

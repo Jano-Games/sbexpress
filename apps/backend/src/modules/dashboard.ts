@@ -11,28 +11,30 @@ import { HUB_FLIGHT_INCLUDE, hubFlightRow } from '../shared/hubFlights'
 import { getSettings, type AppSettings } from '../shared/settings'
 import { usualCosts } from '../shared/shipmentCosts'
 import { STATUS_LABEL, STATUS_ORDER } from '../shared/status'
+import { flightProfitBreakdown } from '../shared/profit'
+import { daysSince, isLate, latePayments, utcToday } from '../shared/latePayments'
+import { issuePendingInvoices } from '../shared/shipmentBilling'
 
 const INCLUDE = { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } as const
 const FLIGHT_INCLUDE = {
+  expenses: { select: { category: true, amount: true } },
   flyers: { include: { flyer: true } },
   shipments: { include: { expenses: true, costs: true, invoice: true } },
 } as const
 type DashboardShipment = Prisma.ShipmentGetPayload<{ include: typeof INCLUDE }>
 type DashboardFlight = Prisma.FlightGetPayload<{ include: typeof FLIGHT_INCLUDE }>
 
-const DAY_MS = 86_400_000
-/** An after-delivery bill counts as overdue a week after handover. */
-const OVERDUE_DAYS = 7
 const DHAKA_HUB_INDEX = STATUS_ORDER.indexOf('received_bd_hub')
 
 const round2 = (value: number) => Math.round(value * 100) / 100
 const dueOf = (s: DashboardShipment) => Math.max(0, round2(effectiveBill(s) - num(s.paidAmount)))
 
-/** Charges minus shipment costs minus the part of the ticket the company pays. */
+/** Flight profit, the same breakdown as the flight screen: charges + flyers' share − ticket − flight costs. */
 function flightProfit(f: DashboardFlight) {
   const revenue = round2(f.shipments.reduce((total, s) => total + effectiveBill(s), 0))
   const costs = round2(f.shipments.reduce((total, s) => total + shipmentOperatingCosts(s).total, 0))
-  return { revenue, costs, profit: round2(revenue + num(f.fare) - num(f.actualCost) - costs) }
+  const profitBreakdown = flightProfitBreakdown(f)
+  return { revenue, costs, profit: profitBreakdown.profit, flightCostTotal: profitBreakdown.flightCosts, profitBreakdown }
 }
 
 /** Shipments past the Dhaka hub that still lack one of the usual costs. */
@@ -47,14 +49,14 @@ function missingCostCount(f: DashboardFlight) {
  * bills once the parcel is handed over, and one monthly bill per customer.
  */
 async function collectSheet(ships: DashboardShipment[]) {
-  const today = new Date(new Date().toISOString().slice(0, 10))
+  const today = utcToday()
   const month = today.toISOString().slice(0, 7)
   const afterDelivery = ships.filter((s) => s.paymentTerms !== 'monthly' && !s.freeOfCharge && dueOf(s) > 0)
   const handedOver = afterDelivery
     .filter((s) => s.status === 'delivered')
     .map((s) => {
       const at = s.handedOverAt ?? s.createdAt
-      const days = Math.max(0, Math.floor((today.getTime() - new Date(at.toISOString().slice(0, 10)).getTime()) / DAY_MS))
+      const days = daysSince(at, today)
       return {
         code: s.code,
         supplierCode: s.supplier.code,
@@ -63,7 +65,8 @@ async function collectSheet(ships: DashboardShipment[]) {
         amount: dueOf(s),
         deliveredOn: isoDate(at),
         days,
-        overdue: days > OVERDUE_DAYS,
+        // Late 10 days after handover (LATE_DAYS), the same rule as Home → Needs attention.
+        overdue: isLate(days),
       }
     })
     .sort((a, b) => b.days - a.days || a.code.localeCompare(b.code))
@@ -198,6 +201,8 @@ export const dashboardRoutes = new Hono<AppEnv>()
     return c.json({ reviewCount: shipmentReceipts + statementReceipts, openTodoCount })
   })
   .get('/overview', requireRole('admin'), async (c) => {
+    // Bills still waiting to be issued are issued first, so every figure below counts them.
+    await issuePendingInvoices()
 
     // Materialize each Prisma promise once, then reuse that response snapshot in
     // both the financial summary and notices instead of repeating remote reads.
@@ -261,6 +266,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
         missingCostCount: missingCostCount(f),
       }))
     const collect = await collectSheet(ships)
+    const late = latePayments(ships)
 
     const payload = {
       weekLabel: `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} – ${now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`,
@@ -288,6 +294,8 @@ export const dashboardRoutes = new Hono<AppEnv>()
         : null,
       notices: buildNotices('admin', settings, ships, flights),
       flights: flightRows,
+      latePayments: late.rows,
+      latePaymentsCount: late.count,
       flyersMissingDocs: flyersMissingDocs.slice(0, 10),
       flyersMissingDocsCount: flyersMissingDocs.length,
       collect: {
@@ -312,6 +320,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
 
   /** The "Get paid" list: who to collect from now, and this month's monthly bills. */
   .get('/collect', requireRole('admin'), async (c) => {
+    await issuePendingInvoices()
     const ships = await prisma.shipment.findMany({ include: INCLUDE, orderBy: { code: 'asc' } })
     return c.json(await collectSheet(ships))
   })

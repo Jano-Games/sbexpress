@@ -1,6 +1,7 @@
 import '../../l10n/l10n.dart';
 import '../json_read.dart';
 import 'flow.dart';
+import 'ledger_actions.dart';
 
 /// Keys the hub UI must not read. The branch snapshot may still send
 /// `paymentTerms`, `freeOfCharge`, and `receiptStatus`; they are ignored.
@@ -35,6 +36,8 @@ const Set<String> hubOmittedKeys = {
   'costTotal',
   'usualCosts',
   'profitBeforeTicket',
+  'profitBreakdown',
+  'lateDays',
 };
 
 class LastMileBooking {
@@ -449,6 +452,7 @@ class AdminShipment extends OperationalShipment {
     this.costTotal,
     this.usualCosts,
     this.profitBeforeTicket,
+    this.lateDays,
   });
 
   final String? supplierName;
@@ -468,6 +472,10 @@ class AdminShipment extends OperationalShipment {
   final double? costTotal;
   final List<UsualCost>? usualCosts;
   final double? profitBeforeTicket;
+
+  /// Whole days the customer is late paying (10 days after handover, or 10
+  /// days after the month ends); null when not late or on an older server.
+  final int? lateDays;
 
   /// Customers pay after delivery or monthly; old `cod` rows read as after
   /// delivery.
@@ -506,8 +514,48 @@ class AdminShipment extends OperationalShipment {
       costTotal: optionalDouble(json, 'costTotal'),
       usualCosts: optionalUsualCosts(json, 'usualCosts'),
       profitBeforeTicket: optionalDouble(json, 'profitBeforeTicket'),
+      lateDays: optionalInt(json, 'lateDays'),
     );
   }
+}
+
+/// What one shipment earns: its own charge less its share of the flight's
+/// costs and any older costs that are not on the bill. Costs on the bill
+/// pass through (money in = money out).
+class ShipmentProfitBreakdown {
+  const ShipmentProfitBreakdown({
+    required this.charge,
+    required this.flightCostShare,
+    required this.billCosts,
+    required this.profit,
+    required this.shareKg,
+    required this.flightKg,
+    this.otherCosts = 0,
+  });
+
+  final double charge;
+  final double flightCostShare;
+  final double billCosts;
+  final double profit;
+
+  /// Older costs of this shipment that are not on the bill (China and
+  /// Dhaka transport fares, older expenses); 0 when the server sends none.
+  final double otherCosts;
+
+  /// This shipment's kg and the whole flight's kg the share is taken by.
+  final double shareKg;
+  final double flightKg;
+
+  factory ShipmentProfitBreakdown.fromJson(Map<String, Object?> json) =>
+      ShipmentProfitBreakdown(
+        charge: requiredDouble(json, 'charge'),
+        flightCostShare: requiredDouble(json, 'flightCostShare'),
+        billCosts: requiredDouble(json, 'billCosts'),
+        profit: requiredDouble(json, 'profit'),
+        shareKg: optionalDouble(json, 'shareKg') ?? 0,
+        flightKg: optionalDouble(json, 'flightKg') ?? 0,
+        otherCosts: optionalDouble(json, 'otherCosts') ?? 0,
+      );
 }
 
 class AdminShipmentDetail extends AdminShipment {
@@ -542,6 +590,7 @@ class AdminShipmentDetail extends AdminShipment {
     super.costTotal,
     super.usualCosts,
     super.profitBeforeTicket,
+    super.lateDays,
     required this.chargeRate,
     required this.chargeCurrency,
     required this.packageCount,
@@ -555,10 +604,29 @@ class AdminShipmentDetail extends AdminShipment {
     required this.invoice,
     required this.payments,
     this.costsTotal,
+    this.costItems,
+    this.profitBreakdown,
   });
 
   /// `costs.total` of the detail: every cost of this shipment.
   final double? costsTotal;
+
+  /// Every cost row of the detail; null when the server sends none.
+  final List<ShipmentCostItem>? costItems;
+
+  /// Charge, share of flight costs and profit; null on an older server.
+  final ShipmentProfitBreakdown? profitBreakdown;
+
+  /// The costs added to the customer's bill that still count.
+  List<ShipmentCostItem> get billCosts => [
+        for (final item in costItems ?? const <ShipmentCostItem>[])
+          if (item.onBill && !item.voided) item
+      ];
+
+  /// Costs on the bill: the server's sum, else the rows added up.
+  double get billCostTotal =>
+      profitBreakdown?.billCosts ??
+      billCosts.fold(0.0, (sum, item) => sum + item.amount);
 
   final double chargeRate;
   final String chargeCurrency;
@@ -579,7 +647,19 @@ class AdminShipmentDetail extends AdminShipment {
         ? json['invoice']
         : throw const FormatException('Missing invoice');
     final costs = optionalMap(json, 'costs');
+    final items = costs?['items'];
+    final breakdown = optionalMap(json, 'profitBreakdown');
     return AdminShipmentDetail(
+      costItems: items is List
+          ? [
+              for (final row in asMapList(items, 'items'))
+                ShipmentCostItem.fromJson(row)
+            ]
+          : null,
+      profitBreakdown: breakdown == null
+          ? null
+          : ShipmentProfitBreakdown.fromJson(breakdown),
+      lateDays: row.lateDays,
       code: row.code,
       supplierCode: row.supplierCode,
       flightCode: row.flightCode,

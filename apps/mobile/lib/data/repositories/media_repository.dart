@@ -2,12 +2,15 @@ import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/media_item.dart';
 import '../uploads/image_prepare.dart';
+import '../uploads/signed_photos.dart';
 import '../uploads/upload_flow.dart';
 
 class MediaRepository {
-  MediaRepository(this.api);
+  MediaRepository(this.api, {SignedUrlCache? links})
+      : _links = links ?? SignedUrlCache();
 
   final ApiClient api;
+  final SignedUrlCache _links;
 
   Future<ShipmentMediaList> list(String code) async {
     final json = await api.getJson('${_path(code)}/media');
@@ -49,6 +52,23 @@ class MediaRepository {
       },
     );
   }
+
+  /// A signed link to download one stored photo, admin and hub alike. It
+  /// is reused until shortly before it expires. Servers older than photo
+  /// links answer 404.
+  Future<String> photoUrl(String code, String reference) =>
+      _links.get(_linkKey(code, reference), () async {
+        final json = await api.getJson(
+            '${_path(code)}/media/${Uri.encodeComponent(reference)}/url');
+        return requiredString(json, 'url');
+      });
+
+  /// Loads the stored photos of shipment [code] for one screen, IMEI photos
+  /// included.
+  SignedPhotoLoader photoLoader(String code) => SignedPhotoLoader(
+      link: (reference) => photoUrl(code, reference),
+      forget: (reference) => _links.forget(_linkKey(code, reference)),
+      download: api.getSignedBytes);
 
   Future<void> setShared(String code, String reference,
       {required bool shared}) {
@@ -92,4 +112,6 @@ class MediaRepository {
   }
 
   String _path(String code) => '/api/shipments/${Uri.encodeComponent(code)}';
+
+  String _linkKey(String code, String reference) => '$code/$reference';
 }

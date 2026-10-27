@@ -195,18 +195,117 @@ class FlyerOnFlight {
   }
 }
 
+/// The flight-cost categories the server takes; labour and anything else
+/// go in as `others` with a label.
+const flightCostCategories = [
+  'transport',
+  'courier',
+  'packaging',
+  'customs',
+  'others'
+];
+
+/// One cost for the whole flight: our cost only, never on a customer's bill.
+class FlightCost {
+  const FlightCost({
+    required this.id,
+    required this.category,
+    required this.label,
+    required this.amount,
+    required this.date,
+    required this.paid,
+    required this.accountName,
+  });
+
+  final String id;
+  final String category;
+
+  /// What it was for, as saved; may repeat the category name.
+  final String label;
+  final double amount;
+  final String date;
+  final bool paid;
+  final String? accountName;
+
+  factory FlightCost.fromJson(Map<String, Object?> json) => FlightCost(
+        id: requiredString(json, 'id'),
+        category: requiredString(json, 'category'),
+        label: optionalString(json, 'label') ?? '',
+        amount: requiredDouble(json, 'amount'),
+        date: optionalString(json, 'date') ?? '',
+        paid: json['paid'] == true,
+        accountName: optionalString(json, 'accountName'),
+      );
+}
+
+/// How the flight's profit adds up, BDT. Costs on customers' bills are paid
+/// back by them and stay out.
+class FlightProfitBreakdown {
+  const FlightProfitBreakdown({
+    required this.shipmentCharges,
+    required this.flyerIncome,
+    required this.ticket,
+    required this.flightCosts,
+    required this.profit,
+    this.otherCosts = 0,
+  });
+
+  final double shipmentCharges;
+  final double flyerIncome;
+  final double ticket;
+  final double flightCosts;
+  final double profit;
+
+  /// Older shipment costs that are not on any bill; 0 when not sent.
+  final double otherCosts;
+
+  factory FlightProfitBreakdown.fromJson(Map<String, Object?> json) =>
+      FlightProfitBreakdown(
+        shipmentCharges: requiredDouble(json, 'shipmentCharges'),
+        flyerIncome: requiredDouble(json, 'flyerIncome'),
+        ticket: requiredDouble(json, 'ticket'),
+        flightCosts: requiredDouble(json, 'flightCosts'),
+        profit: requiredDouble(json, 'profit'),
+        otherCosts: optionalDouble(json, 'otherCosts') ?? 0,
+      );
+}
+
 class FlightDetail {
   const FlightDetail(
       {required this.summary,
       required this.flyerDetails,
-      required this.bookings});
+      required this.bookings,
+      this.flightCosts,
+      this.flightCostTotal,
+      this.profitBreakdown});
 
   final FlightSummary summary;
   final List<FlyerOnFlight> flyerDetails;
   final List<AdminShipment> bookings;
 
+  /// Costs for the whole flight, newest first; null on an older server.
+  final List<FlightCost>? flightCosts;
+  final double? flightCostTotal;
+  final FlightProfitBreakdown? profitBreakdown;
+
+  /// The flight's kg the costs are shared by: each shipment's weighed kg,
+  /// else its booked kg.
+  double get shipmentKg =>
+      bookings.fold(0.0, (sum, row) => sum + row.effectiveKg);
+
   factory FlightDetail.fromJson(Map<String, Object?> json) {
+    final costs = json['flightCosts'];
+    final breakdown = optionalMap(json, 'profitBreakdown');
     return FlightDetail(
+      flightCosts: costs is List
+          ? [
+              for (final row in asMapList(costs, 'flightCosts'))
+                FlightCost.fromJson(row)
+            ]
+          : null,
+      flightCostTotal: optionalDouble(json, 'flightCostTotal'),
+      profitBreakdown:
+          breakdown == null ? null : FlightProfitBreakdown.fromJson(breakdown),
       summary: FlightSummary.fromJson(json),
       flyerDetails: [
         for (final row in requiredMapList(json, 'flyerDetails'))

@@ -522,6 +522,14 @@ class _TicketFlyersScreenState extends State<TicketFlyersScreen> {
                     paidLabel: _recorded(summary, summary.flyers[i]) > 0.001
                         ? tr('Paid now, in addition')
                         : tr('Paid now'),
+                    payable: () {
+                      final left = _typedPart(summary.flyers[i]) -
+                          _recorded(summary, summary.flyers[i]);
+                      return left > 0 ? roundMoney(left) : 0;
+                    },
+                    tickLabel: _recorded(summary, summary.flyers[i]) > 0.001
+                        ? tr('Paid the rest')
+                        : null,
                     note: _recordedNote(summary, summary.flyers[i]),
                     paidUp: !_canPay(summary, summary.flyers[i]),
                     partKey: ValueKey('part-${summary.flyers[i]}'),

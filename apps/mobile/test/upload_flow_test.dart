@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:sbexpress/data/api/api_exception.dart';
 import 'package:sbexpress/data/models/payment_review.dart';
 import 'package:sbexpress/data/uploads/image_prepare.dart';
+import 'package:sbexpress/data/uploads/photo_tray.dart';
 import 'package:sbexpress/data/uploads/photo_upload.dart';
 import 'package:sbexpress/data/uploads/upload_flow.dart';
 
@@ -69,9 +70,11 @@ void main() {
     expect(canApprovePayment(item), isTrue);
   });
 
+  // Was PhotoUploadController, which uploaded on select; the tray only
+  // uploads on Upload, and Try again still sends the same prepared JPEG.
   test('photo retry uploads the prepared file without asking for another photo', () async {
     final uploaded = <int>[];
-    final controller = PhotoUploadController(
+    final tray = PhotoTrayController(
       decodeHeic: (_) async => Uint8List(0),
       upload: (image, onProgress) async {
         uploaded.add(image.size);
@@ -79,13 +82,16 @@ void main() {
         if (uploaded.length == 1) throw const ApiException(status: 0, message: 'network', path: '/put');
       },
     );
-    await controller.select(PickedPhoto(bytes: img.encodeJpg(img.Image(width: 2, height: 2)), name: 'a.jpg', mime: 'image/jpeg'));
-    expect(controller.error, contains('নেটওয়ার্ক'));
-    expect(controller.prepared, isNotNull);
-    final preparedSize = controller.prepared!.size;
-    await controller.retry();
-    expect(controller.done, isTrue);
+    await tray.add([PickedPhoto(bytes: img.encodeJpg(img.Image(width: 2, height: 2)), name: 'a.jpg', mime: 'image/jpeg')]);
+    expect(uploaded, isEmpty);
+    await tray.uploadAll();
+    final photo = tray.photos.single;
+    expect(photo.error, contains('নেটওয়ার্ক'));
+    expect(photo.prepared, isNotNull);
+    final preparedSize = photo.prepared!.size;
+    await tray.retry(photo);
+    expect(tray.isEmpty, isTrue);
     expect(uploaded, [preparedSize, preparedSize]);
-    controller.dispose();
+    tray.dispose();
   });
 }

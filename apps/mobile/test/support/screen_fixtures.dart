@@ -65,6 +65,11 @@ ApiClient screenFixtureApi(
         return http.Response(jsonEncode(_flightDetailFull()), 200,
             headers: {'content-type': 'application/json'});
       }
+      if (path.endsWith('/track-links')) {
+        return http.Response.bytes(
+            utf8.encode(jsonEncode(trackLinksBody())), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+      }
       if (path == '/api/shipments/SH-18') {
         return http.Response(
             jsonEncode({
@@ -935,22 +940,25 @@ Map<String, Object?> _invoiceBody() => {
       },
     };
 
+/// The server nests the cost sheet in the shipment detail.
 Map<String, Object?> _costBody() => {
-      'costs': {
-        'items': [
-          {
-            'id': 'cost-1',
-            'name': 'Courier',
-            'category': 'courier',
-            'amount': 350,
-            'paidAmount': 0,
-            'dueAmount': 350,
-            'costField': null,
-            'voidedAt': null,
-          },
-        ],
-        'total': 350,
-        'unpaidCosts': {'cnFare': 0, 'bdFare': 0, 'customsTax': 0},
+      'shipment': {
+        'costs': {
+          'items': [
+            {
+              'id': 'cost-1',
+              'name': 'Courier',
+              'category': 'courier',
+              'amount': 350,
+              'paidAmount': 0,
+              'dueAmount': 350,
+              'costField': null,
+              'voidedAt': null,
+            },
+          ],
+          'total': 350,
+          'unpaidCosts': {'cnFare': 0, 'bdFare': 0, 'customsTax': 0},
+        },
       },
     };
 
@@ -1231,3 +1239,203 @@ Map<String, Object?> collectBody() {
 
 /// `GET /api/dashboard/overview` as the fixture server sends it.
 Map<String, Object?> overviewBody() => _overviewBody();
+
+/// `GET /api/shipments/:code/track-links`: one active link with the bill
+/// and an older expired one, newest first. [active] false leaves only the
+/// expired one.
+Map<String, Object?> trackLinksBody({bool active = true}) => {
+      'links': [
+        if (active)
+          {
+            'includesInvoice': true,
+            'id': 'link-2',
+            'createdAt': '2026-10-27T08:00:00.000Z',
+            'expiresAt': '2026-11-03T08:00:00.000Z',
+            'status': 'active',
+            'url': 'https://api.sbexpress.jhotpot.app/t/q7Rm2xKd9TfA3LwPz0bV8c',
+          },
+        {
+          'includesInvoice': false,
+          'id': 'link-1',
+          'createdAt': '2026-10-10T08:00:00.000Z',
+          'expiresAt': '2026-10-17T08:00:00.000Z',
+          'status': 'expired',
+          'url': 'https://api.sbexpress.jhotpot.app/t/old',
+        },
+      ],
+    };
+
+/// SH-18 on a round 7 server: the charge, a cost on the bill, its share of
+/// BG305's flight costs and the invoice the server issued by itself.
+Map<String, Object?> round7ShipmentBody() {
+  final base = Map<String, Object?>.from(
+      (_overviewBody()['activeShipments'] as List).first as Map);
+  return {
+    'shipment': {
+      ...base,
+      'weighedKg': 4.2,
+      'effectiveKg': 4.2,
+      'weightDelta': 0.2,
+      'charge': 4800,
+      'billAmount': 5100,
+      'paidAmount': 2800,
+      'dueAmount': 2300,
+      'payStatus': 'partial',
+      'costTotal': 300,
+      'profitBeforeTicket': 4800,
+      'chargeRate': 950,
+      'chargeCurrency': 'BDT',
+      'packageCount': 2,
+      'packedAt': '2026-10-22T09:00:00.000Z',
+      'photosCount': 3,
+      'hasVideo': false,
+      'serials': [],
+      'pcsItems': [
+        {
+          'category': 'Mobile',
+          'count': 2,
+          'rate': 500,
+          'currency': 'BDT',
+          'units': [],
+        }
+      ],
+      'lastMile': null,
+      'flyerName': 'Arif Rahman',
+      'log': [],
+      'invoice': {
+        'state': 'issued',
+        'needsReview': false,
+        'number': 'INV-2610-SH-18',
+        'total': 5100,
+        'discount': 0,
+        'issuedAt': '2026-10-20T10:00:00.000Z',
+      },
+      'payments': [
+        {
+          'method': 'bKash',
+          'amount': 1800,
+          'at': '2026-10-21T10:00:00.000Z',
+          'reference': ''
+        },
+        {
+          'method': 'Dhaka cash',
+          'amount': 1000,
+          'at': '2026-10-22T10:00:00.000Z',
+          'reference': ''
+        },
+      ],
+      'costs': {
+        'items': [
+          {
+            'id': 'cost-7',
+            'name': 'Courier to customer',
+            'category': 'courier',
+            'amount': 300,
+            'paidAmount': 300,
+            'dueAmount': 0,
+            'costField': null,
+            'voidedAt': null,
+            'payments': [
+              {
+                'id': 'e-7',
+                'accountName': 'Dhaka cash',
+                'reversedAt': null,
+                'amount': 300,
+              }
+            ],
+          },
+        ],
+        'usualCosts': _usual(0, 300, 0, 0),
+        'total': 300,
+      },
+      'profitBreakdown': {
+        'charge': 4800,
+        'flightCostShare': 237.63,
+        'billCosts': 300,
+        'profit': 4562.37,
+        'shareKg': 4.2,
+        'flightKg': 38,
+      },
+    }
+  };
+}
+
+/// The invoice the server made and issued for [round7ShipmentBody].
+/// [state] `draft` is what an older server leaves; [needsReview] is a
+/// hand-edited bill whose charge changed.
+Map<String, Object?> round7InvoiceBody(
+        {String state = 'issued', bool needsReview = false}) =>
+    {
+      'saved': true,
+      'invoice': {
+        'state': state,
+        'needsReview': needsReview,
+        'pricingMode': needsReview ? 'manual' : 'automatic',
+        'number': 'INV-2610-SH-18',
+        'lines': [
+          {'label': 'Freight · 4.0 kg × ৳950', 'amount': 3800},
+          {'label': 'Mobile · 2 × ৳500', 'amount': 1000},
+          {'label': 'Courier to customer', 'amount': 300, 'costId': 'cost-7'},
+        ],
+        'discount': 0,
+        'note': '',
+        'total': 5100,
+        'paidAmount': 2800,
+        'dueAmount': 2300,
+      },
+    };
+
+/// [flowFlightCode] on a round 7 server: three flight costs, the profit
+/// breakdown and a customer 12 days late.
+Map<String, Object?> round7FlightBody() {
+  final body = flowFlightDetailBody();
+  final flight = Map<String, Object?>.from(body['flight']! as Map);
+  final bookings = [
+    for (final row in flight['bookings']! as List)
+      Map<String, Object?>.from(row as Map)
+  ];
+  for (final row in bookings) {
+    row['lateDays'] = row['code'] == 'SH-21' ? 12 : null;
+  }
+  flight.addAll({
+    'bookings': bookings,
+    'flightCosts': [
+      {
+        'id': 'fc-3',
+        'category': 'transport',
+        'label': 'Airport to Dhaka hub',
+        'amount': 900,
+        'date': '2026-10-24T08:00:00.000Z',
+        'paid': true,
+        'accountName': 'Dhaka cash',
+      },
+      {
+        'id': 'fc-2',
+        'category': 'packaging',
+        'label': 'Boxes and tape',
+        'amount': 650,
+        'date': '2026-10-23T08:00:00.000Z',
+        'paid': true,
+        'accountName': 'Chengdu cash',
+      },
+      {
+        'id': 'fc-1',
+        'category': 'courier',
+        'label': 'Courier',
+        'amount': 600,
+        'date': '2026-10-22T08:00:00.000Z',
+        'paid': false,
+        'accountName': null,
+      },
+    ],
+    'flightCostTotal': 2150,
+    'profitBreakdown': {
+      'shipmentCharges': 31800,
+      'flyerIncome': 30000,
+      'ticket': 42000,
+      'flightCosts': 2150,
+      'profit': 17650,
+    },
+  });
+  return {'flight': flight};
+}

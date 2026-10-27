@@ -18,6 +18,10 @@ Future<void> shareBytes(
       ShareParams(files: [XFile(file.path, mimeType: mimeType, name: safe)]));
 }
 
+/// Opens the Android share sheet with [text], e.g. a customer link.
+Future<void> shareText(String text) =>
+    SharePlus.instance.share(ShareParams(text: text));
+
 Future<List<int>> downloadUrl(String url) async {
   try {
     final response = await http.get(Uri.parse(url));

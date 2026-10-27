@@ -14,7 +14,8 @@ import '../admin/payment_review_screen.dart';
 import '../shipments/shipment_process_screen.dart';
 
 /// Automatic tasks close themselves; manual notes are ticked off here.
-/// Admins open it from More; the hub has it as a bottom tab.
+/// Admins open it from More and assign hub tasks from here; the hub has it
+/// as a bottom tab.
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key, required this.role, required this.tasks});
 
@@ -128,6 +129,17 @@ class _TasksScreenState extends State<TasksScreen> {
                           setState(() => _composing = !_composing)))),
         ],
         children: [
+          if (!hub) ...[
+            SurfaceGroup(children: [
+              MenuRow(
+                  key: const Key('tasks-assign'),
+                  title: tr('Assign a task to the hub'),
+                  subtitle: tr('See what the hub still has to do'),
+                  icon: Icons.assignment_ind_outlined,
+                  onTap: _openAssign),
+            ]),
+            const SizedBox(height: 16),
+          ],
           if (_composing) ...[
             _composer(),
             const SizedBox(height: 20),
@@ -216,6 +228,12 @@ class _TasksScreenState extends State<TasksScreen> {
             busy: _busy,
             onPressed: _add),
       ]);
+
+  Future<void> _openAssign() async {
+    await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const AssignTaskScreen()));
+    if (mounted) await _load();
+  }
 
   Future<void> _toggle(TaskItem item) async {
     try {

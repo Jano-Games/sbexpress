@@ -11,6 +11,8 @@ class ShipmentCostItem {
     required this.dueAmount,
     required this.costField,
     required this.voidedAt,
+    this.accountName,
+    this.onBill = false,
   });
 
   final String id;
@@ -22,6 +24,13 @@ class ShipmentCostItem {
   final String? costField;
   final String? voidedAt;
 
+  /// The account the newest payment of this cost left from, if any.
+  final String? accountName;
+
+  /// A cost added to the customer's bill (a saved cost row). Old paid
+  /// expenses and the legacy fare fields are not on the bill.
+  final bool onBill;
+
   bool get voided => voidedAt != null;
   bool get legacyField =>
       costField == 'cnFare' ||
@@ -29,16 +38,31 @@ class ShipmentCostItem {
       costField == 'customsTax';
 
   factory ShipmentCostItem.fromJson(Map<String, Object?> json) {
+    String? account;
+    final payments = json['payments'];
+    if (payments is List) {
+      for (final row in asMapList(payments, 'payments')) {
+        final name = row['accountName'];
+        if (row['reversedAt'] == null && name is String && name.isNotEmpty) {
+          account = name;
+        }
+      }
+    }
+    final costField = json.containsKey('costField')
+        ? requiredNullableString(json, 'costField')
+        : null;
     return ShipmentCostItem(
+      accountName: account,
+      // Saved cost rows always carry `voidedAt` (null or a date); paid
+      // expenses and the legacy fields leave it out.
+      onBill: costField == null && json.containsKey('voidedAt'),
       id: requiredString(json, 'id'),
       name: requiredString(json, 'name'),
       category: requiredString(json, 'category'),
       amount: requiredDouble(json, 'amount'),
       paidAmount: requiredDouble(json, 'paidAmount'),
       dueAmount: requiredDouble(json, 'dueAmount'),
-      costField: json.containsKey('costField')
-          ? requiredNullableString(json, 'costField')
-          : null,
+      costField: costField,
       voidedAt: json.containsKey('voidedAt')
           ? requiredNullableString(json, 'voidedAt')
           : null,

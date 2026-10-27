@@ -2,24 +2,30 @@ import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flow.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/finance_parts.dart' show showAccountSheet;
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
+import '../../widgets/money_confirm.dart';
+import '../../widgets/quick_parts.dart' show plainKg;
 import '../../widgets/remove_parts.dart';
+import '../../widgets/round7_parts.dart';
 import '../../widgets/ui.dart';
 import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
 import '../intake/intake_screen.dart';
+import 'add_flight_cost_sheet.dart';
 import 'hub_flights_screen.dart' show banglaPlace;
 import 'ticket_flyers_screen.dart';
 
-/// One flight: its route and load, what it earns, the ticket and flyers,
-/// and the shipments on it.
+/// One flight: its route and load, what it earns, its costs, the ticket and
+/// flyers, and the shipments on it.
 class FlightDetailScreen extends StatefulWidget {
   const FlightDetailScreen({super.key, required this.code});
 
@@ -67,6 +73,78 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) await _load();
+  }
+
+  Future<void> _addCost(FlightDetail detail) async {
+    final saved = await showAddFlightCostSheet(context,
+        code: widget.code,
+        flight: detail.summary.displayCode,
+        costsSoFar: _costTotal(detail),
+        profit: detail.profitBreakdown?.profit);
+    if (saved == true && mounted) await _load();
+  }
+
+  /// Pays a cost saved as pay later: pick the account, confirm, post.
+  Future<void> _payCost(FlightCost cost) async {
+    final scope = AppScope.of(context);
+    List<FinanceAccount> accounts;
+    try {
+      accounts = (await scope.finance.snapshot()).accounts;
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      await showRemovalNotice(context,
+          title: tr('Not paid'), message: error.message);
+      return;
+    }
+    if (!mounted) return;
+    final account = await showAccountSheet(context,
+        title: tr('Paid from'), accounts: accounts);
+    if (account == null || !mounted) return;
+    final ok = await confirmMoney(context,
+        title: tr('Pay cost'),
+        body: bdtFundMovement(
+            amountBdt: cost.amount,
+            accountName: account.name,
+            accountCurrency: account.currency,
+            intoAccount: false));
+    if (!ok || !mounted) return;
+    try {
+      await scope.flights
+          .payCost(widget.code, cost.id, accountName: account.name);
+      if (mounted) await _load();
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      await showRemovalNotice(context,
+          title: tr('Not paid'),
+          message: error.status == 404
+              ? tr(
+                  'The server needs an update before flight costs can be marked paid.')
+              : error.message);
+    }
+  }
+
+  /// Reverses a flight cost after a confirm; money paid from an account
+  /// goes back to it.
+  Future<void> _removeCost(FlightCost cost) async {
+    final ok = await confirmRemoval(context,
+        title: tr('Remove this flight cost?'),
+        body: tr(
+            '{name} · {amount} is reversed. If it was paid, the money goes back to its account.',
+            {'name': flightCostTitle(cost), 'amount': formatBdt(cost.amount)}),
+        action: tr('Remove'));
+    if (!ok || !mounted) return;
+    try {
+      await AppScope.of(context).flights.removeCost(widget.code, cost.id);
+      if (mounted) await _load();
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      await showRemovalNotice(context,
+          title: tr('Not removed'),
+          message: error.status == 404
+              ? tr(
+                  'The server needs an update before flight costs can be removed.')
+              : error.message);
+    }
   }
 
   /// The server refuses while the flight has bookings, a ticket cost or
@@ -119,7 +197,21 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
             if (summary != null && detail != null) ...[
               _RouteCard(summary: summary, day: day),
               const SizedBox(height: 14),
-              _ProfitCard(summary: summary, bookings: bookings),
+              if (detail.profitBreakdown != null)
+                _FlightProfitCard(detail: detail)
+              else
+                _ProfitCard(summary: summary, bookings: bookings),
+              // Shown on an older server too: Add then says it needs an update.
+              const SizedBox(height: 14),
+              _FlightCostsCard(
+                  detail: detail,
+                  onAdd: () => _addCost(detail),
+                  onPay: _payCost,
+                  onRemove: _removeCost),
+              if (detail.flightCosts != null) ...[
+                const SizedBox(height: 14),
+                _CostShareCard(detail: detail),
+              ],
               const SizedBox(height: 14),
               LinkCard(
                   key: const Key('flight-ticket'),
@@ -185,13 +277,11 @@ String _ticketLine(FlightSummary summary) {
       {'amount': formatBdt(summary.agencyShare)});
 }
 
-/// Shipments at or past the Dhaka hub still missing a usual cost.
-int _missingCosts(List<AdminShipment> bookings) => bookings
-    .where((row) =>
-        row.statusIndex >= dhakaHubIndex &&
-        row.usualCosts != null &&
-        usualCostsAdded(row.usualCosts!) < row.usualCosts!.length)
-    .length;
+/// The flight costs' total: the server's sum, else the rows added up.
+double _costTotal(FlightDetail detail) =>
+    detail.flightCostTotal ??
+    (detail.flightCosts ?? const <FlightCost>[])
+        .fold(0.0, (sum, cost) => sum + cost.amount);
 
 class _RouteCard extends StatelessWidget {
   const _RouteCard({required this.summary, required this.day});
@@ -479,13 +569,10 @@ class _ShipmentsHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final missing = _missingCosts(bookings);
     final due = bookings.fold(0.0, (total, row) => total + row.dueAmount);
-    final trailing = missing > 0
-        ? trn(missing, '{n} missing cost', '{n} missing costs')
-        : due > 0
-            ? tr('{amount} still to collect', {'amount': formatBdt(due)})
-            : null;
+    final trailing = due > 0
+        ? tr('{amount} still to collect', {'amount': formatBdt(due)})
+        : null;
     return Padding(
         padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -502,19 +589,17 @@ class _ShipmentsHeading extends StatelessWidget {
                     alignment: AlignmentDirectional.centerEnd,
                     child: Text(trailing,
                         textAlign: TextAlign.right,
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 13,
                             height: 1.5,
-                            fontWeight:
-                                missing > 0 ? FontWeight.w600 : FontWeight.w400,
-                            color: missing > 0
-                                ? AppColors.accentInk
-                                : AppColors.muted)))),
+                            color: AppColors.muted)))),
           ],
         ]));
   }
 }
 
+/// A shipment on the flight: who, how heavy, its bill and whether it is
+/// paid, due or late.
 class _BookingRow extends StatelessWidget {
   const _BookingRow({required this.row, required this.onTap});
 
@@ -523,87 +608,279 @@ class _BookingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profit = row.profitBeforeTicket;
-    final noCosts = (row.costTotal ?? 0) <= 0;
-    final (String amount, String caption, Color color) = profit != null
-        ? (
-            formatBdt(profit),
-            noCosts ? tr('before costs') : tr('profit'),
-            profit < 0 ? AppColors.danger : AppColors.ink
-          )
-        : row.dueAmount > 0
-            ? (formatBdt(row.dueAmount), tr('due'), AppColors.ink)
-            : (tr('Paid'), '', AppColors.ok);
+    final late = row.lateDays;
+    final (String label, ChipTone tone) =
+        late != null && late > 0 && row.dueAmount > 0
+            ? (trn(late, '{n} day late', '{n} days late'), ChipTone.red)
+            : row.dueAmount > 0
+                ? (
+                    tr('{amount} due', {'amount': formatBdt(row.dueAmount)}),
+                    ChipTone.amber
+                  )
+                : (tr('Paid'), ChipTone.green);
     return InkWell(
         onTap: onTap,
         child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
             child: Row(children: [
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(row.code,
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700)),
-                          StatusPill(
-                              label: banglaStatus(row.status, row.statusLabel),
-                              tone: shipmentStatusTone(row.statusIndex)),
-                        ]),
-                    const SizedBox(height: 2),
                     Text(
-                        tr('{name} · {kg} · charge {amount}', {
-                          'name': row.supplierName ?? row.supplierCode,
-                          'kg': formatKg(row.effectiveKg),
-                          'amount': formatBdt(row.billAmount)
-                        }),
+                        '${row.code} · ${row.supplierName ?? row.supplierCode}',
                         style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.45,
-                            color: AppColors.muted)),
-                    const SizedBox(height: 4),
-                    Wrap(spacing: 6, runSpacing: 6, children: [
-                      PayWayChip(monthly: row.monthly),
-                      if (row.usualCosts != null)
-                        CostStatusChip(
-                            costs: row.usualCosts!,
-                            statusIndex: row.statusIndex),
-                    ]),
+                            fontSize: 14,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600)),
+                    Text(
+                        [
+                          formatKg(row.effectiveKg),
+                          tr('bill {amount}',
+                              {'amount': formatBdt(row.billAmount)}),
+                          if (row.monthly) tr('pays monthly'),
+                          banglaStatus(row.status, row.statusLabel),
+                        ].join(' · '),
+                        style: const TextStyle(
+                            fontSize: 12, height: 1.4, color: AppColors.muted)),
                   ])),
               const SizedBox(width: 8),
               ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 110),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(amount,
-                                maxLines: 1,
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    height: 1.3,
-                                    fontWeight: FontWeight.w700,
-                                    color: color,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures()
-                                    ]))),
-                        if (caption.isNotEmpty)
-                          Text(caption,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                  fontSize: 12, color: AppColors.muted)),
-                      ])),
+                  constraints: const BoxConstraints(maxWidth: 130),
+                  child: StatusPill(
+                      key: ValueKey('booking-chip-${row.code}'),
+                      label: label,
+                      tone: tone)),
               const Icon(Icons.chevron_right_rounded,
                   size: 20, color: AppColors.faint),
             ])));
   }
 }
+
+/// The flight's profit as the server adds it up: shipment charges and what
+/// flyers paid, less the ticket and the flight costs.
+class _FlightProfitCard extends StatelessWidget {
+  const _FlightProfitCard({required this.detail});
+  final FlightDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final money = detail.profitBreakdown!;
+    final bookings = detail.bookings;
+    final customersDue =
+        bookings.fold(0.0, (total, row) => total + row.dueAmount);
+    return PaperCard(
+        key: const Key('flight-profit'),
+        radius: heroRadius,
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(tr('Flight profit'),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.muted)),
+                  FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(formatBdt(money.profit),
+                          maxLines: 1,
+                          style: TextStyle(
+                              fontSize: 30,
+                              height: 1.15,
+                              fontWeight: FontWeight.w700,
+                              color: money.profit < 0
+                                  ? AppColors.danger
+                                  : AppColors.ok,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ]))),
+                ])),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                        trn(
+                            bookings.length,
+                            '{n} shipment · {kg} kg',
+                            '{n} shipments · {kg} kg',
+                            {'kg': plainKg(detail.shipmentKg)}),
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: AppColors.muted)))),
+          ]),
+          const SizedBox(height: 6),
+          MoneyRow(
+              label: tr('Shipment charges'),
+              value: formatBdt(money.shipmentCharges)),
+          MoneyRow(
+              label: tr('Flyers paid us'),
+              value: '+${formatBdt(money.flyerIncome)}'),
+          MoneyRow(label: tr('Ticket'), value: '−${formatBdt(money.ticket)}'),
+          MoneyRow(
+              label: tr('Flight costs'),
+              value: '−${formatBdt(money.flightCosts)}'),
+          if (money.otherCosts > 0.001)
+            MoneyRow(
+                label: tr('Older shipment costs'),
+                value: '−${formatBdt(money.otherCosts)}'),
+          const SizedBox(height: 4),
+          Text(tr("Costs on customers' bills are paid back by them, so they are left out."),
+              style: const TextStyle(
+                  fontSize: 12, height: 1.4, color: AppColors.muted)),
+          const SizedBox(height: 12),
+          Text(tr('Still to come in'),
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted)),
+          const SizedBox(height: 6),
+          FigureStrip(figures: [
+            StripFigure(tr('Customers'), formatBdt(customersDue)),
+            StripFigure(tr('Flyers'), formatBdt(detail.summary.flyerDue)),
+          ]),
+        ]));
+  }
+}
+
+/// Costs for the whole flight, with Add and a remove on each.
+class _FlightCostsCard extends StatelessWidget {
+  const _FlightCostsCard(
+      {required this.detail,
+      required this.onAdd,
+      required this.onPay,
+      required this.onRemove});
+  final FlightDetail detail;
+  final VoidCallback onAdd;
+  final ValueChanged<FlightCost> onPay, onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final costs = detail.flightCosts ?? const <FlightCost>[];
+    return PaperCard(
+        key: const Key('flight-costs'),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          CardHead(
+              title: tr('Flight costs'),
+              subtitle: tr('For the whole flight · not on any bill'),
+              trailing: AddButton(
+                  key: const Key('flight-cost-add'), onPressed: onAdd)),
+          const SizedBox(height: 4),
+          if (costs.isEmpty)
+            Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(tr('No flight costs yet.'),
+                    style: const TextStyle(
+                        fontSize: 13, height: 1.45, color: AppColors.muted)))
+          else
+            for (final cost in costs)
+              CostLine(
+                  key: ValueKey('flight-cost-${cost.id}'),
+                  icon: flightCostIcon(cost),
+                  title: flightCostTitle(cost),
+                  detail: flightCostDetail(cost),
+                  detailColor: cost.paid ? null : AppColors.accentInk,
+                  amount: formatBdt(cost.amount),
+                  divider: true,
+                  extra: cost.paid
+                      ? null
+                      : TextButton.icon(
+                          key: ValueKey('flight-cost-pay-${cost.id}'),
+                          onPressed: () => onPay(cost),
+                          style: TextButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              minimumSize: const Size(48, 40),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 2, vertical: 4),
+                              alignment: AlignmentDirectional.centerStart,
+                              textStyle: const TextStyle(
+                                  fontFamily: 'HindSiliguri',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                          icon: const Icon(Icons.check_circle_outline_rounded,
+                              size: 16),
+                          label: Text(tr('Mark paid'))),
+                  trailing: IconButton(
+                      key: ValueKey('flight-cost-remove-${cost.id}'),
+                      tooltip: tr('Remove'),
+                      constraints:
+                          const BoxConstraints(minWidth: 44, minHeight: 44),
+                      color: AppColors.muted,
+                      onPressed: () => onRemove(cost),
+                      icon: const Icon(Icons.close_rounded, size: 18))),
+          Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(children: [
+                Expanded(
+                    child: Text(tr('Total'),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700))),
+                Text(formatBdt(_costTotal(detail)),
+                    key: const Key('flight-cost-total'),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+              ])),
+        ]));
+  }
+}
+
+/// How the flight costs reach each shipment: a share by weight, shown on
+/// the first shipment that has kg.
+class _CostShareCard extends StatelessWidget {
+  const _CostShareCard({required this.detail});
+  final FlightDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _costTotal(detail);
+    final kg = detail.shipmentKg;
+    AdminShipment? example;
+    for (final row in detail.bookings) {
+      if (row.effectiveKg > 0) {
+        example = row;
+        break;
+      }
+    }
+    final text = [
+      tr("Each shipment's profit takes a share by weight."),
+      if (example != null && total > 0 && kg > 0)
+        tr(
+            '{code} carries {kg} of {total} kg, so its share is {share} of {costs}.',
+            {
+              'code': example.code,
+              'kg': example.effectiveKg.toStringAsFixed(1),
+              'total': plainKg(kg),
+              'share': formatBdt(_round(total * example.effectiveKg / kg)),
+              'costs': formatBdt(total)
+            }),
+    ].join(' ');
+    return PaperCard(
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(tr('How the flight costs reach each shipment'),
+          style: const TextStyle(
+              fontSize: 15, height: 1.3, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      Text(text,
+          style: const TextStyle(
+              fontSize: 13, height: 1.45, color: AppColors.muted)),
+    ]));
+  }
+}
+
+/// Two-decimal money for a worked-out share.
+double _round(double value) => (value * 100).roundToDouble() / 100;
 
 /// A flyer with their share of the ticket and what they still owe.
 class FlyerShareRow extends StatelessWidget {

@@ -478,19 +478,20 @@ void main() {
           builder: (context) =>
               MoreScreen(user: user, session: AppScope.of(context).session))));
       await t.pumpAndSettle();
-      final add = find.text(tr('Add admin or hub manager'));
-      await _reveal(t, add);
-      expect(find.text(tr('Team')), findsOneWidget);
-      await t.tap(add);
+      // One Team entry; adding someone is inside the staff screen.
+      expect(find.text(tr('Add admin or hub manager')), findsNothing);
+      expect(find.text(tr('Staff')), findsNothing);
+      final team = find.text(tr('Team'));
+      await _reveal(t, team);
+      expect(team, findsOneWidget);
+      await t.tap(team);
+      await t.pumpAndSettle();
+      expect(find.byType(StaffScreen), findsOneWidget);
+      await t.tap(find.text(tr('New staff')));
       await t.pumpAndSettle();
       expect(find.byType(StaffCreateScreen), findsOneWidget);
       expect(find.text(tr('Admin')), findsWidgets);
       expect(find.text(tr('Hub')), findsWidgets);
-      await _back(t);
-      await _reveal(t, find.text(tr('Staff')));
-      await t.tap(find.text(tr('Staff')));
-      await t.pumpAndSettle();
-      expect(find.byType(StaffScreen), findsOneWidget);
     });
 
     test('the hub More has no team entries', () {
@@ -500,10 +501,12 @@ void main() {
       };
       expect(hub.contains('staff-add'), isFalse);
       expect(hub.contains('staff'), isFalse);
+      expect(hub.contains('team'), isFalse);
       final admin = {
         for (final group in moreGroups(UserRole.admin)) ...group.ids
       };
-      expect(admin.containsAll(['staff-add', 'staff']), isTrue);
+      expect(admin.contains('team'), isTrue);
+      expect(admin.contains('staff-add'), isFalse);
     });
 
     testWidgets('the hub More screen shows no Team group', (t) async {

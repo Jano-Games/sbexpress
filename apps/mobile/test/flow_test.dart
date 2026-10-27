@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:sbexpress/data/models/flow.dart';
 import 'package:sbexpress/data/models/shipment.dart';
 import 'package:sbexpress/data/models/workspace.dart';
 import 'package:sbexpress/data/repositories/dashboard_repository.dart';
@@ -13,7 +12,6 @@ import 'package:sbexpress/features/admin/money_format.dart';
 import 'package:sbexpress/features/finance/get_paid_screen.dart';
 import 'package:sbexpress/features/flights/ticket_flyers_screen.dart';
 import 'package:sbexpress/features/intake/intake_screen.dart';
-import 'package:sbexpress/features/settings/settings_screen.dart';
 import 'package:sbexpress/l10n/l10n.dart';
 import 'package:sbexpress/widgets/quick_parts.dart' show wholeBdt;
 import 'package:sbexpress/app_scope.dart';
@@ -165,11 +163,15 @@ void main() {
     await _scrollTo(t, find.byKey(const Key('home-next-flight')));
     expect(find.text(tr('Profit so far {amount}', {'amount': wholeBdt(16180)})),
         findsOneWidget);
-    // The flight card's chip; the attention row above reads the same.
+    // Shipment costs are optional now: no missing-cost chip or row.
     expect(
         find.text(trn(
             2, '{n} shipment missing costs', '{n} shipments missing costs')),
-        findsWidgets);
+        findsNothing);
+    expect(
+        find.text(trn(2, '{n} shipment is missing costs',
+            '{n} shipments are missing costs')),
+        findsNothing);
     await t.drag(find.byType(Scrollable).first, const Offset(0, 3000));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('home-owed')));
@@ -304,7 +306,23 @@ void main() {
         findsOneWidget);
   });
 
-  testWidgets('adding a usual cost posts its category, amount and account',
+  Future<void> openAddCost(WidgetTester t) async {
+    final add = find.byKey(const Key('bill-cost-add'));
+    await _scrollTo(t, add);
+    await t.tap(add);
+    await t.pumpAndSettle();
+  }
+
+  Future<void> payFrom(WidgetTester t, Key choice) async {
+    await t.ensureVisible(find.byKey(const Key('cost-account')));
+    await t.tap(find.byKey(const Key('cost-account')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(choice));
+    await t.pumpAndSettle();
+  }
+
+  testWidgets(
+      'a cost on the bill posts its category, bill name, amount and account',
       (t) async {
     phone(t);
     Map<String, dynamic>? sent;
@@ -317,20 +335,31 @@ void main() {
       return null;
     }));
     await t.pumpAndSettle();
-    final add = find.byKey(const ValueKey('cost-add-courier'));
-    await _scrollTo(t, add);
-    await t.tap(add);
+    await openAddCost(t);
+    // The Courier chip fills in the name the customer reads on the bill.
+    await t.tap(find.byKey(const ValueKey('cost-courier')));
     await t.pumpAndSettle();
-    // The courier's usual 300 is filled in: costs 670 → 970, profit 3,830.
-    expect(find.text(tr('Usual amount')), findsOneWidget);
     expect(
-        find.text(tr('Costs {costs} · Profit {profit}',
-            {'costs': formatBdt(970), 'profit': formatBdt(3830)})),
+        t
+            .widget<TextField>(find.byKey(const Key('cost-name')))
+            .controller!
+            .text,
+        'Courier to customer');
+    await t.enterText(find.byKey(const Key('cost-amount')), '300');
+    await t.pumpAndSettle();
+    final preview = find.byKey(const Key('cost-preview'));
+    expect(
+        find.descendant(
+            of: preview,
+            matching: find.textContaining('${tr('Bill')} ${formatBdt(4800)}',
+                findRichText: true)),
         findsOneWidget);
-    await t.tap(find.byKey(const Key('cost-account')));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Dhaka cash').last);
-    await t.pumpAndSettle();
+    expect(
+        find.descendant(
+            of: preview,
+            matching: find.textContaining(formatBdt(5100), findRichText: true)),
+        findsOneWidget);
+    await payFrom(t, const ValueKey('pay-from-Dhaka cash'));
     await t.ensureVisible(find.byKey(const Key('cost-save')));
     await t.tap(find.byKey(const Key('cost-save')));
     await t.pumpAndSettle();
@@ -338,14 +367,15 @@ void main() {
     expect(sent, {
       'category': 'courier',
       'amount': 300.0,
-      'reason': 'Courier',
+      'reason': 'Courier to customer',
+      'label': 'Courier to customer',
       'accountName': 'Dhaka cash',
       'paymentTiming': 'now',
     });
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('a cost paid later moves no money', (t) async {
+  testWidgets('a cost on the bill paid later moves no money', (t) async {
     phone(t);
     Map<String, dynamic>? sent;
     await t.pumpWidget(
@@ -357,19 +387,15 @@ void main() {
       return null;
     }));
     await t.pumpAndSettle();
-    final other = find.byKey(const Key('costs-other'));
-    await _scrollTo(t, other);
-    await t.tap(other);
-    await t.pumpAndSettle();
+    await openAddCost(t);
+    await t.enterText(find.byKey(const Key('cost-name')), 'Extra tape');
     await t.enterText(find.byKey(const Key('cost-amount')), '80');
-    await t.tap(find.byKey(const Key('cost-later')));
     await t.pumpAndSettle();
-    await t.tap(find.textContaining(tr('Add a note')));
-    await t.pumpAndSettle();
-    await t.enterText(find.byKey(const Key('cost-note')), 'Extra tape');
+    await payFrom(t, const Key('pay-from-later'));
     await t.ensureVisible(find.byKey(const Key('cost-save')));
     await t.tap(find.byKey(const Key('cost-save')));
     await t.pumpAndSettle();
+    // Nothing leaves an account, so there is no money confirm.
     expect(sent, {
       'category': 'others',
       'amount': 80.0,
@@ -445,43 +471,6 @@ void main() {
         await book(t, customerTerms: 'monthly', tap: 'intake-terms-after');
     expect(sent?['paymentTerms'], 'invoice');
     expect(t.takeException(), isNull);
-  });
-
-  testWidgets('usual cost amounts are edited in Settings', (t) async {
-    phone(t);
-    Object? sent;
-    await t.pumpWidget(app(const SettingsScreen(), intercept: (r) async {
-      if (r.method == 'PATCH' && r.url.path == '/api/settings') {
-        sent = jsonDecode(r.body);
-        return _ok({
-          'settings': {
-            'rate': 17.5,
-            'threshold': 0.5,
-            'pcsRates': <String, Object?>{},
-            'costDefaults': const CostDefaults(
-                    packaging: 150, courier: 350, customs: 400, transport: 120)
-                .toJson(),
-          }
-        });
-      }
-      return null;
-    }));
-    await t.pumpAndSettle();
-    expect(find.text(formatBdt(300)), findsOneWidget);
-    await t.tap(find.byKey(const Key('costs-edit')));
-    await t.pumpAndSettle();
-    await t.enterText(find.byKey(const ValueKey('costs-courier')), '350');
-    await t.ensureVisible(find.byKey(const Key('costs-save')));
-    await t.tap(find.byKey(const Key('costs-save')));
-    await t.pumpAndSettle();
-    expect(sent, {
-      'costDefaults': {
-        'packaging': 150.0,
-        'courier': 350.0,
-        'customs': 400.0,
-        'transport': 120.0,
-      }
-    });
   });
 
   test('the overview reads the collect summary', () async {

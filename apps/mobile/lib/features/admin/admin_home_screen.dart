@@ -5,15 +5,15 @@ import '../../data/api/api_exception.dart';
 import '../../data/data_changes.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/hub_flight.dart';
+import '../../data/models/late_payment.dart';
 import '../../data/models/session_user.dart';
 import '../../data/models/workspace.dart';
 import '../../data/repositories/dashboard_repository.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/finance_parts.dart' show monthOnly;
+import '../../widgets/finance_parts.dart' show monthOnly, shortDate;
 import '../../widgets/flight_parts.dart'
-    show CapacityText, DateBlock, MeterBar, dayMonth, heroAlert, heroSoft;
-import '../../widgets/flow_parts.dart' show FlowChip;
+    show CapacityText, DateBlock, MeterBar, heroAlert, heroSoft;
 import '../../widgets/quick_parts.dart';
 import '../../widgets/ui.dart';
 import '../customers/customer_form_screen.dart';
@@ -216,17 +216,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     ];
   }
 
-  /// Overdue bills, flights missing costs, the server's notices, this
-  /// month's bills and flyers missing documents, most urgent first.
+  /// Late customers (or, from an older server, the overdue sum), the
+  /// server's notices, this month's bills and flyers missing documents,
+  /// most urgent first. Shipment costs are optional, so missing ones are
+  /// not listed.
   List<Widget> _attention(AdminOverview data) {
     final collect = data.collect;
+    final late = data.latePayments;
     final overdue = <Widget>[];
-    final costs = <Widget>[];
     final weights = <Widget>[];
     final bills = <Widget>[];
     final documents = _missingDocs(data);
     final other = <Widget>[];
-    if (collect != null && collect.overdueCount > 0) {
+    if (late != null) {
+      overdue.addAll(_late(late, data.latePaymentsCount ?? late.length));
+    } else if (collect != null && collect.overdueCount > 0) {
       overdue.add(AttentionRow(
           key: const Key('attention-overdue'),
           icon: Icons.schedule_rounded,
@@ -237,17 +241,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               {'amount': wholeBdt(collect.afterDeliveryDue)}),
           badge: StatusPill(label: tr('Overdue'), tone: ChipTone.red),
           onTap: () => _push(const GetPaidScreen())));
-    }
-    for (final flight in data.flights) {
-      final missing = flight.missingCostCount ?? 0;
-      if (missing <= 0) continue;
-      costs.add(AttentionRow(
-          icon: Icons.fact_check_outlined,
-          title: trn(missing, '{n} shipment is missing costs',
-              '{n} shipments are missing costs'),
-          detail:
-              '${displayFlightCode(flight.code)} · ${dayMonth(flight.date)}',
-          onTap: () => _openFlight(flight.code)));
     }
     final upcoming = {
       for (final flight in data.flights)
@@ -312,8 +305,52 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               'Due from {n} customers'),
           onTap: () => _push(const GetPaidScreen(initialTab: 1))));
     }
-    return [...overdue, ...costs, ...weights, ...bills, ...documents, ...other];
+    return [...overdue, ...weights, ...bills, ...documents, ...other];
   }
+
+  /// One row per late customer bill, then how many more there are.
+  List<Widget> _late(List<LatePayment> late, int total) => [
+        for (final row in late)
+          AttentionRow(
+              key: ValueKey('attention-late-${row.customerCode}-'
+                  '${row.shipmentCode ?? row.month}'),
+              icon: row.monthly
+                  ? Icons.calendar_month_outlined
+                  : Icons.schedule_rounded,
+              tone: ChipTone.red,
+              title: row.monthly
+                  ? tr('{name}: {month} bill unpaid', {
+                      'name': row.customerName,
+                      'month': row.month == null
+                          ? (row.monthLabel ?? '')
+                          : monthOnly(row.month!)
+                    })
+                  : tr('{name} is {days} days late',
+                      {'name': row.customerName, 'days': row.days}),
+              detail: row.monthly
+                  ? tr('{amount} · {days} days after the month ended',
+                      {'amount': wholeBdt(row.amount), 'days': row.days})
+                  : tr('{amount} · {shipment} delivered {date}', {
+                      'amount': wholeBdt(row.amount),
+                      'shipment': row.shipmentCode ?? '',
+                      'date': row.since == null ? '' : _shortDay(row.since!)
+                    }),
+              badge: StatusPill(label: tr('Late'), tone: ChipTone.red),
+              onTap: () => _push(row.monthly
+                  ? StatementScreen(
+                      code: row.customerCode,
+                      name: row.customerName,
+                      month: row.month)
+                  : const GetPaidScreen())),
+        if (total > late.length)
+          AttentionRow(
+              key: const Key('attention-late-more'),
+              icon: Icons.groups_2_outlined,
+              tone: ChipTone.red,
+              title: trn(total - late.length, '{n} more late payment',
+                  '{n} more late payments'),
+              onTap: () => _push(const GetPaidScreen())),
+      ];
 
   /// Up to three flyers missing travel documents, then how many more.
   List<Widget> _missingDocs(AdminOverview data) {
@@ -344,20 +381,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     ];
   }
 
-  /// The next flight first, then the one after it and any landed flight
-  /// that still misses shipment costs.
+  /// The next flight first, then the one after it.
   List<Widget> _flights(AdminOverview data) {
     final upcoming = [
       for (final flight in data.flights)
         if (flight.status == 'upcoming') flight
     ];
-    final missing = [
-      for (final flight in data.flights.reversed)
-        if (flight.status != 'upcoming' && (flight.missingCostCount ?? 0) > 0)
-          flight
-    ];
     final main = upcoming.isEmpty ? null : upcoming.first;
-    final rest = [...upcoming.skip(1).take(1), ...missing.take(2)];
+    final rest = [...upcoming.skip(1).take(1)];
     if (main == null && rest.isEmpty) {
       return [
         PaperCard(
@@ -421,6 +452,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         .push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) await _load();
   }
+}
+
+/// "17 Oct" for a handover date or timestamp, in the phone's time zone.
+String _shortDay(String iso) {
+  final parsed = DateTime.tryParse(iso);
+  if (parsed == null) return iso;
+  return shortDate(parsed.isUtc ? parsed.toLocal() : parsed);
 }
 
 // ---------------------------------------------------------------------------
@@ -780,7 +818,6 @@ class _NextFlight extends StatelessWidget {
     final day = FlightDay.parse(flight.date);
     final revenue = flight.revenue;
     final profit = flight.profit;
-    final missing = flight.missingCostCount ?? 0;
     return PaperCard(
         key: const Key('home-next-flight'),
         onTap: onOpen,
@@ -823,7 +860,7 @@ class _NextFlight extends StatelessWidget {
               space: flight.spaceKg,
               extra:
                   '· ${trn(flight.shipmentCount, '{n} shipment', '{n} shipments')}'),
-          if (revenue != null || profit != null || missing > 0) ...[
+          if (revenue != null || profit != null) ...[
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (revenue != null)
@@ -833,20 +870,13 @@ class _NextFlight extends StatelessWidget {
                 _MoneyChip(
                     tr('Profit so far {amount}', {'amount': wholeBdt(profit)}),
                     tone: profit < 0 ? ChipTone.red : ChipTone.green),
-              if (missing > 0)
-                FlowChip(
-                    label: trn(missing, '{n} shipment missing costs',
-                        '{n} shipments missing costs'),
-                    icon: Icons.warning_amber_rounded,
-                    tone: ChipTone.amber,
-                    outlined: true),
             ]),
           ],
         ]));
   }
 }
 
-/// A later flight, or a landed one that still misses costs.
+/// A later flight.
 class _FlightRow extends StatelessWidget {
   const _FlightRow({required this.flight, required this.onOpen});
   final OverviewFlight flight;
@@ -855,7 +885,6 @@ class _FlightRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final day = FlightDay.parse(flight.date);
-    final missing = flight.missingCostCount ?? 0;
     final upcoming = flight.status == 'upcoming';
     final profit = flight.profit;
     final line = upcoming
@@ -888,14 +917,9 @@ class _FlightRow extends StatelessWidget {
           const SizedBox(width: 8),
           ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 140),
-              child: !upcoming && missing > 0
-                  ? FlowChip(
-                      label:
-                          trn(missing, '{n} missing cost', '{n} missing costs'),
-                      tone: ChipTone.amber)
-                  : StatusPill(
-                      label: day?.relativeLabel ?? tr('Upcoming'),
-                      tone: ChipTone.blue)),
+              child: StatusPill(
+                  label: day?.relativeLabel ?? tr('Upcoming'),
+                  tone: ChipTone.blue)),
         ]));
   }
 }

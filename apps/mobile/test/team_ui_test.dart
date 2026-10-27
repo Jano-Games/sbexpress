@@ -15,7 +15,8 @@ import 'package:sbexpress/features/finance/fund_account_screen.dart';
 import 'package:sbexpress/features/flyers/flyer_detail_screen.dart';
 import 'package:sbexpress/features/flyers/flyers_screen.dart';
 import 'package:sbexpress/features/settings/pay_method_form_screen.dart';
-import 'package:sbexpress/features/settings/settings_screen.dart';
+import 'package:sbexpress/features/more/more_screen.dart';
+import 'package:sbexpress/features/settings/pay_methods_screen.dart';
 import 'package:sbexpress/features/settings/staff_screen.dart';
 import 'package:sbexpress/features/tasks/tasks_screen.dart';
 import 'package:sbexpress/l10n/l10n.dart';
@@ -205,22 +206,43 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('settings opens system setup while a check is missing',
+  testWidgets('payment methods show a hidden one and switch it back on',
       (t) async {
     _phone(t);
     final sent = <({String call, Object? body})>[];
-    await t.pumpWidget(_app((_) => const SettingsScreen(), sent));
+    await t.pumpWidget(_app((_) => const PayMethodsScreen(), sent));
     await t.pumpAndSettle();
-    expect(find.text('1 CNY = ${formatBdt(17.5)}'), findsOneWidget);
     expect(find.textContaining(tr('hidden')), findsOneWidget);
-    await t.scrollUntilVisible(find.text(tr('Media cleanup')), 300,
-        scrollable: find.byType(Scrollable).first);
-    expect(find.text('5 / 6'), findsOneWidget);
-    expect(find.text(tr('Off')), findsOneWidget);
 
     await _tap(t, find.byType(Switch).at(1));
     expect(sent.single.call, 'PATCH /api/settings/pay-methods/m2');
     expect(sent.single.body, {'enabled': true});
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('More shows the rate and opens the system check', (t) async {
+    _phone(t);
+    final sent = <({String call, Object? body})>[];
+    await t.pumpWidget(_app(
+        (_) => Builder(
+            builder: (context) => MoreScreen(
+                user: AppScope.of(context).session.user!,
+                session: AppScope.of(context).session)),
+        sent));
+    await t.pumpAndSettle();
+    expect(
+        find.text('${tr('{rate} per ¥1', {'rate': '৳17.50'})} · '
+            '${tr('Confirmed')}'),
+        findsOneWidget);
+    final system = find.text(tr('System check'));
+    await t.scrollUntilVisible(system, 300,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('5 / 6'), findsOneWidget);
+    expect(find.text(tr('Media cleanup')), findsNothing);
+    await _tap(t, system);
+    expect(find.text(tr('Media cleanup')), findsOneWidget);
+    expect(find.text(tr('Off')), findsOneWidget);
+    expect(sent, isEmpty);
     expect(t.takeException(), isNull);
   });
 

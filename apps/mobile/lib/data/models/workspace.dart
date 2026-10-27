@@ -1,5 +1,6 @@
 import '../json_read.dart';
 import 'flow.dart';
+import 'late_payment.dart';
 import 'shipment.dart';
 
 class NextFlightCard {
@@ -111,6 +112,8 @@ class AdminOverview {
     this.stageCounts,
     this.flyersMissingDocs,
     this.flyersMissingDocsCount,
+    this.latePayments,
+    this.latePaymentsCount,
   });
 
   final String weekLabel;
@@ -149,6 +152,11 @@ class AdminOverview {
   /// send them.
   final List<FlyerMissingDocs>? flyersMissingDocs;
   final int? flyersMissingDocsCount;
+
+  /// Customers ten or more days late, most days first and at most ten, and
+  /// how many there are in all. Null on a server that does not send them.
+  final List<LatePayment>? latePayments;
+  final int? latePaymentsCount;
 
   factory AdminOverview.fromJson(Map<String, Object?> json) {
     final cash = asJsonMap(json['cash'], 'cash');
@@ -202,6 +210,13 @@ class AdminOverview {
                 FlyerMissingDocs.fromJson(row)
             ],
       flyersMissingDocsCount: optionalInt(json, 'flyersMissingDocsCount'),
+      latePayments: json['latePayments'] == null
+          ? null
+          : [
+              for (final row in requiredMapList(json, 'latePayments'))
+                LatePayment.fromJson(row)
+            ],
+      latePaymentsCount: optionalInt(json, 'latePaymentsCount'),
     );
   }
 }

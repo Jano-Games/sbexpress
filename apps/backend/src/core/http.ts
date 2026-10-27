@@ -44,7 +44,7 @@ export function createApp(): Hono {
   })
   const writes: MiddlewareHandler = async (c, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) return next()
-    const financial = !c.req.path.startsWith('/api/track/') && /\/(payments|incomes|expenses|transfers|refunds|apply-credit|mark-paid|after-sales|receipt\/approve|statement-receipts\/[^/]+\/approve|settlements|reverse|void)$/.test(c.req.path)
+    const financial = !c.req.path.startsWith('/api/track/') && /\/(payments|incomes|expenses|transfers|refunds|apply-credit|mark-paid|after-sales|receipt\/approve|statement-receipts\/[^/]+\/approve|settlements|reverse|void|costs|pay)$/.test(c.req.path)
     const key = financial ? c.req.header('Idempotency-Key') : undefined
     if (key && !/^[0-9a-f-]{36}$/i.test(key)) throw new HttpError(400, 'Invalid request key')
     const actorId = key ? (c.get('user') as {id:string}).id : ''

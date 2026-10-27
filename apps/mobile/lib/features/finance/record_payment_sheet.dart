@@ -14,15 +14,20 @@ import '../../widgets/money_confirm.dart';
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
 
-/// Records money an after-delivery customer paid. True once it is saved.
+/// Records money a customer paid on a shipment. True once it is saved.
+/// [monthly] is for a shipment on a monthly bill; an empty
+/// `deliveredOn` means it is not handed over yet.
 Future<bool?> showRecordPaymentSheet(BuildContext context,
-        {required HandedOverBill bill}) =>
-    showFlowSheet<bool>(context, (_) => RecordPaymentSheet(bill: bill));
+        {required HandedOverBill bill, bool monthly = false}) =>
+    showFlowSheet<bool>(
+        context, (_) => RecordPaymentSheet(bill: bill, monthly: monthly));
 
 class RecordPaymentSheet extends StatefulWidget {
-  const RecordPaymentSheet({super.key, required this.bill});
+  const RecordPaymentSheet(
+      {super.key, required this.bill, this.monthly = false});
 
   final HandedOverBill bill;
+  final bool monthly;
 
   @override
   State<RecordPaymentSheet> createState() => _RecordPaymentSheetState();
@@ -132,8 +137,16 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                   children: [
                     FigureStrip(figures: [
                       StripFigure(tr('Due'), formatBdt(bill.amount)),
-                      StripFigure(tr('Delivered'), dayMonth(bill.deliveredOn)),
-                      StripFigure(tr('Pays'), tr('After delivery')),
+                      StripFigure(
+                          tr('Delivered'),
+                          bill.deliveredOn.isEmpty
+                              ? '—'
+                              : dayMonth(bill.deliveredOn)),
+                      StripFigure(
+                          tr('Pays'),
+                          widget.monthly
+                              ? tr('Monthly')
+                              : tr('After delivery')),
                     ]),
                     const SizedBox(height: 14),
                     _Label(tr('Amount received')),

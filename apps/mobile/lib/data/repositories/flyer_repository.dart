@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../json_read.dart';
 import '../models/flyer.dart';
 import '../uploads/image_prepare.dart';
+import '../uploads/signed_photos.dart';
 import '../uploads/upload_flow.dart';
 
 class FlyerRepository {
@@ -52,6 +53,11 @@ class FlyerRepository {
         '${_path(name)}/documents/${Uri.encodeComponent(reference)}/url');
     return requiredString(json, 'url');
   }
+
+  /// Loads photo documents of flyer [name] to show them in the app.
+  SignedPhotoLoader documentLoader(String name) => SignedPhotoLoader(
+      link: (reference) => documentUrl(name, reference),
+      download: api.getSignedBytes);
 
   Future<String> uploadPdf({
     required String name,

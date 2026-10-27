@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/hub/hub_chain.dart';
 import '../../data/models/flight.dart';
+import '../../data/models/media_item.dart';
 import '../../data/models/shipment.dart';
 import '../../data/uploads/flutter_heic.dart';
-import '../../data/uploads/image_prepare.dart';
-import '../../data/uploads/picked_photo_file.dart';
+import '../../data/uploads/photo_tray.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../data/uploads/quick_uploads.dart';
+import '../../data/uploads/signed_photos.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/photo_parts.dart';
 import '../../widgets/ui.dart';
 import '../imei/imei_guide_screen.dart';
 
 class ShipmentProcessScreen extends StatefulWidget {
-  const ShipmentProcessScreen({super.key, required this.code});
+  const ShipmentProcessScreen({super.key, required this.code, this.pickPhotos});
 
   final String code;
+
+  /// Camera or gallery; tests pass their own photos.
+  final Future<List<PickedPhoto>> Function(FileSource source)? pickPhotos;
 
   @override
   State<ShipmentProcessScreen> createState() => _ShipmentProcessScreenState();
@@ -37,7 +42,11 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
   final _confirmation = TextEditingController();
   final _holdReason = TextEditingController();
   var _mode = 'courier';
-  PhotoUploadController? _photos;
+
+  /// Picked photos wait here until Upload.
+  PhotoTrayController? _tray;
+  SignedPhotoLoader? _photos;
+  ShipmentMediaList? _media;
 
   @override
   void initState() {
@@ -63,16 +72,18 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _photos ??= PhotoUploadController(
-      decodeHeic: flutterDecodeHeic,
-      upload: (image, onProgress) => AppScope.of(context)
-          .media
-          .uploadPhoto(widget.code, image, onProgress),
-    )..addListener(() => setState(() {}));
+    final media = AppScope.of(context).media;
+    _photos ??= media.photoLoader(widget.code);
+    _tray ??= PhotoTrayController(
+        decodeHeic: flutterDecodeHeic,
+        upload: (image, onProgress) =>
+            media.uploadPhoto(widget.code, image, onProgress),
+        onUploaded: _loadMedia);
   }
 
   @override
   void dispose() {
+    _tray?.dispose();
     _photos?.dispose();
     _kg.dispose();
     _count.dispose();
@@ -101,6 +112,7 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
           _ref.text = detail.lastMile!.ref;
         }
       });
+      await _loadMedia();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
@@ -110,6 +122,34 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// The photos hub staff and admins added; a failure leaves the list as
+  /// it was and does not block the handling steps.
+  Future<void> _loadMedia() async {
+    try {
+      final media = await AppScope.of(context).media.list(widget.code);
+      if (!mounted) return;
+      setState(() => _media = media);
+    } on ApiException catch (error) {
+      if (!mounted || error.status == 401) return;
+      setState(() => _error ??= error.message);
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      setState(() => _error ??= error.message);
+    }
+  }
+
+  Future<void> _openPhoto(List<MediaItem> ordered, int index) {
+    return showPhotoViewer(context,
+        photos: [
+          for (final item in ordered)
+            ViewerPhoto.stored(item.reference,
+                group: photoGroupLabel(item.deviceCategory),
+                shared: item.shared)
+        ],
+        initial: index,
+        loader: _photos);
   }
 
   void fail(String message) => setState(() => _error = message);
@@ -147,99 +187,107 @@ class _ShipmentProcessScreenState extends State<ShipmentProcessScreen> {
                 chain.visual(step) == HubStepVisual.done ||
                 chain.visual(step) == HubStepVisual.skipped)
             .length;
-    return WorkspaceScaffold(
-        title: widget.code,
-        root: false,
-        subtitle: chain?.current == null
-            ? tr('Hub processing')
-            : tr('Hub processing · step {step}/5',
-                {'step': chain!.current!.index + 1}),
-        actions: [
-          if (detail != null)
-            Center(
-                child: Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: StatusPill(
-                        label: banglaStatus(detail.status, detail.statusLabel),
-                        tone: shipmentStatusTone(detail.statusIndex)))),
-        ],
-        children: [
-          if (_loading && detail == null) const LinearProgressIndicator(),
-          if (_error != null) ...[
-            ErrorNote(message: _error!, onRetry: _load),
-          ],
-          if (detail != null && chain != null) ...[
-            _Facts(detail: detail),
-            if (detail.deviceCount > 0) ...[
-              const SizedBox(height: 12),
-              AppButton(
-                label: detail.devicePhotoCount < detail.deviceCount
-                    ? tr('Take IMEI photos ({done}/{total})', {
-                        'done': detail.devicePhotoCount,
-                        'total': detail.deviceCount
-                      })
-                    : tr('View IMEI photos'),
-                icon: Icons.qr_code_scanner_rounded,
-                kind: AppButtonKind.tonal,
-                onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                        builder: (_) =>
-                            DeviceUnitsScreen(code: widget.code, hub: true))),
-              ),
+    return PhotoTrayGuard(
+        tray: _tray,
+        child: WorkspaceScaffold(
+            title: widget.code,
+            root: false,
+            subtitle: chain?.current == null
+                ? tr('Hub processing')
+                : tr('Hub processing · step {step}/5',
+                    {'step': chain!.current!.index + 1}),
+            actions: [
+              if (detail != null)
+                Center(
+                    child: Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: StatusPill(
+                            label:
+                                banglaStatus(detail.status, detail.statusLabel),
+                            tone: shipmentStatusTone(detail.statusIndex)))),
             ],
-            if (chain.current == null) ...[
-              const SizedBox(height: 12),
-              PaperCard(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                    SectionTitle(title: tr('Next action')),
-                    _Action(detail: detail, chain: chain, state: this),
-                  ])),
-            ],
-            const SizedBox(height: 12),
-            PaperCard(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(children: [
-                        Expanded(
-                            child: Text(tr('Handling steps'),
+            children: [
+              if (_loading && detail == null) const LinearProgressIndicator(),
+              if (_error != null) ...[
+                ErrorNote(message: _error!, onRetry: _load),
+              ],
+              if (detail != null && chain != null) ...[
+                _Facts(detail: detail),
+                if (detail.deviceCount > 0) ...[
+                  const SizedBox(height: 12),
+                  AppButton(
+                    label: detail.devicePhotoCount < detail.deviceCount
+                        ? tr('Take IMEI photos ({done}/{total})', {
+                            'done': detail.devicePhotoCount,
+                            'total': detail.deviceCount
+                          })
+                        : tr('View IMEI photos'),
+                    icon: Icons.qr_code_scanner_rounded,
+                    kind: AppButtonKind.tonal,
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                            builder: (_) => DeviceUnitsScreen(
+                                code: widget.code, hub: true))),
+                  ),
+                ],
+                if (chain.current == null) ...[
+                  const SizedBox(height: 12),
+                  PaperCard(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                        SectionTitle(title: tr('Next action')),
+                        _Action(detail: detail, chain: chain, state: this),
+                      ])),
+                ],
+                const SizedBox(height: 12),
+                PaperCard(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(children: [
+                            Expanded(
+                                child: Text(tr('Handling steps'),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700))),
+                            Text(tr('{done}/5 done', {'done': done}),
                                 style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700))),
-                        Text(tr('{done}/5 done', {'done': done}),
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.muted)),
-                      ]),
-                      const SizedBox(height: 14),
-                      for (final step in HubChainStep.values)
-                        _StepTile(
-                            step: step,
-                            chain: chain,
-                            last: step == HubChainStep.handover,
-                            child: chain.current == step
-                                ? _Action(
-                                    detail: detail, chain: chain, state: this)
-                                : null),
-                    ])),
-            const SizedBox(height: 12),
-            _Photos(controller: _photos, onPick: _pickPhoto),
-          ],
-        ]);
+                                    fontSize: 13, color: AppColors.muted)),
+                          ]),
+                          const SizedBox(height: 14),
+                          for (final step in HubChainStep.values)
+                            _StepTile(
+                                step: step,
+                                chain: chain,
+                                last: step == HubChainStep.handover,
+                                child: chain.current == step
+                                    ? _Action(
+                                        detail: detail,
+                                        chain: chain,
+                                        state: this)
+                                    : null),
+                        ])),
+                const SizedBox(height: 12),
+                _Photos(
+                    tray: _tray!,
+                    configured: _media?.configured != false,
+                    onPick: _pickPhoto),
+                const SizedBox(height: 16),
+                StoredPhotoGrid(
+                    media: _media?.media ?? const [],
+                    loader: _photos!,
+                    configured: _media?.configured != false,
+                    onOpen: _openPhoto),
+              ],
+            ]));
   }
 
-  Future<void> _pickPhoto(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source);
-    if (file == null) return;
-    try {
-      final bytes = await file.readAsBytes();
-      await _photos?.select(
-          PickedPhoto(bytes: bytes, name: file.name, mime: file.mimeType));
-    } finally {
-      await deletePickedPhotoFile(file.path);
-    }
+  Future<void> _pickPhoto(FileSource source) async {
+    final photos = await (widget.pickPhotos ?? pickPhotos)(source);
+    if (!mounted) return;
+    await _tray?.add(photos);
   }
 }
 
@@ -733,17 +781,18 @@ class _Mode extends StatelessWidget {
 }
 
 class _Photos extends StatelessWidget {
-  const _Photos({required this.controller, required this.onPick});
+  const _Photos(
+      {required this.tray, required this.configured, required this.onPick});
 
-  final PhotoUploadController? controller;
-  final Future<void> Function(ImageSource source) onPick;
+  final PhotoTrayController tray;
+  final bool configured;
+  final void Function(FileSource source) onPick;
 
   @override
   Widget build(BuildContext context) {
-    final upload = controller;
     return PaperCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(tr('Shipment photos'),
               style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -751,47 +800,15 @@ class _Photos extends StatelessWidget {
           Text(tr('Add photos of the packages and goods.'),
               style: const TextStyle(color: AppColors.muted, height: 1.35)),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                  child: AppButton(
-                      label: tr('Camera'),
-                      kind: AppButtonKind.quiet,
-                      onPressed: () => onPick(ImageSource.camera))),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: AppButton(
-                      label: tr('Gallery'),
-                      kind: AppButtonKind.quiet,
-                      onPressed: () => onPick(ImageSource.gallery))),
-            ],
-          ),
-          if (upload != null && upload.prepared != null) ...[
-            const SizedBox(height: 8),
-            Text(locationStrippedNote,
-                style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-          ],
-          if (upload != null && upload.busy) ...[
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-                value: upload.progress == 0 ? null : upload.progress,
-                color: AppColors.teal,
-                backgroundColor: AppColors.tealSoft),
-          ],
-          if (upload != null && upload.error != null) ...[
-            const SizedBox(height: 8),
-            Text(upload.error!,
-                style: const TextStyle(color: AppColors.danger, height: 1.35)),
-            const SizedBox(height: 8),
-            AppButton(
-                label: tr('Resend the same photo'),
-                kind: AppButtonKind.teal,
-                onPressed: upload.retry),
-          ],
-          if (upload != null && upload.done)
-            Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(tr('Photo added.'))),
+          if (!configured)
+            ErrorNote(
+                message: tr(
+                    'Storage is not set up yet. Uploads will turn on once an admin finishes storage setup.')),
+          PhotoTray(
+              tray: tray,
+              onPick: onPick,
+              enabled: configured,
+              group: tr('Parcel photos')),
         ],
       ),
     );

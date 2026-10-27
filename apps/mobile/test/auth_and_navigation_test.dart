@@ -15,7 +15,8 @@ import 'package:sbexpress/features/more/destinations.dart';
 import 'package:sbexpress/widgets/ui.dart';
 
 void main() {
-  test('login sends email and password and stores the account role', () async {
+  test('login sends email, password and remember and stores the role',
+      () async {
     final store = MemorySessionStore();
     late Map<String, Object?> sent;
     final api = ApiClient(
@@ -42,7 +43,8 @@ void main() {
     );
     final user = await AuthRepository(api)
         .login(email: 'Mina@sbx.test', password: 'secret');
-    expect(sent.keys.toSet(), {'email', 'password'});
+    expect(sent.keys.toSet(), {'email', 'password', 'remember'});
+    expect(sent['remember'], isTrue);
     expect(sent.containsKey('role'), isFalse);
     expect(sent['email'], 'Mina@sbx.test');
     expect(user.role, UserRole.hub);
@@ -84,16 +86,20 @@ void main() {
         moreDestinations(UserRole.admin).map((item) => item.id).toSet();
     expect(hub.contains('finance'), isFalse);
     expect(hub.contains('invoice-share'), isFalse);
-    expect(admin.contains('finance'), isTrue);
+    expect(hub.contains('review'), isFalse);
+    expect(hub.contains('rate'), isFalse);
+    // Finance is on the admin's bottom bar; More keeps the money tools.
+    expect(admin.containsAll(['review', 'pay-methods', 'rate']), isTrue);
   });
 
   testWidgets('login has email and password and no role picker',
       (tester) async {
     String? email;
     await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(onSubmit: (value, password) async {
+      home: LoginScreen(onSubmit: (value, password, remember) async {
         email = value;
         expect(password, 'secret');
+        expect(remember, isTrue);
       }),
     ));
     expect(find.byType(DropdownButton<UserRole>), findsNothing);

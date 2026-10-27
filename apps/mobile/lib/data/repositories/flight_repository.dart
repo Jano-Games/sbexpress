@@ -128,7 +128,63 @@ class FlightRepository {
     return failed;
   }
 
+  /// Adds a cost for the whole flight. Exactly one of [accountName] (paid
+  /// now, money leaves it) or [payLater] (saved unpaid). An older server
+  /// answers 404.
+  Future<FlightCost> addCost(String code,
+      {required String category,
+      String? label,
+      required double amount,
+      String? accountName,
+      bool payLater = false}) async {
+    final json = await api.postJson('${_path(code)}/costs',
+        idempotent: true,
+        body: flightCostBody(
+            category: category,
+            label: label,
+            amount: amount,
+            accountName: accountName,
+            payLater: payLater));
+    final cost = json['cost'];
+    return FlightCost.fromJson(asJsonMap(cost, 'cost'));
+  }
+
+  /// Pays a flight cost saved as pay later from [accountName]. An older
+  /// server answers 404.
+  Future<void> payCost(String code, String id,
+      {required String accountName}) async {
+    await api.postJson('${_path(code)}/costs/${Uri.encodeComponent(id)}/pay',
+        idempotent: true, body: {'accountName': accountName.trim()});
+  }
+
+  /// Reverses a flight cost; posted money is never hard-deleted.
+  Future<void> removeCost(String code, String id) async {
+    await api.deleteJson('${_path(code)}/costs/${Uri.encodeComponent(id)}');
+  }
+
   String _path(String code) => '/api/flights/${Uri.encodeComponent(code)}';
+}
+
+/// `POST /flights/:code/costs`. Paid now names the account; pay later sends
+/// `payLater: true` and no account.
+Map<String, Object?> flightCostBody(
+    {required String category,
+    String? label,
+    required double amount,
+    String? accountName,
+    bool payLater = false}) {
+  final name = label?.trim() ?? '';
+  final account = accountName?.trim() ?? '';
+  if (!payLater && account.isEmpty) {
+    throw const FormatException('Choose the paying account');
+  }
+  return {
+    'category': flightCostCategories.contains(category) ? category : 'others',
+    if (name.isNotEmpty)
+      'label': name.length > 60 ? name.substring(0, 60) : name,
+    'amount': roundMoney(amount),
+    if (payLater) 'payLater': true else 'accountName': account,
+  };
 }
 
 /// One flyer's money toward their part of the ticket, in BDT.
