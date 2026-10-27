@@ -96,10 +96,17 @@ void main() {
         .text(tr('{amount} still to collect', {'amount': formatBdt(19850)}));
     await t.scrollUntilVisible(heading, 200, scrollable: scroll);
     expect(heading, findsOneWidget);
-    // SH-21 keeps its 11,875 bill less its 1,700 costs.
-    await t.scrollUntilVisible(find.text(formatBdt(10175)), 200,
-        scrollable: scroll);
-    expect(find.text(formatBdt(10175)), findsOneWidget);
+    // SH-21 is paid; SH-18 shows what is still due.
+    final paid = find.byKey(const ValueKey('booking-chip-SH-21'));
+    await t.scrollUntilVisible(paid, 200, scrollable: scroll);
+    expect(find.descendant(of: paid, matching: find.text(tr('Paid'))),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('booking-chip-SH-18')),
+            matching:
+                find.text(tr('{amount} due', {'amount': formatBdt(3600)}))),
+        findsOneWidget);
     await t.scrollUntilVisible(find.byKey(const Key('flight-ticket')), -200,
         scrollable: scroll);
     await t.ensureVisible(find.byKey(const Key('flight-ticket')));
@@ -157,7 +164,8 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('shipment summary shows the pipeline step and opens the bill',
+  testWidgets(
+      'shipment overview shows the pipeline step and the bill on the same page',
       (t) async {
     phone(t);
     await t.pumpWidget(app(const AdminShipmentScreen(code: 'SH-18')));
@@ -166,16 +174,12 @@ void main() {
         findsOneWidget);
     expect(find.text(tr('{amount} due', {'amount': formatBdt(3800)})),
         findsOneWidget);
-    final billLink =
-        find.text(tr('For a link with the invoice, open the Bill tab.'));
-    await t.ensureVisible(billLink);
+    // No Bill tab any more: the bill sits under the status.
+    expect(find.text(tr('Summary')), findsNothing);
+    expect(find.byKey(const Key('shipment-bill')), findsOneWidget);
+    await t.tap(find.byKey(const Key('shipment-record-payment')));
     await t.pumpAndSettle();
-    await t.tap(billLink);
-    await t.pumpAndSettle();
-    expect(find.text(tr('Amount due')), findsOneWidget);
-    // The due pill gives way to the hero on the Bill tab.
-    expect(find.text(tr('{amount} due', {'amount': formatBdt(3800)})),
-        findsNothing);
+    expect(find.byKey(const Key('record-save')), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 

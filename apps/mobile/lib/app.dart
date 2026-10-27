@@ -126,7 +126,15 @@ class _AuthGateState extends State<AuthGate> {
         }
         final banner = widget.session.banner;
         if (widget.session.user == null) {
-          return LoginScreen(onSubmit: widget.session.login);
+          final owner = widget.session.fingerprint;
+          return LoginScreen(
+              onSubmit: widget.session.login,
+              fingerprint: owner == null
+                  ? null
+                  : FingerprintLogin(
+                      firstName: owner.firstName,
+                      email: owner.email,
+                      signIn: widget.session.loginWithFingerprint));
         }
         return Column(
           children: [

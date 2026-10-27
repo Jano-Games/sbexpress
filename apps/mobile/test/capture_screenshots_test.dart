@@ -7,6 +7,7 @@ import 'package:sbexpress/features/flyers/flyer_form_screen.dart';
 import 'package:sbexpress/features/flyers/flyers_screen.dart';
 import 'package:sbexpress/features/admin/admin_shipment_screen.dart';
 import 'package:sbexpress/features/flights/flight_detail_screen.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -15,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:sbexpress/features/auth/login_screen.dart';
 import 'package:sbexpress/features/auth/splash_screen.dart';
 import 'package:sbexpress/features/hub/hub_home_screen.dart';
+import 'package:sbexpress/features/imei/imei_guide_screen.dart';
 import 'package:sbexpress/features/flights/hub_flights_screen.dart';
 import 'package:sbexpress/features/shipments/shipment_process_screen.dart';
 import 'package:sbexpress/features/shipments/shipments_screen.dart';
@@ -26,6 +28,8 @@ import 'package:sbexpress/widgets/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:sbexpress/data/scan/mrz.dart';
+import 'package:sbexpress/data/scan/read_text.dart';
 import 'package:sbexpress/data/uploads/photo_upload.dart';
 import 'package:sbexpress/data/uploads/quick_uploads.dart';
 import 'package:sbexpress/features/intake/booking_done_screen.dart';
@@ -67,7 +71,8 @@ import 'package:sbexpress/features/flights/flights_screen.dart';
 import 'package:sbexpress/features/flights/ticket_import_screen.dart';
 import 'package:sbexpress/features/settings/pay_method_form_screen.dart';
 import 'package:sbexpress/features/settings/staff_screen.dart';
-import 'package:sbexpress/features/settings/settings_screen.dart';
+import 'package:sbexpress/features/settings/pay_methods_screen.dart';
+import 'package:sbexpress/data/session/biometrics.dart' show FingerprintFailure;
 import 'package:sbexpress/features/intake/intake_screen.dart';
 import 'package:sbexpress/l10n/l10n.dart';
 import 'package:sbexpress/theme/app_theme.dart';
@@ -120,6 +125,16 @@ void main() {
       child: const SizedBox.shrink(),
     );
 
+    // CAPTURE_ONLY=photos renders just the photo tray, grid and viewer.
+    if (Platform.environment['CAPTURE_ONLY'] == 'photos') {
+      await _photoShots(tester, scope);
+      tester.view.physicalSize = const Size(320, 700);
+      _textScale = 1.3;
+      await _photoShots(tester, scope, compact: true);
+      _textScale = 1;
+      return;
+    }
+
     // The splash's loading bar never settles, so pump a fixed time.
     await tester.pumpWidget(RepaintBoundary(
         key: const Key('capture'),
@@ -128,7 +143,8 @@ void main() {
     await _saveShot(tester, '00-splash');
     await _shot(
         tester,
-        _scoped(scope, LoginScreen(onSubmit: (email, password) async {})),
+        _scoped(
+            scope, LoginScreen(onSubmit: (email, password, remember) async {})),
         '01-login',
         find.byType(LoginScreen));
     await _shot(
@@ -250,8 +266,8 @@ void main() {
         find.byType(CustomerActivityScreen));
     await _shot(tester, _scoped(scope, const FundAccountScreen()),
         '18-opening-balance', find.byType(FundAccountScreen));
-    await _shot(tester, _scoped(scope, const SettingsScreen()), '21-settings',
-        find.byType(SettingsScreen));
+    await _shot(tester, _scoped(scope, const PayMethodsScreen()),
+        '21-pay-methods', find.byType(PayMethodsScreen));
     await _shot(
         tester,
         _scoped(_bookingScope(scope),
@@ -292,14 +308,10 @@ void main() {
         '24-shipment-detail',
         find.byType(AdminShipmentScreen));
     await _scrollShot(tester, '24a-shipment-detail-handling');
-    await tester.tap(find.text(tr('Bill')));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).first, const Offset(0, 2000));
-    await tester.pumpAndSettle();
-    await _saveShot(tester, '24b-shipment-billing');
+    await _scrollShot(tester, '24b-shipment-billing');
     await _scrollShot(tester, '24c-shipment-payment');
     await _scrollShot(tester, '24d-shipment-share');
-    await tester.tap(find.text(tr('Photos')));
+    await tester.tap(find.text(tr('Photos · {n}', {'n': 0})));
     await tester.pumpAndSettle();
     await _saveShot(tester, '24e-shipment-photos');
     await _shot(tester, _scoped(scope, const FlightDetailScreen(code: 'BG305')),
@@ -314,6 +326,9 @@ void main() {
     await _quickShots(tester, scope);
     await _round5Shots(tester, scope);
     await _round6Shots(tester, scope);
+    await _round7bShots(tester, scope);
+    await _round7aShots(tester, scope);
+    await _scanShots(tester, scope);
     await _shot(
         tester,
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
@@ -368,6 +383,7 @@ void main() {
     await tester.pumpAndSettle();
     await _saveShot(tester, '30b-office-income');
     await _teamShots(tester, scope);
+    await _photoShots(tester, scope);
     tester.view.physicalSize = const Size(320, 700);
     _textScale = 1.3;
     for (final entry in <String, Widget>{
@@ -376,7 +392,7 @@ void main() {
       'compact-shipments':
           ShipmentsScreen(role: UserRole.admin, shipments: scope.shipments),
       'compact-finance': const FinanceScreen(),
-      'compact-settings': const SettingsScreen(),
+      'compact-pay-methods': const PayMethodsScreen(),
       'compact-transfer': const TransferScreen(),
       'compact-customers': const CustomersScreen(),
       'compact-customer': const CustomerDetailScreen(code: 'C-14'),
@@ -388,7 +404,8 @@ void main() {
       'compact-office': const OfficeEntryScreen(initialKind: 'expense'),
       'compact-reconciliation': const ReconciliationScreen(),
       'compact-workspace': MoreScreen(user: session.user!, session: session),
-      'compact-login': LoginScreen(onSubmit: (email, password) async {}),
+      'compact-login':
+          LoginScreen(onSubmit: (email, password, remember) async {}),
       'compact-flights': const FlightsScreen(),
       'compact-flight-detail':
           const FlightDetailScreen(code: 'BG305-20261021-ab12cd'),
@@ -399,8 +416,6 @@ void main() {
       'compact-flyer-payment':
           const FlyerPaymentScreen(code: 'BG305-20261021-ab12cd'),
       'compact-shipment': const AdminShipmentScreen(code: 'SH-18'),
-      'compact-shipment-bill':
-          const AdminShipmentScreen(code: 'SH-18', initialTab: 1),
       'compact-get-paid': const GetPaidScreen(),
       'compact-get-paid-monthly': const GetPaidScreen(initialTab: 1),
       'compact-ticket-flyers': const TicketFlyersScreen(code: flowFlightCode),
@@ -419,6 +434,10 @@ void main() {
     await _flowCompactShots(tester, scope);
     await _round5Shots(tester, scope, compact: true);
     await _round6Shots(tester, scope, compact: true);
+    await _round7bShots(tester, scope, compact: true);
+    await _round7aShots(tester, scope, compact: true);
+    await _scanShots(tester, scope, compact: true);
+    await _photoShots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
     await _shot(
         tester,
@@ -523,6 +542,13 @@ Future<void> _round5Shots(WidgetTester tester, AppScope scope,
     ('flight-part-Rakib Hasan', '15000'),
     ('flight-paid-Arif Rahman', '5000'),
   ]) {
+    if (key.startsWith('flight-paid-')) {
+      // A part payment's amount opens from "Part paid" beside the tick.
+      final open = find.byKey(ValueKey('part-paid-${key.substring(12)}'));
+      await _revealBy(tester, open, 150);
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+    }
     await _revealBy(tester, find.byKey(ValueKey(key)), 150);
     await tester.enterText(find.byKey(ValueKey(key)), value);
     await tester.pumpAndSettle();
@@ -539,6 +565,10 @@ Future<void> _round5Shots(WidgetTester tester, AppScope scope,
       _scoped(scope, const TicketFlyersScreen(code: flowFlightCode)),
       '$prefix-b-ticket-flyers-paid',
       find.byType(TicketFlyersScreen));
+  final rakibPart = find.byKey(const ValueKey('part-paid-Rakib Hasan'));
+  await _revealBy(tester, rakibPart, 150);
+  await tester.tap(rakibPart);
+  await tester.pumpAndSettle();
   await _revealBy(tester, find.byKey(const ValueKey('paid-Rakib Hasan')), 150);
   await tester.enterText(
       find.byKey(const ValueKey('paid-Rakib Hasan')), '4000');
@@ -595,6 +625,122 @@ Future<void> _round5Shots(WidgetTester tester, AppScope scope,
   await tester.tap(find.byKey(const Key('intake-new-category')));
   await tester.pumpAndSettle();
   await _saveShot(tester, '$prefix-h-booking-new-category');
+}
+
+/// Round 7 part B: the one-page shipment (scrolled through), the cost on
+/// the bill and new customer link sheets, the flight with its costs and the
+/// add-flight-cost sheet, all on a round 7 server. [compact] saves the
+/// 320 px versions and checks each for overflow.
+Future<void> _round7bShots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r7b' : '90';
+  final r7 = _interceptScope(scope, (request) async {
+    if (request.method != 'GET') return null;
+    final body = switch (request.url.path) {
+      '/api/shipments/SH-18' => round7ShipmentBody(),
+      '/api/shipments/SH-18/invoice' => round7InvoiceBody(),
+      '/api/flights/$flowFlightCode' => round7FlightBody(),
+      _ => null,
+    };
+    return body == null
+        ? null
+        : http.Response.bytes(utf8.encode(jsonEncode(body)), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+  });
+
+  /// Scrolls down the page [steps] times, saving each view.
+  Future<void> scrollThrough(String name, int steps) async {
+    for (var i = 0; i < steps; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -560));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$name $i');
+      await _saveShot(tester, '$name-$i');
+    }
+  }
+
+  /// Scrolls an open sheet to its end and saves it.
+  Future<void> sheetEnd(String name) async {
+    await tester.drag(
+        find.byType(SingleChildScrollView).last, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: name);
+    await _saveShot(tester, name);
+  }
+
+  // The shipment, top to bottom.
+  await _shot(tester, _scoped(r7, const AdminShipmentScreen(code: 'SH-18')),
+      '$prefix-a-shipment', find.byType(AdminShipmentScreen));
+  await scrollThrough('$prefix-a-shipment', compact ? 9 : 6);
+
+  // Adding a cost to the bill.
+  await _shot(tester, _scoped(r7, const AdminShipmentScreen(code: 'SH-18')),
+      '$prefix-b-add-shipment-cost', find.byType(AdminShipmentScreen));
+  await _revealBy(tester, find.byKey(const Key('bill-cost-add')), 300);
+  await tester.tap(find.byKey(const Key('bill-cost-add')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('cost-courier')));
+  await tester.enterText(find.byKey(const Key('cost-amount')), '300');
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('cost-account')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('pay-from-Dhaka cash')));
+  await tester.pumpAndSettle();
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-b-add-shipment-cost');
+  await sheetEnd('$prefix-b-add-shipment-cost-end');
+  Navigator.of(tester.element(find.byKey(const Key('cost-save')))).pop();
+  await tester.pumpAndSettle();
+
+  // A new customer link.
+  await _revealBy(tester, find.byKey(const Key('link-new')), 300);
+  await tester.tap(find.byKey(const Key('link-new')));
+  await tester.pumpAndSettle();
+  expect(tester.takeException(), isNull, reason: '$prefix-c-new-link');
+  await _saveShot(tester, '$prefix-c-new-link');
+  Navigator.of(tester.element(find.byKey(const Key('link-make')))).pop();
+  await tester.pumpAndSettle();
+
+  // The flight with its costs.
+  await _shot(
+      tester,
+      _scoped(r7, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-d-flight',
+      find.byType(FlightDetailScreen));
+  await scrollThrough('$prefix-d-flight', compact ? 6 : 4);
+
+  // Adding a flight cost: labour, paid from Dhaka cash; then a new name.
+  await _shot(
+      tester,
+      _scoped(r7, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-e-add-flight-cost',
+      find.byType(FlightDetailScreen));
+  await _revealBy(tester, find.byKey(const Key('flight-cost-add')), 300);
+  await tester.tap(find.byKey(const Key('flight-cost-add')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('flight-cost-transport')));
+  await tester.enterText(find.byKey(const Key('flight-cost-amount')), '900');
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('flight-cost-account')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('pay-from-Dhaka cash')));
+  await tester.pumpAndSettle();
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-e-add-flight-cost');
+  await sheetEnd('$prefix-e-add-flight-cost-end');
+  await tester.ensureVisible(find.byKey(const Key('flight-cost-new')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('flight-cost-new')));
+  await tester.pumpAndSettle();
+  await tester.enterText(
+      find.byKey(const Key('flight-cost-label')), 'Loading crew');
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  expect(tester.takeException(), isNull, reason: '$prefix-f-flight-cost-new');
+  await _saveShot(tester, '$prefix-f-flight-cost-new');
+  Navigator.of(tester.element(find.byKey(const Key('flight-cost-save')))).pop();
+  await tester.pumpAndSettle();
 }
 
 /// Round 6: the quiet delete on flights, shipments, flyers and customers,
@@ -927,16 +1073,19 @@ Future<void> _flowShots(WidgetTester tester, AppScope scope) async {
   await _scrollShot(tester, '45c-booking-terms');
   await _shot(tester, _scoped(scope, const AdminShipmentScreen(code: 'SH-18')),
       '46-shipment-costs', find.byType(AdminShipmentScreen));
-  await _scrollShot(tester, '46b-shipment-costs-checklist', dy: -420);
+  await _scrollShot(tester, '46b-shipment-costs-bill', dy: -420);
   await _scrollShot(tester, '46c-shipment-costs-profit', dy: -420);
   await tester.drag(find.byType(ListView).first, const Offset(0, 3000));
   await tester.pumpAndSettle();
-  await _reveal(tester, find.byKey(const ValueKey('cost-add-courier')));
-  await tester.tap(find.byKey(const ValueKey('cost-add-courier')));
+  await _reveal(tester, find.byKey(const Key('bill-cost-add')));
+  await tester.tap(find.byKey(const Key('bill-cost-add')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('cost-courier')));
+  await tester.enterText(find.byKey(const Key('cost-amount')), '300');
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const Key('cost-account')));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Dhaka cash').last);
+  await tester.tap(find.byKey(const ValueKey('pay-from-Dhaka cash')));
   await tester.pumpAndSettle();
   await _saveShot(tester, '46d-add-cost');
   await _shot(tester, _scoped(scope, const FlightFormScreen()),
@@ -959,8 +1108,11 @@ Future<void> _flowCompactShots(WidgetTester tester, AppScope scope) async {
   await _saveShot(tester, 'compact-record-payment');
   await _shot(tester, _scoped(scope, const AdminShipmentScreen(code: 'SH-18')),
       'compact-add-cost', find.byType(AdminShipmentScreen));
-  await _reveal(tester, find.byKey(const ValueKey('cost-add-courier')));
-  await tester.tap(find.byKey(const ValueKey('cost-add-courier')));
+  await _reveal(tester, find.byKey(const Key('bill-cost-add')));
+  await tester.tap(find.byKey(const Key('bill-cost-add')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('cost-courier')));
+  await tester.enterText(find.byKey(const Key('cost-amount')), '300');
   await tester.pumpAndSettle();
   await _saveShot(tester, 'compact-add-cost');
   await tester.drag(
@@ -1200,6 +1352,75 @@ Future<void> _quickShots(WidgetTester tester, AppScope scope) async {
   await _scrollShot(tester, '52-more-team', dy: -700);
 }
 
+/// The passport and visa scan on the new flyer form: filled from the
+/// passport, the photo in Documents, Reading…, unreadable and the question
+/// before a typed name is replaced.
+Future<void> _scanShots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-scan' : '80';
+  final team = _teamScope(scope);
+  const page = [
+    'Passport',
+    "PEOPLE'S REPUBLIC OF BANGLADESH",
+    'P<BGDSHAHRIAR<<MD<RIFAT<<<<<<<<<<<<<<<<<<<<<',
+    'A012345678BGD0102030M3001019<<<<<<<<<<<<<<08',
+  ];
+  Future<PickedPhoto?> pick(FileSource source) async => PickedPhoto(
+      bytes: Uint8List.fromList(img.encodeJpg(img.Image(width: 4, height: 3))),
+      name: 'passport.jpg',
+      mime: 'image/jpeg');
+  Widget form(ScanTravelDocument scan) =>
+      FlyerFormScreen(pickFile: pick, scanDocument: scan);
+  Future<void> tapScan() async {
+    await tester.tap(find.byKey(const Key('scan-camera')));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> scrollChecks(String name) async {
+    if (!compact) return;
+    for (var i = 0; i < 3; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$name scrolled');
+    }
+  }
+
+  await _shot(
+      tester,
+      _scoped(team, form((photo) async => readMrz(page.join('\n')))),
+      '$prefix-a-flyer-scan',
+      find.byType(FlyerFormScreen));
+  await tapScan();
+  await _saveShot(tester, '$prefix-a-flyer-scan');
+  await _reveal(tester, find.byKey(const ValueKey('flyer-doc-passport')));
+  await _saveShot(tester, '$prefix-b-flyer-scan-documents');
+  await scrollChecks('$prefix-b-flyer-scan-documents');
+
+  final reading = Completer<MrzReading?>();
+  await _shot(tester, _scoped(team, form((photo) => reading.future)),
+      '$prefix-c-flyer-scan-reading', find.byType(FlyerFormScreen));
+  await tester.tap(find.byKey(const Key('scan-camera')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  await _saveShot(tester, '$prefix-c-flyer-scan-reading');
+  reading.complete(null);
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-d-flyer-scan-unreadable');
+  await scrollChecks('$prefix-d-flyer-scan-unreadable');
+
+  await _shot(
+      tester,
+      _scoped(team, form((photo) async => readMrz(page.join('\n')))),
+      '$prefix-e-flyer-scan-replace',
+      find.byType(FlyerFormScreen));
+  await tester.enterText(find.byType(TextField).at(0), 'Rifat');
+  await tapScan();
+  await _saveShot(tester, '$prefix-e-flyer-scan-replace');
+  await tester.tap(find.byKey(const Key('scan-replace')));
+  await tester.pumpAndSettle();
+  expect(tester.takeException(), isNull, reason: '$prefix-e replaced');
+}
+
 /// Scrolls the first list until [finder] is built, then fully on screen.
 Future<void> _reveal(WidgetTester tester, Finder finder) async {
   await tester.scrollUntilVisible(finder, 150,
@@ -1236,9 +1457,8 @@ Future<void> _teamShots(WidgetTester tester, AppScope base) async {
           tab: 3, hub: true),
       '34-hub-tasks',
       find.byType(TasksScreen));
-  await _shot(tester, _scoped(team, const SettingsScreen()), '35-settings',
-      find.byType(SettingsScreen));
-  await _scrollShot(tester, '35b-settings-setup', dy: -600);
+  await _shot(tester, _scoped(team, const PayMethodsScreen()), '35-pay-methods',
+      find.byType(PayMethodsScreen));
   await _shot(tester, _scoped(team, const StaffScreen()), '36-staff',
       find.byType(StaffScreen));
   await _shot(tester, _scoped(team, const StaffCreateScreen()),
@@ -1300,7 +1520,7 @@ Future<void> _teamCompactShots(WidgetTester tester, AppScope base) async {
     'compact-flyer-detail': const FlyerDetailScreen(name: 'Arif Rahman'),
     'compact-flyer-form': const FlyerFormScreen(),
     'compact-tasks': TasksScreen(role: UserRole.admin, tasks: team.tasks),
-    'compact-team-settings': const SettingsScreen(),
+    'compact-team-pay-methods': const PayMethodsScreen(),
     'compact-staff': const StaffScreen(),
     'compact-staff-edit': const StaffEditScreen(person: _jamal, selfId: 'u1'),
     'compact-pay-method': const PayMethodFormScreen(),
@@ -1381,4 +1601,376 @@ Future<void> _saveShot(WidgetTester tester, String name) async {
     file.writeAsBytesSync(bytes!.buffer.asUint8List());
     image.dispose();
   });
+}
+
+/// Round 7, part A: sign-in with remember me and fingerprint, the one-list
+/// More with its rate and weight sheets, and late payments in Home → Needs
+/// attention. Nothing may overflow, also at 320 px with 1.3× text.
+Future<void> _round7aShots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r7a' : 'r7a';
+  final session = scope.session;
+  final admin = session.user!;
+
+  Future<void> toEnd(String name) async {
+    for (var i = 0; i < 4; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -600));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$name $i');
+    }
+    await _saveShot(tester, name);
+  }
+
+  Future<void> toTop() async {
+    await tester.drag(find.byType(ListView).first, const Offset(0, 4000));
+    await tester.pumpAndSettle();
+  }
+
+  // Sign-in without a fingerprint key, then with one.
+  await _shot(
+      tester,
+      _scoped(
+          scope, LoginScreen(onSubmit: (email, password, remember) async {})),
+      '$prefix-a-login',
+      find.byType(LoginScreen));
+  await toEnd('$prefix-a-login-end');
+  await _shot(
+      tester,
+      _scoped(
+          scope,
+          LoginScreen(
+              onSubmit: (email, password, remember) async {},
+              fingerprint: FingerprintLogin(
+                  firstName: 'Sadia',
+                  email: 'sadia@sbexpress.com',
+                  signIn: () async => throw FingerprintFailure(tr(
+                      'Fingerprint sign-in was turned off. Sign in with your password.'))))),
+      '$prefix-b-login-fingerprint',
+      find.byType(LoginScreen));
+  await toEnd('$prefix-b-login-fingerprint-end');
+  await toTop();
+  await tester.ensureVisible(find.byKey(const Key('login-fingerprint')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('login-fingerprint')));
+  await tester.pumpAndSettle();
+  await toEnd('$prefix-c-login-fingerprint-error');
+
+  // More with fingerprint sign-in on, the system check and both sheets.
+  session.fingerprint =
+      FingerprintOwner(id: admin.id, name: admin.name, email: admin.email);
+  await _shot(
+      tester,
+      _scoped(scope, MoreScreen(user: admin, session: session), tab: 4),
+      '$prefix-d-more',
+      find.byType(MoreScreen));
+  await toEnd('$prefix-d-more-end');
+  final system = find.text(tr('System check'));
+  await _revealBy(tester, system, -150);
+  await tester.tap(system);
+  await tester.pumpAndSettle();
+  await toEnd('$prefix-e-more-system');
+  await toTop();
+  final change = find.text(tr('Change'));
+  await _revealBy(tester, change, 150);
+  await tester.tap(change);
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-f-rate-sheet');
+  await tester.tap(find.byTooltip(tr('Close')));
+  await tester.pumpAndSettle();
+  final weight = find.text('0.5 kg');
+  await _revealBy(tester, weight, 150);
+  await tester.tap(weight);
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-g-weight-sheet');
+  await tester.tap(find.byTooltip(tr('Close')));
+  await tester.pumpAndSettle();
+  session.fingerprint = null;
+  await _shot(
+      tester,
+      _scoped(
+          scope,
+          MoreScreen(
+              user: const SessionUser(
+                  id: 'h1',
+                  name: 'Mina Akter',
+                  email: 'mina@sbx.test',
+                  role: UserRole.hub,
+                  roleLabel: 'Hub Manager · Dhaka'),
+              session: session),
+          tab: 4,
+          hub: true),
+      '$prefix-h-more-hub',
+      find.byType(MoreScreen));
+  await toEnd('$prefix-h-more-hub-end');
+
+  // Home → Needs attention with both kinds of late payment.
+  final late = _interceptScope(scope, (request) async {
+    if (request.url.path != '/api/dashboard/overview') return null;
+    return http.Response(jsonEncode(_lateOverview()), 200,
+        headers: {'content-type': 'application/json'});
+  });
+  await _shot(
+      tester,
+      _scoped(late, AdminHomeScreen(dashboard: late.dashboard), tab: 0),
+      '$prefix-i-home',
+      find.byType(AdminHomeScreen));
+  final attention = find.text(tr('Needs attention'));
+  await _revealBy(tester, attention, 150);
+  await tester.runAsync(() =>
+      Scrollable.ensureVisible(tester.element(attention), alignment: 0.05));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-i-home-attention');
+  await toEnd('$prefix-j-home-end');
+}
+
+/// The overview with late payments of both kinds, three in all.
+Map<String, Object?> _lateOverview() => {
+      ...overviewBody(),
+      'latePayments': [
+        {
+          'kind': 'after_delivery',
+          'customerCode': 'C-21',
+          'customerName': 'Bismillah Telecom',
+          'shipmentCode': 'SH-14',
+          'amount': 6300,
+          'days': 12,
+          'since': '2026-10-15',
+        },
+        {
+          'kind': 'monthly',
+          'customerCode': 'C-15',
+          'customerName': 'Rahman Traders',
+          'month': '2026-09',
+          'monthLabel': 'September 2026',
+          'amount': 15400,
+          'days': 27,
+        },
+      ],
+      'latePaymentsCount': 3,
+    };
+
+/// A stored photo for the photo shots.
+Map<String, Object?> _shotMedia(String reference, String name,
+        {bool shared = false, String? category}) =>
+    {
+      'reference': reference,
+      'name': name,
+      'contentType': 'image/jpeg',
+      'size': 182000,
+      'shared': shared,
+      'deviceCategory': category,
+    };
+
+/// A plain coloured picture with a lighter box, standing in for a parcel
+/// or device photo; [seed] picks the colours.
+Uint8List _shotPicture(String seed, {int width = 360, int height = 270}) {
+  const palettes = [
+    ((0xB9, 0x8E, 0x62), (0xD9, 0xBC, 0x94)),
+    ((0x5E, 0x78, 0x9C), (0x9F, 0xB4, 0xD0)),
+    ((0x6F, 0x8F, 0x6A), (0xB2, 0xC9, 0xA6)),
+    ((0x8C, 0x6A, 0x9C), (0xC7, 0xB0, 0xD4)),
+    ((0x4E, 0x55, 0x60), (0x9A, 0xA2, 0xAE)),
+  ];
+  final (back, box) =
+      palettes[seed.codeUnits.fold<int>(0, (a, b) => a + b) % palettes.length];
+  final image = img.Image(width: width, height: height);
+  img.fill(image, color: img.ColorRgb8(back.$1, back.$2, back.$3));
+  img.fillRect(image,
+      x1: width ~/ 5,
+      y1: height ~/ 4,
+      x2: width * 4 ~/ 5,
+      y2: height * 4 ~/ 5,
+      color: img.ColorRgb8(box.$1, box.$2, box.$3),
+      radius: 10);
+  return Uint8List.fromList(img.encodeJpg(image, quality: 85));
+}
+
+/// Uploads close their request stream outside the fake clock; give each
+/// one a moment of real time.
+Future<void> _settleShotUploads(WidgetTester tester) async {
+  for (var i = 0;
+      i < 40 && find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
+      i++) {
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+    await tester.pump();
+  }
+  await tester.pumpAndSettle();
+}
+
+/// Photos: picked photos waiting in the tray, one that did not upload, the
+/// grid of uploaded photos from signed links grouped by device, the
+/// full-screen viewer with "Show to customer", the discard question, hub's
+/// view, the IMEI photo and an older server without photo links. [compact]
+/// saves the 320 px versions; nothing may overflow.
+Future<void> _photoShots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-photos' : 'photos';
+  var links = true;
+  final failing = <String>{};
+  final reserved = <String>[];
+  final media = [
+    _shotMedia('p-1', 'parcel-1.jpg', shared: true),
+    _shotMedia('p-2', 'parcel-2.jpg'),
+    _shotMedia('m-1', 'mobile-1.jpg', category: 'Mobile'),
+    _shotMedia('m-2', 'mobile-2.jpg', category: 'Mobile', shared: true),
+    _shotMedia('l-1', 'laptop-1.jpg', category: 'Laptop'),
+  ];
+  http.Response json(Object body, [int status = 200]) =>
+      http.Response.bytes(utf8.encode(jsonEncode(body)), status,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+  // A new scope starts with no signed links cached.
+  AppScope server() => _interceptScope(scope, (request) async {
+        final path = Uri.decodeComponent(request.url.path);
+        final parts = path.split('/');
+        if (request.url.host == 'storage.test') {
+          if (request.method == 'PUT') {
+            final refused =
+                failing.contains(reserved[int.parse(parts.last) - 1]);
+            return http.Response(refused ? 'refused' : '', refused ? 500 : 200);
+          }
+          return http.Response.bytes(_shotPicture(parts.last), 200,
+              headers: {'content-type': 'image/jpeg'});
+        }
+        if (request.method == 'GET' && path == '/api/shipments/SH-18/media') {
+          return json({'configured': true, 'media': media});
+        }
+        if (request.method == 'GET' && path.endsWith('/url')) {
+          if (!links) return http.Response('404 Not Found', 404);
+          return json(
+              {'url': 'https://storage.test/get/${parts[parts.length - 2]}'});
+        }
+        if (request.method == 'POST' &&
+            (path.endsWith('/media/upload') ||
+                path.endsWith('/device-photo'))) {
+          final body = jsonDecode(request.body) as Map<String, Object?>;
+          reserved.add(body['name']! as String);
+          return json({
+            'reference': 'new-${reserved.length}',
+            'uploadUrl': 'https://storage.test/put/${reserved.length}',
+            'expiresAt': '2026-10-27T12:00:00.000Z'
+          }, 201);
+        }
+        if (request.method == 'POST' && path.endsWith('/complete')) {
+          return json({'ok': true, 'reference': parts[parts.length - 2]});
+        }
+        return null;
+      });
+  final photos = server();
+  var picks = 0;
+  Future<List<PickedPhoto>> pick(FileSource source) async => [
+        for (var i = 0; i < (source == FileSource.camera ? 1 : 3); i++)
+          PickedPhoto(
+              bytes: _shotPicture('tray-${picks++}', width: 300, height: 400),
+              name: 'tray-$picks.jpg',
+              mime: 'image/jpeg')
+      ];
+  Future<void> reveal(Finder finder, [double dy = 200]) async {
+    await _revealBy(tester, finder, dy);
+    await _decodeImages(tester);
+  }
+
+  // Picked photos wait in the tray; nothing is sent yet.
+  await _shot(
+      tester,
+      _scoped(photos,
+          AdminShipmentScreen(code: 'SH-18', initialTab: 2, pickPhotos: pick)),
+      '$prefix-a-tray',
+      find.byType(AdminShipmentScreen));
+  await tester.tap(find.byKey(const Key('photo-gallery')));
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-a-tray');
+  await reveal(find.byKey(const Key('tray-clear')));
+  await _saveShot(tester, '$prefix-a-tray-end');
+
+  // The uploaded photos below, grouped.
+  await reveal(find.byKey(const ValueKey('photo-tile-l-1')));
+  await _saveShot(tester, '$prefix-b-grid');
+
+  // Leaving with photos in the tray asks first.
+  await tester.tap(find.byTooltip(tr('Back')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-c-discard');
+  await tester.tap(find.byKey(const Key('tray-discard-cancel')));
+  await tester.pumpAndSettle();
+
+  // One photo storage refuses stays with its reason and Try again.
+  failing.add('tray-2.jpg');
+  await _revealBy(tester, find.byKey(const Key('tray-upload')), -200);
+  await tester.tap(find.byKey(const Key('tray-upload')));
+  await tester.pump();
+  await _settleShotUploads(tester);
+  final problem = find.byWidgetPredicate((widget) {
+    final key = widget.key;
+    return key is ValueKey<String> && key.value.startsWith('tray-error-');
+  });
+  await _revealBy(tester, problem, -200);
+  await tester.runAsync(
+      () => Scrollable.ensureVisible(tester.element(problem), alignment: 0.6));
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-d-tray-failed');
+
+  // The viewer: swipe, the group, and the customer switch.
+  await reveal(find.byKey(const ValueKey('photo-tile-p-1')));
+  await tester.tap(find.byKey(const ValueKey('photo-tile-p-1')));
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-e-viewer');
+  await tester.fling(
+      find.byKey(const Key('viewer-pages')), const Offset(-300, 0), 1000);
+  await tester.pumpAndSettle();
+  await tester.fling(
+      find.byKey(const Key('viewer-pages')), const Offset(-300, 0), 1000);
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-e-viewer-mobile');
+
+  // Hub staff see the same grid, without the switch.
+  await _shot(
+      tester,
+      _scoped(photos, const ShipmentProcessScreen(code: 'SH-18')),
+      '$prefix-f-hub',
+      find.byType(ShipmentProcessScreen));
+  await reveal(find.byKey(const ValueKey('photo-tile-l-1')), 300);
+  await _saveShot(tester, '$prefix-f-hub');
+
+  // The IMEI photo of a unit, and a new one waiting for Upload.
+  await _shot(
+      tester,
+      _scoped(
+          photos,
+          ImeiGuideScreen(
+              code: 'SH-18',
+              unit: const DeviceUnitRef(
+                  itemIndex: 0,
+                  unitIndex: 0,
+                  category: 'Mobile',
+                  model: 'Galaxy A15',
+                  serial: '356938035643809',
+                  hasPhoto: true,
+                  photoRef: 'imei-1'),
+              pickPhotos: pick)),
+      '$prefix-g-imei',
+      find.byType(ImeiGuideScreen));
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-g-imei');
+  await reveal(find.byKey(const Key('photo-camera')));
+  await tester.tap(find.byKey(const Key('photo-camera')));
+  await tester.pumpAndSettle();
+  await reveal(find.byKey(const Key('tray-clear')));
+  await _saveShot(tester, '$prefix-g-imei-tray');
+
+  // An older server without photo links keeps the list.
+  links = false;
+  await _shot(
+      tester,
+      _scoped(
+          server(), const AdminShipmentScreen(code: 'SH-18', initialTab: 2)),
+      '$prefix-h-old-server',
+      find.byType(AdminShipmentScreen));
+  await reveal(find.byKey(const Key('photos-need-update')));
+  await _saveShot(tester, '$prefix-h-old-server');
+  links = true;
 }

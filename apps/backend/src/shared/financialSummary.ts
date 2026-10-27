@@ -1,4 +1,5 @@
 import { shipmentCostItems } from './shipmentCosts'
+import { isFlightCost, isUnpaidFlightCost } from './flightCosts'
 import type { Flight, Prisma } from '@prisma/client'
 import { prisma } from '../core/db'
 import { badRequest } from '../core/errors'
@@ -55,7 +56,9 @@ export async function financialSummary(period: string, snapshot: FinancialSummar
     const cashBdt = accounts.filter((a) => a.currency === 'BDT').reduce((a, x) => a + num(x.balance), 0)
     const cashCny = accounts.filter((a) => a.currency === 'CNY').reduce((a, x) => a + num(x.balance), 0)
 
-    const expensesInMonth = expenses.filter((e) => inPeriod(e.date))
+    // A pay-later flight cost has not left any account yet: it is a payable, not cash out.
+    const cashExpenses = expenses.filter((e) => !isUnpaidFlightCost(e))
+    const expensesInMonth = cashExpenses.filter((e) => inPeriod(e.date))
     const paymentsInMonth = payments.filter((p) => inPeriod(p.date))
     const receivedInMonth = paymentsInMonth.reduce((a, p) => a + num(p.amount), 0)
     const expenseTotal = expensesInMonth.reduce((a, e) => a + num(e.amount), 0)
@@ -84,8 +87,12 @@ export async function financialSummary(period: string, snapshot: FinancialSummar
     const legacyExtra=expenses.filter(e=>e.shipmentId && cohortIds.has(e.shipmentId) && !e.costField && !e.costId && !(e.category==='ticket'&&e.flightId)).reduce((sum,e)=>sum+num(e.amount),0)
     const shipmentExpenses=round2(shipsIn.reduce((sum,s)=>sum+(s.costs??[]).filter(c=>!c.voidedAt).reduce((n,c)=>n+num(c.amount),0),0)+legacyExtra)
     const shipmentCosts=round2(cnTransport+bdTransport+customs+shipmentExpenses)
-    const businessExpenses=round2(expensesInMonth.filter(e=>!e.shipmentId && !(e.category==='ticket'&&e.flightId)).reduce((sum,e)=>sum+num(e.amount),0))
-    const otherExpenses=round2(shipmentExpenses+businessExpenses)
+    // Flight-linked rows are counted with their flight (ticket above, flight costs here), never as business expenses.
+    const businessExpenses=round2(expensesInMonth.filter(e=>!e.shipmentId && !e.flightId).reduce((sum,e)=>sum+num(e.amount),0))
+    // Flight costs, paid or not, belong to the period of their flight like the ticket; removed ones cancel out.
+    const flightIdsIn=new Set(flightsIn.map(f=>f.id))
+    const flightCosts=round2(expenses.filter(e=>isFlightCost(e) && flightIdsIn.has(e.flightId!)).reduce((sum,e)=>sum+num(e.amount),0))
+    const otherExpenses=round2(shipmentExpenses+businessExpenses+flightCosts)
     const otherIncome = round2(paymentsInMonth.filter(p => p.kind === 'income').reduce((a,p) => a + num(p.amount), 0))
     const earned = round2(billing + fares + otherIncome)
     const totalCosts = round2(tickets + cnTransport + bdTransport + customs + otherExpenses)
@@ -93,6 +100,7 @@ export async function financialSummary(period: string, snapshot: FinancialSummar
       otherIncome,
       shipmentCosts,
       businessExpenses,
+      flightCosts,
       shipmentCount: shipsIn.length,
       flightCount: flightsIn.length,
       billing,
@@ -151,7 +159,7 @@ export async function financialSummary(period: string, snapshot: FinancialSummar
       refundRows:refunds.map(r=>({reference:r.reference,supplierCode:r.supplier.code,amount:num(r.amount),accountName:r.accountName,reason:r.reason,at:r.createdAt.toISOString()})),
       ticketPayables: allFlights.reduce((a,f)=>a+Math.max(0,num(f.actualCost)-expenses.filter(e=>e.flightId===f.id&&e.category==='ticket').reduce((t,e)=>t+num(e.amount),0)),0),
       ticketRefundReceivables: allFlights.reduce((a,f)=>a+Math.max(0,expenses.filter(e=>e.flightId===f.id&&e.category==='ticket').reduce((t,e)=>t+num(e.amount),0)-num(f.actualCost)),0),
-      costPayables: allShipments.reduce((sum,s)=>sum+shipmentCostItems(s).reduce((n,c)=>n+c.dueAmount,0),0),
+      costPayables: round2(allShipments.reduce((sum,s)=>sum+shipmentCostItems(s).reduce((n,c)=>n+c.dueAmount,0),0)+expenses.filter(isUnpaidFlightCost).reduce((sum,e)=>sum+num(e.amount),0)),
       flyerReceivables: allFlights.reduce((a,f) => a + Math.max(0,num(f.actualCost)-num(f.agencyShare)-num(f.flyerPaidAmount)),0),
       capitalReceived: paymentsInMonth.filter(p => p.kind === 'capital').reduce((a,p) => a + num(p.amount),0),
       receivables,

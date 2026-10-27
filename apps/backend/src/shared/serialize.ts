@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client'
 import type { Role } from '../modules/auth'
 import { STATUS_LABEL, statusIndex } from './status'
 import { billAmount, effectiveKg, fareShare, weightDelta } from './compute'
+import { shipmentProfitBreakdown, type FlightCostBasis } from './profit'
 
 /** Prisma Decimal (or null) to plain number for JSON. */
 export const num = (value: Prisma.Decimal | number | null | undefined): number =>
@@ -184,6 +185,8 @@ export function shipmentDetail(
   },
   role: Role,
   threshold: number,
+  /** The flight's cost total and weight, for this shipment's share of the flight costs. */
+  flightCosts: FlightCostBasis | null = null,
 ) {
   const handling = {
     flyerName:s.flyer?.name ?? null,
@@ -252,6 +255,8 @@ export function shipmentDetail(
       profit: Math.round(net * 100) / 100,
       profitPct: effectiveBill(s) > 0 ? Math.round((net / effectiveBill(s)) * 100) : null,
     },
+    /** Round 7: own charge less its weight share of the flight costs; costs on the bill pass through. */
+    profitBreakdown: shipmentProfitBreakdown(s, s.flightId ? flightCosts : null),
     receipt: latestReceipt(s.receipts) ? receiptSummary(latestReceipt(s.receipts)!) : null,
     receiptHistory: [...s.receipts].sort((a,b)=>b.uploadedAt.getTime()-a.uploadedAt.getTime()).map(receiptSummary),
     invoice: s.invoice

@@ -264,6 +264,10 @@ class _ChargeCard extends StatelessWidget {
                               color: Colors.white,
                               fontFeatures: [FontFeature.tabularFigures()]))))),
         ]),
+        const SizedBox(height: 4),
+        Text(tr('The bill is made from this charge by itself.'),
+            key: const Key('booking-bill-auto'),
+            style: const TextStyle(fontSize: 12, height: 1.4, color: heroSoft)),
         if (flight != null && spaceLeftKg != null) ...[
           const SizedBox(height: 10),
           Container(

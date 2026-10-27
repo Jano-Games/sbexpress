@@ -85,7 +85,11 @@ void main() {
     expect(find.text('Dhaka cash'), findsOneWidget);
     await t.tap(find.byKey(const Key('nav-4')));
     await t.pumpAndSettle();
+    // More is one long list now; Tasks and notes sits under Work.
+    await t.scrollUntilVisible(find.text('কাজ ও নোট'), 200,
+        scrollable: find.byType(Scrollable).last);
     await t.ensureVisible(find.text('কাজ ও নোট'));
+    await t.pumpAndSettle();
     await t.tap(find.text('কাজ ও নোট'));
     await t.pumpAndSettle();
     expect(find.byType(TasksScreen), findsOneWidget);
@@ -202,6 +206,9 @@ void main() {
     await t.tap(find.byKey(const Key('booking-open')));
     await t.pumpAndSettle();
     expect(find.byType(AdminShipmentScreen), findsOneWidget);
+    // The booking card sits near the end of the one-page shipment.
+    await t.scrollUntilVisible(find.text('Nila Store'), 300,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Nila Store'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
@@ -231,6 +238,8 @@ void main() {
     await t.pumpAndSettle();
     final scroll = find.byType(Scrollable).first;
     // The ticket row names the flyer; bookings follow below.
+    await t.scrollUntilVisible(find.text('Arif Rahman'), 200,
+        scrollable: scroll);
     expect(find.text('Arif Rahman'), findsOneWidget);
     await t.scrollUntilVisible(find.text('বুকিং নেই'), 200, scrollable: scroll);
     expect(find.text('বুকিং নেই'), findsOneWidget);
@@ -247,7 +256,7 @@ void main() {
     expect(t.takeException(), isNull);
   });
 
-  testWidgets('billing separates payment from customer link options',
+  testWidgets('the bill records payments apart from making a customer link',
       (t) async {
     phone(t);
     final scopes = <String>[];
@@ -255,6 +264,9 @@ void main() {
     await t.pumpWidget(
         app(const AdminShipmentScreen(code: 'SH-18', initialTab: 1),
             intercept: (r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/track-links')) {
+        return http.Response(jsonEncode({'links': []}), 200);
+      }
       if (r.method == 'POST' && r.url.path.endsWith('/track-link')) {
         scopes.add((jsonDecode(r.body) as Map)['scope'] as String);
         return http.Response(
@@ -270,23 +282,24 @@ void main() {
       return null;
     }));
     await t.pumpAndSettle();
-    // One scroll: the payment form and the link options are separate cards,
-    // each with its own button.
-    await t.ensureVisible(find.text('জমা সেভ করুন'));
+    // One page: the bill card records a payment, the link card makes the
+    // customer link, each with its own button.
     expect(find.text('টাকা জমা'), findsOneWidget);
-    expect(find.text('জমা সেভ করুন'), findsOneWidget);
-    final toggle = find.byType(SwitchListTile);
-    await t.ensureVisible(toggle);
+    final create = find.byKey(const Key('link-create'));
+    await t.scrollUntilVisible(create, 300,
+        scrollable: find.byType(Scrollable).first);
     await t.pumpAndSettle();
-    await t.tap(toggle);
+    await t.tap(create);
     await t.pumpAndSettle();
-    await t.ensureVisible(find.text('শেয়ার লিংক তৈরি করুন'));
+    await t.tap(find.text('১৪ দিন'));
+    await t.tap(find.byKey(const Key('link-make')));
     await t.pumpAndSettle();
-    await t.tap(find.text('শেয়ার লিংক তৈরি করুন'));
-    await t.pumpAndSettle();
-    expect(scopes, ['invoice']);
+    // The invoice is still a draft here, so the link shows tracking only.
+    expect(scopes, ['tracking_only']);
     expect(payments, isEmpty);
-    expect(find.text('লিংক কপি'), findsOneWidget);
+    expect(find.text('http://localhost:5178/t/opaque-customer-token'),
+        findsOneWidget);
+    expect(find.text('শুধু ট্র্যাকিং · 1 Nov পর্যন্ত চালু'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 

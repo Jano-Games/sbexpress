@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Expense } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../core/db'
 import { badRequest, notFound } from '../core/errors'
@@ -41,6 +42,55 @@ const guard = (
   if (!row) throw notFound('Entry not found')
   if (row.reversalOfId || row.reversedAt)
     throw badRequest('This entry is already reversed or is itself a reversal')
+}
+
+/**
+ * Offsets one expense with a negative twin and marks it reversed; posted money
+ * goes back to its account. `allowUnposted` covers a pay-later flight cost,
+ * which never left an account, so there is nothing to give back. The caller
+ * records the LedgerReversal row.
+ */
+export async function reverseExpenseOffset(
+  e: Expense,
+  reason: string,
+  { allowUnposted = false } = {},
+): Promise<string> {
+  guard(e)
+  const posted = e.accountAmount !== null
+  if (Number(e.amount) === 0 || (!posted && !allowUnposted))
+    throw badRequest(
+      'Choose an expense with a complete original account posting',
+    )
+  if (posted)
+    await moveAccount(e.accountName, e.accountCurrency, Number(e.accountAmount))
+  const offset = await prisma.expense.create({
+    data: {
+      ...sourceAt(-Number(e.amount), e),
+      costId: e.costId,
+      costField: e.costField,
+      date: new Date(),
+      category: e.category,
+      amount: -Number(e.amount),
+      reason: `Reversal: ${e.reason} — ${reason}`,
+      shipmentId: e.shipmentId,
+      flightId: e.flightId,
+      accountName: posted ? e.accountName : null,
+      accountCurrency: posted ? e.accountCurrency : null,
+      accountAmount: posted ? -Number(e.accountAmount) : null,
+      fxRate: posted ? e.fxRate : null,
+      reversalOfId: e.id,
+    },
+  })
+  await prisma.expense.update({
+    where: { id: e.id },
+    data: { reversedAt: new Date() },
+  })
+  if (e.shipmentId)
+    await writeShipmentLog(
+      e.shipmentId,
+      `Cost payment reversed: BDT ${e.amount} — ${reason}. The recorded cost remains payable until cancelled or settled.`,
+    )
+  return offset.id
 }
 
 export const correctionRoutes = new Hono<AppEnv>().post(
@@ -187,43 +237,7 @@ export const correctionRoutes = new Hono<AppEnv>().post(
     } else if (b.kind === 'expense') {
       const e = await prisma.expense.findUnique({ where: { id: b.id } })
       guard(e)
-      if (!e || Number(e.amount) === 0 || e.accountAmount === null)
-        throw badRequest(
-          'Choose an expense with a complete original account posting',
-        )
-      await moveAccount(
-        e.accountName,
-        e.accountCurrency,
-        Number(e.accountAmount),
-      )
-      const offset = await prisma.expense.create({
-        data: {
-          ...sourceAt(-Number(e.amount), e),
-          costId: e.costId,
-          costField: e.costField,
-          date: new Date(),
-          category: e.category,
-          amount: -Number(e.amount),
-          reason: `Reversal: ${e.reason} — ${b.reason}`,
-          shipmentId: e.shipmentId,
-          flightId: e.flightId,
-          accountName: e.accountName,
-          accountCurrency: e.accountCurrency,
-          accountAmount: -Number(e.accountAmount),
-          fxRate: e.fxRate,
-          reversalOfId: e.id,
-        },
-      })
-      offsetId = offset.id
-      await prisma.expense.update({
-        where: { id: e.id },
-        data: { reversedAt: new Date() },
-      })
-      if (e.shipmentId)
-        await writeShipmentLog(
-          e.shipmentId,
-          `Cost payment reversed: BDT ${e.amount} — ${b.reason}. The recorded cost remains payable until cancelled or settled.`,
-        )
+      offsetId = await reverseExpenseOffset(e!, b.reason)
     } else if (b.kind === 'refund') {
       const r = await prisma.customerRefund.findUnique({ where: { id: b.id } })
       guard(r)

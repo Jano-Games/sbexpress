@@ -1,6 +1,4 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
@@ -9,12 +7,14 @@ import '../../data/models/flyer.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/share_bytes.dart';
 import '../../data/uploads/flutter_heic.dart';
-import '../../data/uploads/image_prepare.dart';
-import '../../data/uploads/picked_photo_file.dart';
+import '../../data/uploads/photo_tray.dart';
 import '../../data/uploads/photo_upload.dart';
+import '../../data/uploads/quick_uploads.dart';
+import '../../data/uploads/signed_photos.dart';
 import '../../data/uploads/upload_queue.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/photo_parts.dart';
 import '../../widgets/quick_parts.dart' show QueuedFilesCard;
 import '../../widgets/remove_parts.dart';
 import '../../widgets/team_parts.dart';
@@ -25,9 +25,13 @@ import 'flyers_screen.dart';
 
 /// One flyer: profile, contact, documents to verify and their flights.
 class FlyerDetailScreen extends StatefulWidget {
-  const FlyerDetailScreen({super.key, required this.name, this.uploads});
+  const FlyerDetailScreen(
+      {super.key, required this.name, this.uploads, this.pickFiles});
 
   final String name;
+
+  /// Photos from the camera or gallery, or one PDF; tests pass their own.
+  final Future<List<PickedPhoto>> Function(FileSource source)? pickFiles;
 
   /// Documents from the new flyer form that are still being sent or failed;
   /// a failed one can be sent again from here.
@@ -46,7 +50,10 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
   var _archiving = false;
   var _deleting = false;
   var _kind = 'student_id';
-  PhotoUploadController? _photos;
+
+  /// Photo documents wait here until Upload; they are stored as [_kind].
+  PhotoTrayController? _tray;
+  SignedPhotoLoader? _photos;
 
   var _uploadedSeen = 0;
 
@@ -73,19 +80,23 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _photos ??= PhotoUploadController(
-      decodeHeic: flutterDecodeHeic,
-      upload: (image, progress) => AppScope.of(context).flyers.uploadDocument(
-          name: widget.name, kind: _kind, image: image, onProgress: progress),
-    )..addListener(() {
+    final flyers = AppScope.of(context).flyers;
+    _photos ??= flyers.documentLoader(widget.name);
+    _tray ??= PhotoTrayController(
+        decodeHeic: flutterDecodeHeic,
+        upload: (image, progress) => flyers.uploadDocument(
+            name: widget.name, kind: _kind, image: image, onProgress: progress),
+        onUploaded: _load)
+      // The card's own Camera and Gallery wait while photos are sent.
+      ..addListener(() {
         if (mounted) setState(() {});
-        if (_photos?.done == true) _load();
       });
   }
 
   @override
   void dispose() {
     widget.uploads?.removeListener(_onUploads);
+    _tray?.dispose();
     _photos?.dispose();
     super.dispose();
   }
@@ -190,6 +201,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
   }
 
   Future<void> _viewDocument(FlyerDocument document) async {
+    if (!document.isPdf) return _viewPhotos(document);
     final bytes = await _loadDocument(document);
     if (!mounted || bytes == null) return;
     await openPdf(context,
@@ -210,25 +222,70 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     }
   }
 
+  /// Photo documents open in the viewer, swiping through every photo
+  /// document of this flyer.
+  Future<void> _viewPhotos(FlyerDocument document) {
+    final photos = [
+      for (final row in _documents?.documents ?? const <FlyerDocument>[])
+        if (!row.isPdf) row
+    ];
+    return showPhotoViewer(context,
+        photos: [
+          for (final row in photos)
+            ViewerPhoto.stored(row.reference,
+                group: flyerDocumentKinds[row.kind] ?? row.kind)
+        ],
+        initial:
+            photos.indexWhere((row) => row.reference == document.reference),
+        loader: _photos);
+  }
+
+  Future<List<PickedPhoto>> _pickFiles(FileSource source) async {
+    if (source != FileSource.pdf) return pickPhotos(source);
+    final file = await pickDocument(source);
+    return file == null ? const [] : [file];
+  }
+
+  /// A PDF is checked, confirmed by its name and then sent.
   Future<void> _pickPdf() async {
-    final picked = await FilePicker.pickFiles(
-        type: FileType.custom, allowedExtensions: const ['pdf']);
-    if (picked.isEmpty) return;
+    final picked = await (widget.pickFiles ?? _pickFiles)(FileSource.pdf);
+    if (!mounted || picked.isEmpty) return;
     final file = picked.single;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    if (bytes.length > imageUploadMaxBytes) {
-      setState(
-          () => _error = tr('The PDF is over 10 MB. Choose a smaller file.'));
+    final problem = pdfProblem(file);
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
-    setState(() => _busy = true);
+    final kind = flyerDocumentKinds[_kind] ?? _kind;
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+              scrollable: true,
+              title: Text(tr('Upload this PDF?')),
+              content: Text('${file.name}\n$kind',
+                  key: const Key('pdf-upload-name'),
+                  style: const TextStyle(height: 1.5)),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(tr('Cancel'))),
+                FilledButton(
+                    key: const Key('pdf-upload-confirm'),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: Text(tr('Upload'))),
+              ],
+            ));
+    if (ok != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await AppScope.of(context).flyers.uploadPdf(
           name: widget.name,
           kind: _kind,
           filename: file.name,
-          bytes: bytes,
+          bytes: file.bytes,
           onProgress: (_) {});
       await _load();
     } on ApiException catch (error) {
@@ -242,17 +299,10 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     }
   }
 
-  Future<void> _pick(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source);
-    if (file == null) return;
-    try {
-      await _photos?.select(PickedPhoto(
-          bytes: await file.readAsBytes(),
-          name: file.name,
-          mime: file.mimeType));
-    } finally {
-      await deletePickedPhotoFile(file.path);
-    }
+  Future<void> _pick(FileSource source) async {
+    final photos = await (widget.pickFiles ?? _pickFiles)(source);
+    if (!mounted) return;
+    await _tray?.add(photos);
   }
 
   @override
@@ -266,78 +316,80 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
             : docsVerified(flyer)
                 ? StatusPill(label: tr('Docs verified'), tone: ChipTone.green)
                 : StatusPill(label: tr('Docs pending'), tone: ChipTone.amber);
-    return WorkspaceScaffold(
-      title: tr('Flyer'),
-      subtitle: tr('Profile, documents and flights'),
-      root: false,
-      onRefresh: _load,
-      actions: [
-        if (pill != null)
-          Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(child: pill)),
-      ],
-      children: [
-        if (_loading && flyer == null) const LinearProgressIndicator(),
-        if (_error != null) ErrorNote(message: _error!, onRetry: _load),
-        if (flyer != null) ...[
-          if (flyer.archived) ...[
-            ArchivedBanner(
-                archivedAt: flyer.archivedAt,
-                restoreLabel: tr('Restore flyer'),
-                busy: _archiving,
-                onRestore: () => _setArchived(false)),
-            const SizedBox(height: 14),
+    return PhotoTrayGuard(
+        tray: _tray,
+        child: WorkspaceScaffold(
+          title: tr('Flyer'),
+          subtitle: tr('Profile, documents and flights'),
+          root: false,
+          onRefresh: _load,
+          actions: [
+            if (pill != null)
+              Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Center(child: pill)),
           ],
-          _ProfileCard(flyer: flyer),
-          const SizedBox(height: 22),
-          SectionTitle(title: tr('Contact')),
-          _ContactGrid(flyer: flyer),
-          const SizedBox(height: 22),
-          SectionTitle(
-              title: tr('Documents'),
-              action: SectionCount(tr('{verified} of {total} verified', {
-                'verified': flyer.verifiedDocumentCount,
-                'total': flyer.documentCount
-              }))),
-          if (widget.uploads case final uploads?)
-            QueuedFilesCard(
-                queue: uploads,
-                titleOf: (kind) => flyerDocumentKinds[kind] ?? kind ?? ''),
-          if (widget.uploads?.allDone == false) const SizedBox(height: 10),
-          _documentsCard(documents),
-          const SizedBox(height: 22),
-          SectionTitle(
-              title: tr('Flights'),
-              action: SectionCount(
-                  trn(flyer.flights.length, '{n} flight', '{n} flights'))),
-          if (flyer.flights.isEmpty)
-            EmptyNote(
-                icon: Icons.flight_outlined,
-                title: tr('No flights'),
-                body: tr('Flights appear here once created or assigned.'))
-          else
-            SurfaceGroup(children: [
-              for (final flight in flyer.flights)
-                _FlightRow(
-                    flight: flight, onTap: () => _openFlight(flight.code)),
-            ]),
-          const SizedBox(height: 22),
-          ProfileEndActions(
-              archived: flyer.archived,
-              archiveLabel: tr('Archive flyer'),
-              deleteLabel: tr('Delete flyer'),
-              archiving: _archiving,
-              deleting: _deleting,
-              onArchive: () => _setArchived(true),
-              onDelete: _delete),
-        ],
-      ],
-    );
+          children: [
+            if (_loading && flyer == null) const LinearProgressIndicator(),
+            if (_error != null) ErrorNote(message: _error!, onRetry: _load),
+            if (flyer != null) ...[
+              if (flyer.archived) ...[
+                ArchivedBanner(
+                    archivedAt: flyer.archivedAt,
+                    restoreLabel: tr('Restore flyer'),
+                    busy: _archiving,
+                    onRestore: () => _setArchived(false)),
+                const SizedBox(height: 14),
+              ],
+              _ProfileCard(flyer: flyer),
+              const SizedBox(height: 22),
+              SectionTitle(title: tr('Contact')),
+              _ContactGrid(flyer: flyer),
+              const SizedBox(height: 22),
+              SectionTitle(
+                  title: tr('Documents'),
+                  action: SectionCount(tr('{verified} of {total} verified', {
+                    'verified': flyer.verifiedDocumentCount,
+                    'total': flyer.documentCount
+                  }))),
+              if (widget.uploads case final uploads?)
+                QueuedFilesCard(
+                    queue: uploads,
+                    titleOf: (kind) => flyerDocumentKinds[kind] ?? kind ?? ''),
+              if (widget.uploads?.allDone == false) const SizedBox(height: 10),
+              _documentsCard(documents),
+              const SizedBox(height: 22),
+              SectionTitle(
+                  title: tr('Flights'),
+                  action: SectionCount(
+                      trn(flyer.flights.length, '{n} flight', '{n} flights'))),
+              if (flyer.flights.isEmpty)
+                EmptyNote(
+                    icon: Icons.flight_outlined,
+                    title: tr('No flights'),
+                    body: tr('Flights appear here once created or assigned.'))
+              else
+                SurfaceGroup(children: [
+                  for (final flight in flyer.flights)
+                    _FlightRow(
+                        flight: flight, onTap: () => _openFlight(flight.code)),
+                ]),
+              const SizedBox(height: 22),
+              ProfileEndActions(
+                  archived: flyer.archived,
+                  archiveLabel: tr('Archive flyer'),
+                  deleteLabel: tr('Delete flyer'),
+                  archiving: _archiving,
+                  deleting: _deleting,
+                  onArchive: () => _setArchived(true),
+                  onDelete: _delete),
+            ],
+          ],
+        ));
   }
 
   Widget _documentsCard(FlyerDocumentList? documents) {
-    final upload = _photos;
+    final tray = _tray!;
     final off = documents?.configured == false;
     final rows = documents?.documents ?? const <FlyerDocument>[];
     return PaperCard(
@@ -428,17 +480,17 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                           child: SmallActionButton(
                               label: tr('Camera'),
                               icon: Icons.photo_camera_outlined,
-                              onPressed: off
+                              onPressed: off || tray.uploading
                                   ? null
-                                  : () => _pick(ImageSource.camera))),
+                                  : () => _pick(FileSource.camera))),
                       const SizedBox(width: 8),
                       Expanded(
                           child: SmallActionButton(
                               label: tr('Gallery'),
                               icon: Icons.image_outlined,
-                              onPressed: off
+                              onPressed: off || tray.uploading
                                   ? null
-                                  : () => _pick(ImageSource.gallery))),
+                                  : () => _pick(FileSource.gallery))),
                       const SizedBox(width: 8),
                       Expanded(
                           child: SmallActionButton(
@@ -448,23 +500,12 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                               busy: _busy,
                               onPressed: off ? null : _pickPdf)),
                     ]),
-                    if (upload != null && upload.busy) ...[
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(
-                          value: upload.progress == 0 ? null : upload.progress),
-                    ],
-                    if (upload?.error != null) ...[
-                      const SizedBox(height: 10),
-                      Text(upload!.error!,
-                          style: const TextStyle(
-                              color: AppColors.danger, height: 1.4)),
-                      const SizedBox(height: 8),
-                      AppButton(
-                          label: tr('Send the same photo again'),
-                          icon: Icons.refresh_rounded,
-                          kind: AppButtonKind.tonal,
-                          onPressed: upload.retry),
-                    ],
+                    PhotoTray(
+                        tray: tray,
+                        onPick: _pick,
+                        enabled: !off,
+                        showPickers: false,
+                        group: flyerDocumentKinds[_kind] ?? _kind),
                   ])),
         ]));
   }
@@ -657,12 +698,12 @@ class _DocumentRow extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 13, color: AppColors.muted)),
                 ])),
-            if (document.isPdf)
-              IconButton(
-                  tooltip: tr('View in app'),
-                  color: AppColors.primary,
-                  onPressed: busy ? null : onView,
-                  icon: const Icon(Icons.visibility_outlined, size: 20)),
+            IconButton(
+                key: ValueKey('document-view-${document.reference}'),
+                tooltip: tr('View in app'),
+                color: AppColors.primary,
+                onPressed: busy ? null : onView,
+                icon: const Icon(Icons.visibility_outlined, size: 20)),
             IconButton(
                 tooltip: tr('Share'),
                 color: AppColors.primary,

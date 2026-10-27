@@ -1,6 +1,8 @@
 import '../../data/models/session_user.dart';
 import '../../l10n/l10n.dart';
 
+/// One tool on the More list. [body] is the line under the title when the
+/// screen has no live figure for it.
 class MoreDestination {
   const MoreDestination(
       {required this.id, required this.title, required this.body});
@@ -10,6 +12,8 @@ class MoreDestination {
   final String body;
 }
 
+/// Everything that is not on the bottom bar. Flights, Finance and New
+/// shipment live there and on the + button, so they are not repeated here.
 List<MoreDestination> moreDestinations(UserRole role) {
   switch (role) {
     case UserRole.hub:
@@ -24,31 +28,14 @@ List<MoreDestination> moreDestinations(UserRole role) {
           title: tr('Photos / media'),
           body: tr('View and add shipment photos'),
         ),
+        _fingerprint(),
       ];
     case UserRole.admin:
       return [
         MoreDestination(
-            id: 'tasks',
-            title: tr('Tasks & notes'),
-            body: tr('Team tasks and daily notes')),
-        MoreDestination(
-            id: 'review',
-            title: tr('Payment review'),
-            body: tr('Receipts and payment screenshots')),
-        MoreDestination(
-          id: 'intake',
-          title: tr('Shipment intake'),
-          body: tr('Book a new parcel'),
-        ),
-        MoreDestination(
-          id: 'invoice-share',
-          title: tr('Issue & share invoices'),
-          body: tr('Prepare bills and customer links'),
-        ),
-        MoreDestination(
-          id: 'flights',
-          title: tr('Flights'),
-          body: tr('Schedules and baggage capacity'),
+          id: 'customers',
+          title: tr('Customers'),
+          body: tr('Dues and shipment accounts'),
         ),
         MoreDestination(
           id: 'flyers',
@@ -56,43 +43,60 @@ List<MoreDestination> moreDestinations(UserRole role) {
           body: tr('Profiles and travel documents'),
         ),
         MoreDestination(
-          id: 'customers',
-          title: tr('Customers'),
-          body: tr('Dues and shipment accounts'),
+          id: 'team',
+          title: tr('Team'),
+          body: tr('Admins and hub managers · add someone'),
         ),
         MoreDestination(
-          id: 'finance',
-          title: tr('Finance overview'),
-          body: tr('Accounts, transactions and reports'),
+          id: 'review',
+          title: tr('Payment review'),
+          body: tr('Receipts customers sent'),
         ),
         MoreDestination(
-          id: 'assign',
-          title: tr('Assign tasks'),
-          body: tr('Share out team tasks'),
+          id: 'pay-methods',
+          title: tr('Payment methods'),
+          body: tr('Shown on the customer link'),
         ),
         MoreDestination(
-          id: 'settings',
-          title: tr('Settings'),
-          body: tr('Business setup and team'),
+          id: 'rate',
+          title: tr('Exchange rate'),
+          body: tr('New transactions use this rate.'),
+        ),
+        MoreDestination(
+          id: 'invoice-share',
+          title: tr('Bills and customer links'),
+          body: tr('Pick a shipment to see its bill and link'),
         ),
         MoreDestination(
           id: 'media',
-          title: tr('Photos / media'),
-          body: tr('Shipment photos and attachments'),
+          title: tr('Photos and media'),
+          body: tr('Parcel and device photos'),
         ),
         MoreDestination(
-          id: 'staff-add',
-          title: tr('Add admin or hub manager'),
-          body: tr('A new sign-in for the team'),
+          id: 'weight',
+          title: tr('Weight alert'),
+          body: tr('Booked vs weighed difference'),
         ),
         MoreDestination(
-          id: 'staff',
-          title: tr('Staff'),
-          body: tr('Everyone who can sign in'),
+          id: 'tasks',
+          title: tr('Tasks and notes'),
+          body: tr('Team tasks and daily notes'),
+        ),
+        _fingerprint(),
+        MoreDestination(
+          id: 'system',
+          title: tr('System check'),
+          body: tr('Connections and required settings'),
         ),
       ];
   }
 }
+
+MoreDestination _fingerprint() => MoreDestination(
+      id: 'fingerprint',
+      title: tr('Fingerprint sign-in'),
+      body: tr('Sign in with your finger on this phone'),
+    );
 
 class MoreGroup {
   const MoreGroup(this.title, this.ids);
@@ -105,17 +109,17 @@ List<MoreGroup> moreGroups(UserRole role) {
   switch (role) {
     case UserRole.hub:
       return [
-        MoreGroup(tr('Hub tasks'), const ['imei', 'media']),
+        MoreGroup(tr('Shipment tools'), const ['imei', 'media']),
+        MoreGroup(tr('Security'), const ['fingerprint']),
       ];
     case UserRole.admin:
       return [
-        MoreGroup(tr('Partners'), const ['customers', 'flyers']),
+        MoreGroup(tr('People'), const ['customers', 'flyers', 'team']),
+        MoreGroup(tr('Money'), const ['review', 'pay-methods', 'rate']),
         MoreGroup(
-            tr('Shipment tools'), const ['intake', 'invoice-share', 'media']),
-        MoreGroup(tr('Tasks & finance'),
-            const ['tasks', 'assign', 'review', 'finance']),
-        MoreGroup(tr('Management'), const ['flights', 'settings']),
-        MoreGroup(tr('Team'), const ['staff-add', 'staff']),
+            tr('Shipment tools'), const ['invoice-share', 'media', 'weight']),
+        MoreGroup(tr('Work'), const ['tasks']),
+        MoreGroup(tr('Security'), const ['fingerprint', 'system']),
       ];
   }
 }

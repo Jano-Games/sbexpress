@@ -1,5 +1,6 @@
 package com.sbexpress.sbexpress
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// Fingerprint sign-in (local_auth) needs a FragmentActivity.
+class MainActivity : FlutterFragmentActivity()

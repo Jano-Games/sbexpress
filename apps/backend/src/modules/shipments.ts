@@ -6,13 +6,14 @@ import { draftBillLines, invoiceBillLines } from '../shared/invoiceLines'
 import { screenshotSelect } from '../shared/receiptScreenshots'
 import { moneyBody, sourceFields, sourceAt, withSavedMoney } from '../shared/money'
 import { invoicePdf } from '../shared/invoicePdf'
-import { addShipmentBillCharge, ensureShipmentInvoice, refreshShipmentInvoice, invoiceSuggestion, calculatedInvoice, pricingFingerprint } from '../shared/shipmentBilling'
+import { addShipmentBillCharge, awaitsAutomaticIssue, ensureShipmentInvoice, refreshShipmentInvoice, invoiceSuggestion, calculatedInvoice, pricingFingerprint } from '../shared/shipmentBilling'
+import { flightCostBasis, type FlightCostBasis } from '../shared/profit'
 import { snapshotInvoice, releaseExcessPaid } from '../shared/customerCredit'
 import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import { Prisma, type PayStatus, type ShipmentStatus } from '@prisma/client'
 import { z } from 'zod'
-import { prisma } from '../core/db'
+import { atomicMutation, prisma } from '../core/db'
 import { cacheInvalidate } from '../core/redis'
 import { badRequest, forbidden, notFound } from '../core/errors'
 import { requireRole, type AppEnv, type SessionUser } from './auth'
@@ -48,6 +49,28 @@ async function findByCode(code: string) {
 
 async function log(shipmentId: string, actor: string, message: string): Promise<void> {
   await writeShipmentLog(shipmentId, message, actor)
+}
+
+/**
+ * Older shipments: the first time an admin opens one, a missing or automatic
+ * draft invoice with something to bill is issued. Returns true when it was.
+ */
+async function issueOnOpen(shipment: { id: string; invoice: { pricingMode: string; state: string } | null }): Promise<boolean> {
+  if (!awaitsAutomaticIssue(shipment.invoice)) return false
+  const invoice = await atomicMutation(() => ensureShipmentInvoice(shipment.id))
+  if (invoice?.state !== 'issued') return false
+  await invalidateReads()
+  return true
+}
+
+/** The flight's cost total and weight, for one shipment's share of the flight costs. */
+async function flightCostsFor(flightId: string | null): Promise<FlightCostBasis | null> {
+  if (!flightId) return null
+  const flight = await prisma.flight.findUnique({
+    where: { id: flightId },
+    select: { expenses: { select: { category: true, amount: true } }, shipments: { select: { bookedKg: true, weighedKg: true } } },
+  })
+  return flight ? flightCostBasis(flight) : null
 }
 
 /**
@@ -145,6 +168,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
         description: z.string().default(''),
         payStatus: z.enum(['unpaid', 'cod', 'monthly']).optional(),
         paymentTerms:z.enum(['invoice','cod','monthly']).optional(),
+        /** Carried free of charge: the bill is issued at ৳0. */
+        freeOfCharge: z.boolean().default(false),
       })
       .parse(await c.req.json())
 
@@ -170,6 +195,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
           pcsTotal(body.pcsItems, settings.rate)) *
           100,
       ) / 100
+    if (body.freeOfCharge && charge > 0) throw badRequest('A free-of-charge shipment has no rate or device charge')
 
     const shipment = await prisma.shipment.create({
       data: {
@@ -188,20 +214,26 @@ export const shipmentRoutes = new Hono<AppEnv>()
         serials,
         paymentTerms:body.paymentTerms ?? (body.payStatus==='cod'?'cod':body.payStatus==='monthly'?'monthly':body.payStatus==='unpaid'?'invoice':supplier.terms==='monthly'?'monthly':'invoice'),
         payStatus:'unpaid',
+        freeOfCharge: body.freeOfCharge,
         trackToken: makeTrackToken(code),
       },
     })
     await log(shipment.id, actorOf(user), `Created, booked${body.bookedKg ? ` ${body.bookedKg} kg` : ''} on ${flight?.code ?? 'an unassigned flight'}`)
     if (serials.length) await log(shipment.id, actorOf(user), `Device serials recorded: ${serials.join(', ')}`)
+    // Nobody presses "Issue invoice": the bill is made from the calculated lines and issued
+    // (a ৳0 bill only when free; with nothing to bill yet it waits as a draft).
+    await refreshShipmentInvoice(shipment.id, 'Bill issued automatically')
     await invalidateReads()
     return c.json({ code }, 201)
   })
 
   .get('/:code', async (c) => {
     const user = c.get('user')
-    const shipment = await findByCode(c.req.param('code')!)
+    let shipment = await findByCode(c.req.param('code')!)
+    if (user.role === 'admin' && await issueOnOpen(shipment)) shipment = await findByCode(shipment.code)
     const settings = await getSettings()
-    return c.json({ shipment: shipmentDetail(shipment, user.role, settings.threshold) })
+    const flightCosts = user.role === 'admin' ? await flightCostsFor(shipment.flightId) : null
+    return c.json({ shipment: shipmentDetail(shipment, user.role, settings.threshold, flightCosts) })
   })
 
   .patch('/:code', requireRole('admin'), async (c) => {
@@ -227,7 +259,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
 
     if (body.payStatus && ['paid', 'partial'].includes(body.payStatus) && body.payStatus !== shipment.payStatus) throw badRequest('Record a payment to change paid status')
     if (body.payStatus && num(shipment.paidAmount) > 0 && body.payStatus !== shipment.payStatus) throw badRequest('Payment status is derived from the ledger')
-    if (body.supplierCode && body.supplierCode !== shipment.supplier.code && (shipment.invoice || num(shipment.paidAmount) > 0)) throw badRequest('Cannot reassign an invoiced or paid shipment')
+    // An automatic bill follows the shipment to its new customer; a hand-edited or paid one cannot move.
+    if (body.supplierCode && body.supplierCode !== shipment.supplier.code && (shipment.invoice?.pricingMode === 'manual' || num(shipment.paidAmount) > 0 || shipment.payments.length > 0)) throw badRequest('Cannot reassign an invoiced or paid shipment')
     const data: Prisma.ShipmentUncheckedUpdateInput = {}
     const changed: string[] = []
     if(body.paymentTerms !== undefined && body.paymentTerms !== shipment.paymentTerms){data.paymentTerms=body.paymentTerms;changed.push(`payment terms → ${body.paymentTerms}`)}
@@ -277,7 +310,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
     const rateChanged = body.chargeRate !== undefined && body.chargeRate !== num(shipment.chargeRate)
     const currencyChanged = body.chargeCurrency !== undefined && body.chargeCurrency !== shipment.chargeCurrency
     const pcsChanged = body.pcsItems !== undefined && JSON.stringify(body.pcsItems) !== JSON.stringify(existingPcs)
-    if (rateChanged || currencyChanged || pcsChanged || data.bookedKg !== undefined) {
+    const pricingChanged = rateChanged || currencyChanged || pcsChanged || data.bookedKg !== undefined
+    if (pricingChanged) {
       const settings = await getSettings()
       const rate = body.chargeRate ?? num(shipment.chargeRate)
       const currency = body.chargeCurrency ?? shipment.chargeCurrency
@@ -329,7 +363,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
     if (changed.length) {
       await prisma.shipment.update({ where: { id: shipment.id }, data })
       await log(shipment.id, 'Admin', `Details edited: ${changed.join(', ')}`)
-      if(data.charge!==undefined || data.customsTax!==undefined)await refreshShipmentInvoice(shipment.id,'Shipment pricing changed')
+      // The automatic bill follows the charge, weight, rate, devices and customer; a manual one is flagged for review.
+      if(pricingChanged || data.customsTax!==undefined || data.supplierId!==undefined)await refreshShipmentInvoice(shipment.id,'Shipment pricing changed')
     await invalidateReads()
     }
     return c.json({ ok: true, changed })
@@ -339,7 +374,12 @@ export const shipmentRoutes = new Hono<AppEnv>()
     const shipment = await findByCode(c.req.param('code')!)
     // Logs and receipt cascade; linked expenses stay in the books (unlinked) —
     // the money was still spent.
-    if (shipment.invoice || num(shipment.paidAmount) > 0 || shipment.payments.length || shipment.expenses.length || latestReceipt(shipment.receipts) || await prisma.customerCredit.count({ where: { shipmentCode: shipment.code } })) throw badRequest('Financial history exists; this shipment cannot be deleted')
+    // The automatic bill made at booking does not count as history; anything paid, costed or hand-edited does.
+    if (shipment.invoice?.pricingMode === 'manual' || num(shipment.paidAmount) > 0 || shipment.payments.length || shipment.expenses.length || shipment.costs.length || latestReceipt(shipment.receipts) || await prisma.customerCredit.count({ where: { shipmentCode: shipment.code } }) || await prisma.creditNote.count({ where: { shipmentId: shipment.id } })) throw badRequest('Financial history exists; this shipment cannot be deleted')
+    if (shipment.invoice) {
+      await prisma.invoiceRevision.deleteMany({ where: { invoiceId: shipment.invoice.id } })
+      await prisma.invoice.delete({ where: { id: shipment.invoice.id } })
+    }
     await prisma.shipment.delete({ where: { id: shipment.id } })
     await invalidateReads()
     return c.json({ ok: true })
@@ -523,7 +563,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
   })
 
   .get('/:code/invoice', requireRole('admin'), async (c) => {
-    const shipment = await findByCode(c.req.param('code')!)
+    let shipment = await findByCode(c.req.param('code')!)
+    if (await issueOnOpen(shipment)) shipment = await findByCode(shipment.code)
     const to = `${shipment.supplier.name} (${shipment.supplier.code})`
 
     if (shipment.invoice) {
@@ -632,8 +673,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
       days: z.number().int().min(1).max(90).default(7),
       amount: z.number().positive().multipleOf(0.01).optional(),
     }).parse(moneyBody(await c.req.json(), ['amount']))
-    if (body.scope !== 'tracking_only') await ensureShipmentInvoice(shipment.id)
-    const due = Math.max(0, effectiveBill(shipment) - num(shipment.paidAmount))
+    const billed = body.scope !== 'tracking_only' && await ensureShipmentInvoice(shipment.id) ? await findByCode(shipment.code) : shipment
+    const due = Math.max(0, effectiveBill(billed) - num(billed.paidAmount))
     if (body.amount !== undefined && body.amount > due) throw badRequest('Requested amount exceeds balance')
     const token = newPublicToken()
     const expiresAt = new Date(Date.now() + body.days * 86400000)

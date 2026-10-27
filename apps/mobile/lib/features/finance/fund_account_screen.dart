@@ -156,7 +156,7 @@ class _FundAccountScreenState extends State<FundAccountScreen> {
           const SizedBox(height: 14),
           TipNote(
               text: tr(
-                  'Bank and bKash accounts are added from Settings, under payment methods.')),
+                  'Bank and bKash accounts are added in More, under Payment methods.')),
         ]);
   }
 }

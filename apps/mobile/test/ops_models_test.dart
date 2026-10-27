@@ -304,7 +304,9 @@ void main() {
     final admin = moreGroups(UserRole.admin).expand((group) => group.ids).toSet();
     expect(hub.contains('finance'), isFalse);
     expect(hub.contains('customers'), isFalse);
-    expect(admin.contains('finance'), isTrue);
+    // Finance is on the admin's bottom bar, not repeated in More.
+    expect(admin.contains('finance'), isFalse);
+    expect(admin.contains('pay-methods'), isTrue);
     expect(admin.contains('flyers'), isTrue);
   });
 }

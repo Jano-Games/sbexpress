@@ -6,7 +6,7 @@ import { Prisma, type FlightStatus } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../core/db'
 import { cacheInvalidate } from '../core/redis'
-import { badRequest, notFound } from '../core/errors'
+import { badRequest, notFound, HttpError } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { FLIGHT_LABEL } from '../shared/status'
 import { effectiveBill, num, isoDate, shipmentRow, shipmentOperatingCosts } from '../shared/serialize'
@@ -15,6 +15,10 @@ import { creditPayment, debitCash } from '../shared/ledger'
 import { lookupFlight } from '../shared/flightLookup'
 import { HUB_FLIGHT_DETAIL_INCLUDE, HUB_FLIGHT_INCLUDE, hubFlightDetail, hubFlightRow } from '../shared/hubFlights'
 import { matchFlyers, parseTicketText, ticketText } from '../shared/ticketImport'
+import { FLIGHT_COST_CATEGORIES, FLIGHT_COST_LABEL, flightCostRow, flightCostRows, flightCostTotal } from '../shared/flightCosts'
+import { flightProfitBreakdown } from '../shared/profit'
+import { shipmentLateDays, utcToday } from '../shared/latePayments'
+import { reverseExpenseOffset } from './corrections'
 
 const INCLUDE = {
   expenses: true,
@@ -31,13 +35,14 @@ const SUMMARY_INCLUDE = {
   shipments: {
     select: {
       bookedKg: true,
+      weighedKg: true,
       charge: true,
       customsTax: true,
       afterSalesFee: true,
       cnFare: true,
       bdFare: true,
       invoice: { select: { total: true } },
-      expenses: { select: { costId:true,costField: true, category: true, amount: true } },
+      expenses: { select: { costId:true,costField: true, category: true, amount: true, flightId: true } },
       costs:{select:{category:true,amount:true,voidedAt:true}},
     },
   },
@@ -91,6 +96,7 @@ function deriveFromLegs(legs: LegInput[]) {
 }
 
 function summary(f: FlightSummarySource) {
+  const profitBreakdown = flightProfitBreakdown(f)
   const revenue = f.shipments.reduce((total, shipment) => total + effectiveBill(shipment), 0)
   const shipmentCosts = f.shipments.reduce((costs, shipment) => {
     const next = shipmentOperatingCosts(shipment)
@@ -121,7 +127,10 @@ function summary(f: FlightSummarySource) {
     flyerDue: Math.max(0, num(f.actualCost) - num(f.agencyShare) - num(f.flyerPaidAmount)),
     shipmentCosts,
     totalShipmentCosts,
-    margin: Math.round((revenue + num(f.fare) - num(f.actualCost) - totalShipmentCosts) * 100) / 100,
+    /** Flight profit: shipment charges + flyers' share − ticket − flight costs (see profitBreakdown). */
+    margin: profitBreakdown.profit,
+    flightCostTotal: flightCostTotal(f.expenses),
+    profitBreakdown,
     spaceKg: f.spaceKg,
     mobiles: f.mobiles,
     laptops: f.laptops,
@@ -144,6 +153,44 @@ function summary(f: FlightSummarySource) {
       arrTime: l.arrTime,
     })),
   }
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** "MU5842-20261030-" from a flight code made by POST /, or null for older codes. */
+export function sameFlightPrefix(code: string): string | null {
+  const match = /^(.+-\d{8}-)[0-9a-f]{6}$/.exec(code)
+  return match ? match[1]! : null
+}
+
+/**
+ * The same flight number on the same day may carry several tickets, but one
+ * flyer cannot be on it twice. Refuses with the existing flight's flyers.
+ */
+export async function refuseSameFlightFlyers(prefix: string, flyerIds: string[], exceptFlightId?: string) {
+  if (!flyerIds.length) return
+  const existing = await prisma.flight.findFirst({
+    where: {
+      code: { startsWith: prefix },
+      ...(exceptFlightId ? { id: { not: exceptFlightId } } : {}),
+      flyers: { some: { flyerId: { in: flyerIds } } },
+    },
+    include: { flyers: { include: { flyer: true } } },
+  })
+  if (!existing) return
+  const names = existing.flyers.filter((f) => flyerIds.includes(f.flyerId)).map((f) => f.flyer.name)
+  const [number, day] = prefix.slice(0, -1).split(/-(?=\d{8}$)/)
+  const date = day ? `${Number(day.slice(6, 8))} ${MONTHS[Number(day.slice(4, 6)) - 1]} ${day.slice(0, 4)}` : ''
+  throw new HttpError(409, `${number} on ${date} is already added with ${names.join(', ')}. Open that flight instead of adding it again.`)
+}
+
+/** A live (non-ticket, not a reversal twin) cost of this flight. */
+async function findFlightCost(code: string, id: string) {
+  const flight = await prisma.flight.findUnique({ where: { code }, select: { id: true } })
+  if (!flight) throw notFound('Flight not found')
+  const cost = await prisma.expense.findFirst({ where: { id, flightId: flight.id, category: { not: 'ticket' }, reversalOfId: null } })
+  if (!cost) throw notFound('Flight cost not found')
+  return cost
 }
 
 export const flightRoutes = new Hono<AppEnv>()
@@ -234,7 +281,9 @@ export const flightRoutes = new Hono<AppEnv>()
     const derived = body.legs?.length ? deriveFromLegs(body.legs) : null
     const airlineCode = derived?.code ?? body.code.toUpperCase()
     // A flight number repeats every day and can carry more than one ticket booking.
-    const code = `${airlineCode}-${body.date.replaceAll('-', '')}-${randomBytes(3).toString('hex')}`
+    const prefix = `${airlineCode}-${body.date.replaceAll('-', '')}-`
+    await refuseSameFlightFlyers(prefix, flyers.map((f) => f.id))
+    const code = `${prefix}${randomBytes(3).toString('hex')}`
 
     const flight = await prisma.flight.create({
       data: {
@@ -277,13 +326,71 @@ export const flightRoutes = new Hono<AppEnv>()
       bdPhone: x.flyer.bdPhone,
       initial: x.flyer.name.charAt(0),
     }))
+    const today = utcToday()
     return c.json({
       flight: {
         ...summary(flight),
+        flightCosts: flightCostRows(flight.expenses),
         flyerDetails: flyers,
-        bookings: flight.shipments.map((s) => shipmentRow(s, 'admin', settings.threshold)),
+        bookings: flight.shipments.map((s) => ({ ...shipmentRow(s, 'admin', settings.threshold), lateDays: shipmentLateDays(s, today) })),
       },
     })
+  })
+
+  // Our own cost for the whole flight; never added to a customer's bill.
+  .post('/:code/costs', requireRole('admin'), async (c) => {
+    const body = z
+      .object({
+        category: z.enum(FLIGHT_COST_CATEGORIES),
+        label: z.string().trim().max(60, 'Keep the name under 60 characters').optional(),
+        amount: z.number().positive('Amount is required').max(9999999999),
+        accountName: z.string().trim().min(1).max(200).optional(),
+        payLater: z.boolean().optional(),
+      })
+      .parse(moneyBody(await c.req.json(), ['amount']))
+    if (Boolean(body.accountName) === Boolean(body.payLater)) throw badRequest('Choose the paying account or Pay later')
+    const flight = await prisma.flight.findUnique({ where: { code: c.req.param('code')! } })
+    if (!flight) throw notFound('Flight not found')
+    // Paid now leaves the account like every other expense; pay later is a payable with no posting yet.
+    const posted = body.accountName ? await debitCash(body.amount, body.accountName) : null
+    const cost = await prisma.expense.create({
+      data: {
+        ...sourceFields(body.amount),
+        ...(posted ?? {}),
+        date: new Date(),
+        category: body.category,
+        amount: body.amount,
+        reason: body.label || FLIGHT_COST_LABEL[body.category],
+        flightId: flight.id,
+      },
+    })
+    await cacheInvalidate('dashboard')
+    return c.json({ cost: flightCostRow(cost) }, 201)
+  })
+
+  // Settles a pay-later flight cost from an account.
+  .post('/:code/costs/:id/pay', requireRole('admin'), async (c) => {
+    const { accountName } = z.object({ accountName: z.string().trim().min(1).max(200) }).parse(await c.req.json())
+    const cost = await findFlightCost(c.req.param('code')!, c.req.param('id')!)
+    if (cost.reversedAt) throw notFound('Flight cost not found')
+    if (cost.accountAmount !== null) throw badRequest('This flight cost is already paid')
+    const posted = await withSavedMoney(cost, () => debitCash(num(cost.amount), accountName))
+    const updated = await prisma.expense.update({ where: { id: cost.id }, data: { ...posted, date: new Date() } })
+    await cacheInvalidate('dashboard')
+    return c.json({ cost: flightCostRow(updated) })
+  })
+
+  // Removing a flight cost reverses it; posted money returns to its account.
+  .delete('/:code/costs/:id', requireRole('admin'), async (c) => {
+    const body = z.object({ reason: z.string().trim().max(500).optional() }).parse(await c.req.json().catch(() => ({})))
+    const cost = await findFlightCost(c.req.param('code')!, c.req.param('id')!)
+    if (cost.reversedAt) return c.json({ ok: true })
+    const reason = body.reason || 'Flight cost removed'
+    const user = c.get('user')
+    const offsetId = await reverseExpenseOffset(cost, reason, { allowUnposted: true })
+    await prisma.ledgerReversal.create({ data: { kind: 'expense', recordId: cost.id, offsetId, reason, actorId: user.id, actorName: user.name } })
+    await cacheInvalidate('dashboard')
+    return c.json({ ok: true })
   })
 
   .patch('/:code', requireRole('admin'), async (c) => {
@@ -373,9 +480,8 @@ export const flightRoutes = new Hono<AppEnv>()
       throw badRequest(`${flight.code} has ${flight.shipments.length} booking(s) — move or delete them first`)
     }
     if (num(flight.actualCost) > 0 || num(flight.flyerPaidAmount) > 0) throw badRequest('Flight has financial history; deleting it would invent a cash refund')
-    // Only flights without financial history may be removed.
-    const tickets = await prisma.expense.findMany({ where: { flightId: flight.id, category: 'ticket' } })
-    if (tickets.length || await prisma.payment.count({ where: { flightId: flight.id } })) throw badRequest('Flight has payment or refund history and cannot be deleted')
+    // Only flights without financial history (tickets, flight costs, payments) may be removed.
+    if (await prisma.expense.count({ where: { flightId: flight.id } }) || await prisma.payment.count({ where: { flightId: flight.id } })) throw badRequest('Flight has payment, cost or refund history and cannot be deleted')
     await prisma.flight.delete({ where: { id: flight.id } })
     await cacheInvalidate('dashboard')
     return c.json({ ok: true })
@@ -416,6 +522,10 @@ export const flightRoutes = new Hono<AppEnv>()
     if (!flight) throw notFound('Flight not found')
     const flyer = await prisma.flyer.findUnique({ where: { name } })
     if (!flyer || flyer.archivedAt) throw badRequest('Choose an active flyer')
+    const already = await prisma.flightFlyer.findUnique({ where: { flightId_flyerId: { flightId: flight.id, flyerId: flyer.id } } })
+    if (already) throw new HttpError(409, `${flyer.name} is already on this flight`)
+    const prefix = sameFlightPrefix(flight.code)
+    if (prefix) await refuseSameFlightFlyers(prefix, [flyer.id], flight.id)
     await prisma.flightFlyer.upsert({
       where: { flightId_flyerId: { flightId: flight.id, flyerId: flyer.id } },
       update: {},

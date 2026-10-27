@@ -11,6 +11,8 @@ vi.mock('../src/shared/financialSummary', () => ({ financialSummary: vi.fn() }))
 vi.mock('../src/core/redis', () => ({ cacheGetJson: vi.fn(), cacheSetJson: vi.fn() }))
 vi.mock('../src/modules/flights', () => ({ autoCompletePastFlights: vi.fn() }))
 vi.mock('../src/shared/hubTodos', () => ({ syncHubTodos: vi.fn() }))
+// The bill catch-up has its own tests in round7.test.ts.
+vi.mock('../src/shared/shipmentBilling', () => ({ issuePendingInvoices: vi.fn(async () => 0) }))
 vi.mock('../src/modules/auth', () => ({ requireRole: (...roles: Role[]) => async (c: Context<AppEnv>, next: Next) => {
   if (!roles.includes(c.get('user').role)) return c.json({ error: 'Forbidden' }, 403)
   await next()
@@ -52,7 +54,7 @@ describe('Get paid list', () => {
     const issued = { state: 'issued', needsReview: false, total: 5000 }
     db.shipment.findMany.mockResolvedValue([
       shipment('SH-21', { charge: 11250, handedOverAt: day(-1) }),
-      shipment('SH-14', { charge: 6300, handedOverAt: day(-9), supplier: supplier('C-22', 'Bismillah Telecom') }),
+      shipment('SH-14', { charge: 6300, handedOverAt: day(-12), supplier: supplier('C-22', 'Bismillah Telecom') }),
       shipment('SH-30', { charge: 800, paidAmount: 800 }),
       shipment('SH-51', { charge: 10050, status: 'out_for_delivery', handedOverAt: null }),
       shipment('SH-60', { charge: 900, status: 'received_bd_hub', handedOverAt: null }),
@@ -67,7 +69,7 @@ describe('Get paid list', () => {
     const body = (await response.json()) as any
 
     expect(body.afterDelivery.handedOver.map((row: { code: string }) => row.code)).toEqual(['SH-14', 'SH-21'])
-    expect(body.afterDelivery.handedOver[0]).toMatchObject({ supplierName: 'Bismillah Telecom', amount: 6300, days: 9, overdue: true })
+    expect(body.afterDelivery.handedOver[0]).toMatchObject({ supplierName: 'Bismillah Telecom', amount: 6300, days: 12, overdue: true })
     expect(body.afterDelivery.handedOver[1]).toMatchObject({ amount: 11250, days: 1, overdue: false })
     expect(body.afterDelivery.due).toBe(17550)
     expect(body.afterDelivery.overdueCount).toBe(1)

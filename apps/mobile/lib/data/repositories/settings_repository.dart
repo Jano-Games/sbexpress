@@ -1,6 +1,5 @@
 import '../api/api_client.dart';
 import '../json_read.dart';
-import '../models/flow.dart';
 import '../models/workspace.dart';
 
 class SettingsRepository {
@@ -23,9 +22,9 @@ class SettingsRepository {
     return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
   }
 
-  Future<SettingsSnapshot> saveCostDefaults(CostDefaults defaults) async {
-    final json = await api
-        .patchJson('/api/settings', body: {'costDefaults': defaults.toJson()});
+  /// The weight alert: booked and weighed kg this far apart get flagged.
+  Future<SettingsSnapshot> saveThreshold(double kg) async {
+    final json = await api.patchJson('/api/settings', body: {'threshold': kg});
     return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
   }
 

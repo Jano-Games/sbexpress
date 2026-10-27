@@ -143,7 +143,8 @@ class ShipmentRepository {
 
   Future<ShipmentCostSheet> costSheet(String code) async {
     final json = await api.getJson(_path(code));
-    return ShipmentCostSheet.fromJson(asJsonMap(json['costs'], 'costs'));
+    final shipment = asJsonMap(json['shipment'], 'shipment');
+    return ShipmentCostSheet.fromJson(asJsonMap(shipment['costs'], 'costs'));
   }
 
   Future<void> recordCost(String code, Map<String, Object?> body) {
@@ -169,6 +170,20 @@ class ShipmentRepository {
         expiresAt: requiredString(json, 'expiresAt'));
   }
 
+  /// Customer links made for this shipment, newest first.
+  Future<List<SavedTrackLink>> trackLinks(String code) async {
+    final json = await api.getJson('${_path(code)}/track-links');
+    return [
+      for (final row in requiredMapList(json, 'links'))
+        SavedTrackLink.fromJson(row)
+    ];
+  }
+
+  /// Turns off every customer link of this shipment.
+  Future<void> revokeTracking(String code) async {
+    await api.deleteJson('${_path(code)}/track-link');
+  }
+
   String _path(String code) => '/api/shipments/${Uri.encodeComponent(code)}';
 }
 
@@ -177,6 +192,42 @@ class TrackingLink {
 
   final String url;
   final String expiresAt;
+}
+
+/// A saved customer link: `active`, `expired` or `revoked`. [url] is null
+/// for a link made before links could be shown again.
+class SavedTrackLink {
+  const SavedTrackLink(
+      {required this.id,
+      required this.url,
+      required this.status,
+      required this.expiresAt,
+      required this.includesInvoice});
+
+  final String id;
+  final String? url;
+  final String status;
+  final String expiresAt;
+
+  /// Shows the bill and payments as well as tracking.
+  final bool includesInvoice;
+
+  bool get active => status == 'active';
+
+  factory SavedTrackLink.fromJson(Map<String, Object?> json) => SavedTrackLink(
+      id: requiredString(json, 'id'),
+      url: optionalString(json, 'url'),
+      status: requiredString(json, 'status'),
+      expiresAt: requiredString(json, 'expiresAt'),
+      includesInvoice: json['includesInvoice'] == true);
+}
+
+/// The newest active link that can be shown, or null.
+SavedTrackLink? newestActiveLink(List<SavedTrackLink> links) {
+  for (final link in links) {
+    if (link.active && link.url != null && link.url!.isNotEmpty) return link;
+  }
+  return null;
 }
 
 /// Shipment cost post. Settling an existing row always pays now from an account.

@@ -57,9 +57,12 @@ export function auditLabel(method: string, path: string) {
     'assignment-correction': 'Corrected flight assignment',
     archive: 'Updated flyer archive status',
     password: 'Changed staff password',
+    costs: 'Recorded flight cost',
+    pay: 'Paid flight cost',
   }
   return {
     action:
+      (method === 'DELETE' && p[1] === 'flights' && p[3] === 'costs' ? 'Removed flight cost' : undefined) ??
       labels[last] ??
       `${method === 'DELETE' ? 'Removed' : method === 'PATCH' ? 'Updated' : 'Created'} ${p[1] === 'settings' && p[2] === 'users' ? 'staff account' : (p[1] === 'suppliers' ? 'customer' : (p[1] ?? 'record').replace(/s$/, ''))}`,
     entity: decodeURIComponent(entity),

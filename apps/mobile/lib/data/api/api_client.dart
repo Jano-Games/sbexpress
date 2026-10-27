@@ -62,6 +62,31 @@ class ApiClient {
     }
   }
 
+  /// Downloads a short-lived storage link from the server. The session
+  /// token is never sent with it, and a failure does not sign out.
+  Future<Uint8List> getSignedBytes(String url) async {
+    final uri = Uri.tryParse(url);
+    final allowed = uri != null &&
+        uri.host.isNotEmpty &&
+        (uri.scheme == 'https' ||
+            (uri.scheme == 'http' && !kReleaseMode && kDebugMode && isLoopbackHost(uri.host)));
+    if (!allowed) {
+      throw ApiException(status: 0, message: 'The download link must use HTTPS.', path: url);
+    }
+    try {
+      final response = await _http.get(uri, headers: const {'accept': 'image/*,*/*'});
+      if (response.statusCode >= 400) {
+        throw ApiException(
+            status: response.statusCode, message: _errorMessage(response.statusCode, response.body), path: url);
+      }
+      return response.bodyBytes;
+    } on SocketException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: url);
+    } on http.ClientException catch (error) {
+      throw ApiException(status: 0, message: error.message, path: url);
+    }
+  }
+
   Future<void> putBytes(
     String url,
     List<int> bytes,

@@ -16,6 +16,7 @@ import {effectiveBill,num} from '../shared/serialize'
 import {money} from '../shared/customerCredit'
 import {payMethodsFor,payMethodName} from './track'
 import {recordShipmentPayment} from './shipments'
+import {issuePendingInvoices} from '../shared/shipmentBilling'
 const monthSchema=z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
 async function rowsFor(supplierId:string,month:string){
  const start=new Date(`${month}-01T00:00:00Z`),end=new Date(start);end.setUTCMonth(end.getUTCMonth()+1)
@@ -46,6 +47,8 @@ export const statementAdminRoutes=new Hono<AppEnv>()
  .post('/:code/statement-link',requireRole('admin'),async c=>{
   const b=z.object({month:monthSchema,days:z.number().int().min(1).max(90).default(7),amount:z.number().positive().multipleOf(0.01).optional()}).parse(moneyBody(await c.req.json(), ['amount']))
   const s=await prisma.supplier.findUnique({where:{code:c.req.param('code')!}});if(!s)throw notFound('Customer not found')
+  // This customer's bills still waiting to be issued are issued first, so the statement includes them.
+  await issuePendingInvoices({supplierId:s.id})
   const a=await amounts({supplierId:s.id,month:b.month,requestedAmount:null,paidAtIssue:0})
   if(!a.rows.length)throw badRequest('No reviewed, issued invoices in this month. Issue invoices before sharing a payment statement.')
   if(b.amount!==undefined&&b.amount>a.due)throw badRequest('Requested amount exceeds outstanding balance')

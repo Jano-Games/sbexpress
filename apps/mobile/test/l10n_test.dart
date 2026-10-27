@@ -11,9 +11,13 @@ import 'package:sbexpress/l10n/bn_flights.dart';
 import 'package:sbexpress/l10n/bn_flights_ui.dart';
 import 'package:sbexpress/l10n/bn_flow.dart';
 import 'package:sbexpress/l10n/bn_hub.dart';
+import 'package:sbexpress/l10n/bn_photos.dart';
 import 'package:sbexpress/l10n/bn_quick.dart';
 import 'package:sbexpress/l10n/bn_round5.dart';
 import 'package:sbexpress/l10n/bn_round6.dart';
+import 'package:sbexpress/l10n/bn_round7a.dart';
+import 'package:sbexpress/l10n/bn_round7b.dart';
+import 'package:sbexpress/l10n/bn_scan.dart';
 import 'package:sbexpress/l10n/bn_shared.dart';
 import 'package:sbexpress/l10n/bn_team_ui.dart';
 import 'package:sbexpress/l10n/l10n.dart';
@@ -109,6 +113,10 @@ void main() {
       'quick': bnQuick,
       'round5': bnRound5,
       'round6': bnRound6,
+      'scan': bnScan,
+      'round7b': bnRound7b,
+      'round7a': bnRound7a,
+      'photos': bnPhotos,
       'core': bnCore,
     };
     final seen = <String, (String, String)>{};

@@ -436,6 +436,8 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
                         part: _parts[name]!,
                         paid: _paid[name],
                         paidLabel: tr('Already paid'),
+                        payable: () =>
+                            readOptionalMoney(_parts[name]!.text) ?? 0,
                         partKey: ValueKey('flight-part-$name'),
                         paidKey: ValueKey('flight-paid-$name'),
                         onChanged: (_) => setState(() {}))),

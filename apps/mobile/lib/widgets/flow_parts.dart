@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/models/flow.dart';
+import '../data/money_payload.dart' show readOptionalMoney;
 import '../data/repositories/flight_repository.dart' show FlyerPaid;
 import '../features/admin/money_format.dart';
 import '../l10n/l10n.dart';
@@ -744,13 +745,15 @@ class LinkCard extends StatelessWidget {
 /// A flyer's part of the ticket and, under it, what they pay toward it now.
 /// [paid] is null when nothing is left for them to pay; the row then shows
 /// only the part and [note].
-class FlyerPartRow extends StatelessWidget {
+class FlyerPartRow extends StatefulWidget {
   const FlyerPartRow(
       {super.key,
       required this.name,
       required this.part,
       required this.paid,
       required this.paidLabel,
+      this.payable,
+      this.tickLabel,
       this.note,
       this.paidUp = false,
       this.partKey,
@@ -761,8 +764,17 @@ class FlyerPartRow extends StatelessWidget {
   final TextEditingController part;
   final TextEditingController? paid;
 
-  /// "Already paid" on a new flight; "Paid now" on a saved one.
+  /// "Already paid" on a new flight; "Paid now" on a saved one. Labels the
+  /// amount field that "Part paid" opens.
   final String paidLabel;
+
+  /// What ticking "Paid" fills in: the part on a new flight, what is left of
+  /// it on a saved one. Nothing shows until there is a part to pay. Without
+  /// it the amount field shows straight away.
+  final double Function()? payable;
+
+  /// "Paid" by default; "Paid the rest" when part is already recorded.
+  final String? tickLabel;
 
   /// Under the name, e.g. what is already recorded; green when [paidUp].
   final String? note;
@@ -772,50 +784,172 @@ class FlyerPartRow extends StatelessWidget {
   final ValueChanged<String>? onChanged;
 
   @override
+  State<FlyerPartRow> createState() => _FlyerPartRowState();
+}
+
+class _FlyerPartRowState extends State<FlyerPartRow> {
+  /// "Paid" is ticked, so the paid amount follows the part.
+  var _full = false;
+
+  /// The amount field for a part payment is open.
+  var _partOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final paid = widget.paid;
+    final payable = widget.payable;
+    if (paid == null || payable == null) return;
+    final typed = readOptionalMoney(paid.text) ?? 0;
+    if (typed <= 0) return;
+    if (_same(typed, payable())) {
+      _full = true;
+    } else {
+      _partOpen = true;
+    }
+  }
+
+  static bool _same(double a, double b) => b > 0.001 && (a - b).abs() < 0.005;
+
+  static String _text(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
+
+  void _tick(bool on) {
+    final paid = widget.paid;
+    final payable = widget.payable;
+    if (paid == null || payable == null) return;
+    setState(() {
+      _full = on;
+      if (on) _partOpen = false;
+    });
+    paid.text = on ? _text(payable()) : '';
+    widget.onChanged?.call(paid.text);
+  }
+
+  void _partChanged(String value) {
+    final paid = widget.paid;
+    final payable = widget.payable;
+    if (paid != null && payable != null) {
+      final due = payable();
+      if (due <= 0.001) {
+        // No part left to pay, so nothing can be marked paid.
+        paid.clear();
+        if (_full || _partOpen) {
+          setState(() {
+            _full = false;
+            _partOpen = false;
+          });
+        }
+      } else if (_full) {
+        paid.text = _text(due);
+      }
+    }
+    widget.onChanged?.call(value);
+  }
+
+  void _paidChanged(String value) {
+    final payable = widget.payable;
+    final typed = readOptionalMoney(value) ?? 0;
+    final full = payable != null && _same(typed, payable());
+    if (full != _full) setState(() => _full = full);
+    widget.onChanged?.call(value);
+  }
+
+  @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
         final width = box.maxWidth * 0.42 > 150 ? 150.0 : box.maxWidth * 0.42;
-        final paid = this.paid;
+        final paid = widget.paid;
+        final payable = widget.payable;
+        final due = payable?.call() ?? 0;
+        final tick = paid != null && payable != null && due > 0.001;
+        final showAmount =
+            paid != null && (payable == null || tick && _partOpen);
         return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(children: [
-                LetterAvatar(name, size: 32, color: avatarColor),
+                LetterAvatar(widget.name, size: 32, color: widget.avatarColor),
                 const SizedBox(width: 10),
                 Expanded(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text(name,
+                      Text(widget.name,
                           style: const TextStyle(
                               fontSize: 15,
                               height: 1.3,
                               fontWeight: FontWeight.w600)),
-                      if (note != null)
-                        Text(note!,
+                      if (widget.note != null)
+                        Text(widget.note!,
                             style: TextStyle(
                                 fontSize: 12,
                                 height: 1.35,
-                                fontWeight:
-                                    paidUp ? FontWeight.w600 : FontWeight.w400,
-                                color:
-                                    paidUp ? AppColors.ok : AppColors.muted)),
+                                fontWeight: widget.paidUp
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: widget.paidUp
+                                    ? AppColors.ok
+                                    : AppColors.muted)),
                     ])),
                 const SizedBox(width: 8),
                 SizedBox(
                     width: width,
                     child: BigAmountField(
-                        key: partKey,
-                        controller: part,
+                        key: widget.partKey,
+                        controller: widget.part,
                         fontSize: 17,
                         textAlign: TextAlign.end,
-                        onChanged: onChanged)),
+                        onChanged: _partChanged)),
               ]),
-              if (paid != null) ...[
+              if (tick)
+                Padding(
+                    padding: const EdgeInsets.only(left: 30, top: 2),
+                    child: Row(children: [
+                      Expanded(
+                          child: InkWell(
+                              key: ValueKey('paid-tick-${widget.name}'),
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => _tick(!_full),
+                              child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(minHeight: 48),
+                                  child: Row(children: [
+                                    IgnorePointer(
+                                        child: Checkbox(
+                                            value: _full,
+                                            activeColor: AppColors.ok,
+                                            onChanged: (_) {})),
+                                    Flexible(
+                                        child: Text(
+                                            widget.tickLabel ?? tr('Paid'),
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                height: 1.3,
+                                                fontWeight: FontWeight.w600,
+                                                color: _full
+                                                    ? AppColors.ok
+                                                    : AppColors.inkSoft))),
+                                  ])))),
+                      if (!_full && !_partOpen)
+                        Flexible(
+                            child: TextButton(
+                                key: ValueKey('part-paid-${widget.name}'),
+                                // The theme's buttons are full width.
+                                style: TextButton.styleFrom(
+                                    minimumSize: const Size(0, 48)),
+                                onPressed: () =>
+                                    setState(() => _partOpen = true),
+                                child: Text(tr('Part paid'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis))),
+                    ])),
+              if (showAmount) ...[
                 const SizedBox(height: 6),
                 Row(children: [
                   const SizedBox(width: 42),
                   Expanded(
-                      child: Text(paidLabel,
+                      child: Text(widget.paidLabel,
                           textAlign: TextAlign.end,
                           style: const TextStyle(
                               fontSize: 13,
@@ -825,11 +959,11 @@ class FlyerPartRow extends StatelessWidget {
                   SizedBox(
                       width: width,
                       child: BigAmountField(
-                          key: paidKey,
+                          key: widget.paidKey,
                           controller: paid,
                           fontSize: 15,
                           textAlign: TextAlign.end,
-                          onChanged: onChanged)),
+                          onChanged: _paidChanged)),
                 ]),
               ],
             ]);
