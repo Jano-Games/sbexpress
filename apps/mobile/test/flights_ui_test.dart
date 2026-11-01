@@ -85,7 +85,7 @@ void main() {
     phone(t);
     await t.pumpWidget(app(const FlightDetailScreen(code: _full)));
     await t.pumpAndSettle();
-    expect(find.text(trn(4, '{n} shipment', '{n} shipments')), findsOneWidget);
+    expect(find.text(trn(4, '{n} order', '{n} orders')), findsOneWidget);
     // Charges − shipment costs − our 12,000 ticket share, as the server sums it.
     expect(find.text('−${formatBdt(12000)}'), findsOneWidget);
     expect(find.text(formatBdt(17105)), findsOneWidget);

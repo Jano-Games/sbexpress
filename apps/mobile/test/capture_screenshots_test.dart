@@ -70,6 +70,7 @@ import 'package:sbexpress/features/flights/ticket_flyers_screen.dart';
 import 'package:sbexpress/features/flights/flights_screen.dart';
 import 'package:sbexpress/features/flights/ticket_import_screen.dart';
 import 'package:sbexpress/features/settings/pay_method_form_screen.dart';
+import 'package:sbexpress/features/settings/rates_screen.dart';
 import 'package:sbexpress/features/settings/staff_screen.dart';
 import 'package:sbexpress/features/settings/pay_methods_screen.dart';
 import 'package:sbexpress/data/session/biometrics.dart' show FingerprintFailure;
@@ -328,6 +329,7 @@ void main() {
     await _round6Shots(tester, scope);
     await _round7bShots(tester, scope);
     await _round7aShots(tester, scope);
+    await _round8Shots(tester, scope);
     await _scanShots(tester, scope);
     await _shot(
         tester,
@@ -352,7 +354,7 @@ void main() {
         _scoped(scope, const CustomerDetailScreen(code: 'C-14')),
         '26b-customer-shipments',
         find.byType(CustomerDetailScreen));
-    await tester.tap(find.text(tr('Shipments · {n}', {'n': 1})));
+    await tester.tap(find.text(tr('Orders · {n}', {'n': 1})));
     await tester.pumpAndSettle();
     await _saveShot(tester, '26b-customer-shipments');
     await tester.tap(find.text(tr('Transactions')));
@@ -436,6 +438,7 @@ void main() {
     await _round6Shots(tester, scope, compact: true);
     await _round7bShots(tester, scope, compact: true);
     await _round7aShots(tester, scope, compact: true);
+    await _round8Shots(tester, scope, compact: true);
     await _scanShots(tester, scope, compact: true);
     await _photoShots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
@@ -741,6 +744,119 @@ Future<void> _round7bShots(WidgetTester tester, AppScope scope,
   await _saveShot(tester, '$prefix-f-flight-cost-new');
   Navigator.of(tester.element(find.byKey(const Key('flight-cost-save')))).pop();
   await tester.pumpAndSettle();
+}
+
+/// Round 8: the default rates in More, a flight's own rates, an order's
+/// weight and rate, and a new order starting with the flight's rate.
+/// [compact] saves the 320 px versions and checks each for overflow.
+Future<void> _round8Shots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r8' : '95';
+  final r8 = _interceptScope(scope, (request) async {
+    if (request.method != 'GET') return null;
+    final body = switch (request.url.path) {
+      '/api/settings' => {'settings': round8Settings()},
+      '/api/shipments/SH-18' => round7ShipmentBody(),
+      '/api/shipments/SH-18/invoice' => round7InvoiceBody(),
+      '/api/flights/$flowFlightCode' =>
+        round8FlightBody(round8NoOwnRates, followers: 3),
+      '/api/flights/BG305-20261021-ab12cd' => round8FlightBody(round8OwnRates),
+      '/api/flights' => {
+          'flights': [round8FlightBody(round8OwnRates)['flight']]
+        },
+      _ => null,
+    };
+    return body == null
+        ? null
+        : http.Response.bytes(utf8.encode(jsonEncode(body)), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+  });
+
+  Future<void> tapKey(Key key) async {
+    await tester.ensureVisible(find.byKey(key));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(key));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> unfocus() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+  }
+
+  /// Scrolls an open sheet to its end and saves it.
+  Future<void> sheetEnd(String name) async {
+    await tester.drag(
+        find.byType(SingleChildScrollView).last, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: name);
+    await _saveShot(tester, name);
+  }
+
+  // More, at the rates tile.
+  await _shot(
+      tester,
+      _scoped(
+          r8, MoreScreen(user: scope.session.user!, session: scope.session)),
+      '$prefix-a-more',
+      find.byType(MoreScreen));
+  await _revealBy(tester, find.byKey(const ValueKey('more-prices')), 200);
+  await _saveShot(tester, '$prefix-a-more');
+
+  // The default rates, then a device added by name.
+  await _shot(tester, _scoped(r8, const RatesScreen()), '$prefix-b-rates',
+      find.byType(RatesScreen));
+  await _revealBy(tester, find.byKey(const Key('rates-add-new')), 300);
+  await tester.tap(find.byKey(const Key('rates-add-new')));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byKey(const Key('rates-new-name')), 'Drone');
+  await unfocus();
+  await _saveShot(tester, '$prefix-b-rates-add');
+  await _revealBy(tester, find.byKey(const Key('rates-save')), 300);
+  await _saveShot(tester, '$prefix-b-rates-end');
+
+  // The flight's rates card, then its sheet with own rates.
+  await _shot(
+      tester,
+      _scoped(r8, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-c-flight-rates',
+      find.byType(FlightDetailScreen));
+  await _revealBy(tester, find.byKey(const Key('flight-rates')), 300);
+  await _saveShot(tester, '$prefix-c-flight-rates');
+  await tapKey(const Key('flight-rates-edit'));
+  await _saveShot(tester, '$prefix-d-flight-rates-sheet');
+  await tapKey(const Key('flight-rates-own'));
+  await tester.enterText(find.byKey(const Key('flight-rates-kg')), '1300');
+  await unfocus();
+  await _saveShot(tester, '$prefix-d-flight-rates-own');
+  await sheetEnd('$prefix-d-flight-rates-end');
+  Navigator.of(tester.element(find.byKey(const Key('flight-rates-save'))))
+      .pop();
+  await tester.pumpAndSettle();
+
+  // The order's charge lines, then the weight and rate sheet.
+  await _shot(tester, _scoped(r8, const AdminShipmentScreen(code: 'SH-18')),
+      '$prefix-e-order', find.byType(AdminShipmentScreen));
+  await _revealBy(tester, find.byKey(const Key('order-weight-rate')), 300);
+  await _saveShot(tester, '$prefix-e-order');
+  await tapKey(const Key('order-weight-rate'));
+  await _saveShot(tester, '$prefix-f-order-edit');
+  await tapKey(const Key('order-rate-flight'));
+  await tapKey(const ValueKey('count-plus-Mobile'));
+  await sheetEnd('$prefix-f-order-edit-end');
+  Navigator.of(tester.element(find.byKey(const Key('order-charge-save'))))
+      .pop();
+  await tester.pumpAndSettle();
+
+  // A new order on BG305 starts with its rate.
+  await _shot(tester, _scoped(r8, const IntakeScreen()), '$prefix-g-booking',
+      find.byType(IntakeScreen));
+  await _revealBy(
+      tester, find.byKey(const ValueKey('intake-flight-$flowFlightCode')), 300);
+  await tester.tap(find.byKey(const ValueKey('intake-flight-$flowFlightCode')));
+  await tester.pumpAndSettle();
+  await _revealBy(tester, find.byKey(const Key('intake-rate')), 300);
+  await _saveShot(tester, '$prefix-g-booking');
 }
 
 /// Round 6: the quiet delete on flights, shipments, flyers and customers,

@@ -175,8 +175,8 @@ class _GetPaidScreenState extends State<GetPaidScreen> {
             Text(
                 trn(
                     sheet.handedOver.length,
-                    '{n} shipment handed over and not paid',
-                    '{n} shipments handed over and not paid'),
+                    '{n} order handed over and not paid',
+                    '{n} orders handed over and not paid'),
                 style: const TextStyle(
                     fontSize: 13, height: 1.4, color: heroSoft)),
             HeroFigures(size: 16, figures: [
@@ -196,7 +196,7 @@ class _GetPaidScreenState extends State<GetPaidScreen> {
         EmptyNote(
             icon: Icons.check_circle_outline_rounded,
             title: tr('Nothing to collect'),
-            body: tr('No handed-over shipment is waiting for payment.'))
+            body: tr('No handed-over order is waiting for payment.'))
       else
         for (var i = 0; i < sheet.handedOver.length; i++) ...[
           if (i > 0) const SizedBox(height: 10),

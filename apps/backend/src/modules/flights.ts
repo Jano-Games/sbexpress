@@ -19,11 +19,12 @@ import { FLIGHT_COST_CATEGORIES, FLIGHT_COST_LABEL, flightCostRow, flightCostRow
 import { flightProfitBreakdown } from '../shared/profit'
 import { shipmentLateDays, utcToday } from '../shared/latePayments'
 import { reverseExpenseOffset } from './corrections'
+import { applyRatesToOrders, effectiveRates, flightRateFields, followsRates } from '../shared/flightRates'
 
 const INCLUDE = {
   expenses: true,
   flyers: { include: { flyer: true } },
-  shipments: { include: { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } },
+  shipments: { include: { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true, payments: { select: { id: true } } } },
   legs: { orderBy: { order: 'asc' as const } },
 } as const
 
@@ -142,6 +143,8 @@ function summary(f: FlightSummarySource) {
     flyers: f.flyers.map((x) => x.flyer.name),
     shipmentCount: f.shipments.length,
     revenue,
+    /** This flight's own rates for new orders (admin only); null = the defaults from settings. */
+    ...flightRateFields(f),
     legs: f.legs.map((l) => ({
       source:l.source,code: l.code,
       date: l.date ? isoDate(l.date) : null,
@@ -327,14 +330,53 @@ export const flightRoutes = new Hono<AppEnv>()
       initial: x.flyer.name.charAt(0),
     }))
     const today = utcToday()
+    const rates = effectiveRates(flight, settings)
     return c.json({
       flight: {
         ...summary(flight),
+        rateFollowers: flight.shipments.filter((s) => followsRates(s, rates)).length,
         flightCosts: flightCostRows(flight.expenses),
         flyerDetails: flyers,
         bookings: flight.shipments.map((s) => ({ ...shipmentRow(s, 'admin', settings.threshold), lateDays: shipmentLateDays(s, today) })),
       },
     })
+  })
+
+  // This flight's own rate per kg and piece prices for new orders, or back to
+  // the defaults. applyToOrders also reprices the orders still on the old rates.
+  .put('/:code/rates', requireRole('admin'), async (c) => {
+    const body = z
+      .object({
+        own: z.boolean(),
+        kgRate: z.number().min(0, 'Rate per kg cannot be negative').max(1_000_000).nullable().optional(),
+        kgRateCurrency: z.enum(['BDT', 'CNY']).nullable().optional(),
+        pcsRates: z.record(z.string().trim().min(1).max(60), z.number().min(0, 'Piece price cannot be negative').max(1_000_000)).nullable().optional(),
+        applyToOrders: z.boolean().default(false),
+      })
+      .parse(await c.req.json())
+    const flight = await prisma.flight.findUnique({ where: { code: c.req.param('code')! } })
+    if (!flight) throw notFound('Flight not found')
+    if (body.own && (body.kgRate === undefined || body.kgRate === null)) throw badRequest('Enter the rate per kg for this flight')
+    const round2 = (n: number) => Math.round(n * 100) / 100
+    const columns = body.own
+      ? {
+          kgRate: round2(body.kgRate!),
+          kgRateCurrency: body.kgRateCurrency ?? ('BDT' as const),
+          pcsRates: Object.fromEntries(Object.entries(body.pcsRates ?? {}).map(([category, price]) => [category.trim(), round2(price)])),
+        }
+      : { kgRate: null, kgRateCurrency: null, pcsRates: null }
+    const settings = await getSettings()
+    const before = effectiveRates(flight, settings)
+    await prisma.flight.update({
+      where: { id: flight.id },
+      data: { kgRate: columns.kgRate, kgRateCurrency: columns.kgRateCurrency, pcsRates: columns.pcsRates ?? Prisma.DbNull },
+    })
+    const updated = body.applyToOrders ? await applyRatesToOrders(flight, before, effectiveRates(columns, settings), settings) : 0
+    const saved = await prisma.flight.findUnique({ where: { id: flight.id }, include: SUMMARY_INCLUDE })
+    if (!saved) throw notFound('Flight not found')
+    await cacheInvalidate('dashboard')
+    await cacheInvalidate('track')
+    return c.json({ flight: summary(saved), updated })
   })
 
   // Our own cost for the whole flight; never added to a customer's bill.

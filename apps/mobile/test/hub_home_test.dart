@@ -183,7 +183,7 @@ void main() {
     ]);
     expect(find.text('আসন্ন ফ্লাইট'), findsOneWidget);
     expect(find.text('BG147'), findsOneWidget);
-    expect(find.text('2টি শিপমেন্ট · 18.4 kg'), findsWidgets);
+    expect(find.text('2টি অর্ডার · 18.4 kg'), findsWidgets);
     expect(find.textContaining('9000'), findsNothing);
     expect(find.textContaining('64000'), findsNothing);
     expect(find.textContaining('৳'), findsNothing);

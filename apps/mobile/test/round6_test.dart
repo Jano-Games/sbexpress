@@ -128,7 +128,7 @@ void main() {
       await _open(t);
       await _tapEnd(t, const Key('shipment-delete'));
       expect(
-          find.text(tr('Delete shipment {code}? This cannot be undone.',
+          find.text(tr('Delete order {code}? This cannot be undone.',
               {'code': 'SH-18'})),
           findsOneWidget);
       expect(calls, isEmpty);

@@ -19,6 +19,7 @@ import 'bn_round5.dart';
 import 'bn_round6.dart';
 import 'bn_round7a.dart';
 import 'bn_round7b.dart';
+import 'bn_round8.dart';
 import 'bn_scan.dart';
 import 'bn_shared.dart';
 import 'bn_team_ui.dart';
@@ -38,6 +39,7 @@ final Map<String, String> bnStrings = {
   ...bnRound5,
   ...bnRound6,
   ...bnScan,
+  ...bnRound8,
   ...bnRound7b,
   ...bnRound7a,
   ...bnPhotos,

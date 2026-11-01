@@ -21,6 +21,7 @@ import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 import '../flights/flight_detail_screen.dart';
 import '../pdf/pdf_bytes_screen.dart';
+import 'flyer_form_screen.dart';
 import 'flyers_screen.dart';
 
 /// One flyer: profile, contact, documents to verify and their flights.
@@ -65,6 +66,21 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
+  }
+
+  /// Opens the form with this flyer's details. A new first or last name is
+  /// a new flyer name, so the page reopens under it.
+  Future<void> _edit(FlyerDetail flyer) async {
+    final name = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => FlyerFormScreen(editing: flyer)));
+    if (name == null || !mounted) return;
+    if (name == widget.name) {
+      await _load();
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => FlyerDetailScreen(name: name)),
+        result: true);
   }
 
   /// Reloads the documents each time another queued file arrives.
@@ -326,8 +342,16 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
           actions: [
             if (pill != null)
               Padding(
-                  padding: const EdgeInsets.only(right: 16),
+                  padding: const EdgeInsets.only(right: 4),
                   child: Center(child: pill)),
+            if (flyer != null)
+              Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: IconButton(
+                      key: const Key('flyer-edit'),
+                      tooltip: tr('Edit flyer'),
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _edit(flyer))),
           ],
           children: [
             if (_loading && flyer == null) const LinearProgressIndicator(),

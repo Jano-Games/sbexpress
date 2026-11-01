@@ -157,7 +157,7 @@ void main() {
             '{n} bills are overdue after delivery')),
         findsOneWidget);
     expect(
-        find.text(tr('{amount} to collect from handed-over shipments',
+        find.text(tr('{amount} to collect from handed-over orders',
             {'amount': wholeBdt(17550)})),
         findsOneWidget);
     await _scrollTo(t, find.byKey(const Key('home-next-flight')));
@@ -165,12 +165,12 @@ void main() {
         findsOneWidget);
     // Shipment costs are optional now: no missing-cost chip or row.
     expect(
-        find.text(trn(
-            2, '{n} shipment missing costs', '{n} shipments missing costs')),
+        find.text(
+            trn(2, '{n} order missing costs', '{n} orders missing costs')),
         findsNothing);
     expect(
-        find.text(trn(2, '{n} shipment is missing costs',
-            '{n} shipments are missing costs')),
+        find.text(trn(
+            2, '{n} order is missing costs', '{n} orders are missing costs')),
         findsNothing);
     await t.drag(find.byType(Scrollable).first, const Offset(0, 3000));
     await t.pumpAndSettle();

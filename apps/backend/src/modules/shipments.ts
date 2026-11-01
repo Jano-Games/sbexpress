@@ -19,6 +19,7 @@ import { badRequest, forbidden, notFound } from '../core/errors'
 import { requireRole, type AppEnv, type SessionUser } from './auth'
 import { STATUS_LABEL, STATUS_ORDER, statusIndex } from '../shared/status'
 import { billAmount, computeCharge, pcsTotal, weightDelta, type PcsItem } from '../shared/compute'
+import { flattenSerials, repriceShipment } from '../shared/shipmentPricing'
 import { effectiveBill, paymentStatus, num, shipmentDetail, shipmentRow, type ShipmentWithRelations } from '../shared/serialize'
 import { getSettings } from '../shared/settings'
 import { creditPayment, debitCash } from '../shared/ledger'
@@ -131,10 +132,6 @@ const pcsItemsSchema = z
     }),
   )
   .max(20)
-
-/** Serial column stays a flat copy of the per-unit serials for display/search. */
-const flattenSerials = (items: { units?: { serial: string }[] }[]): string[] =>
-  items.flatMap((i) => (i.units ?? []).map((u) => u.serial.trim()).filter(Boolean))
 
 export const shipmentRoutes = new Hono<AppEnv>()
   .get('/', async (c) => {
@@ -305,38 +302,13 @@ export const shipmentRoutes = new Hono<AppEnv>()
       changed.push(`booked ${body.bookedKg} kg`)
     }
     // Rate, currency, weight or device pieces moving means the total charge
-    // moves with them.
-    const existingPcs = (shipment.pcsItems as unknown as PcsItem[]) ?? []
-    const rateChanged = body.chargeRate !== undefined && body.chargeRate !== num(shipment.chargeRate)
-    const currencyChanged = body.chargeCurrency !== undefined && body.chargeCurrency !== shipment.chargeCurrency
-    const pcsChanged = body.pcsItems !== undefined && JSON.stringify(body.pcsItems) !== JSON.stringify(existingPcs)
-    const pricingChanged = rateChanged || currencyChanged || pcsChanged || data.bookedKg !== undefined
-    if (pricingChanged) {
-      const settings = await getSettings()
-      const rate = body.chargeRate ?? num(shipment.chargeRate)
-      const currency = body.chargeCurrency ?? shipment.chargeCurrency
-      const kg = shipment.weighedKg !== null ? num(shipment.weighedKg) : body.bookedKg ?? num(shipment.bookedKg)
-      const pcs = body.pcsItems ?? existingPcs
-      const pricing = shipment.pricingRates as Record<string,number>
-      const lockedRate = pricing.CNY || settings.rate
-      if (!pricing.CNY) data.pricingRates = settings.exchangeRates
-      const total = Math.round((computeCharge(rate, kg, currency, lockedRate) + pcsTotal(pcs, lockedRate)) * 100) / 100
-      data.chargeRate = new Prisma.Decimal(rate)
-      data.chargeCurrency = currency
-      if (pcsChanged) {
-        data.pcsItems = body.pcsItems
-        data.serials = flattenSerials(body.pcsItems ?? [])
-        changed.push(
-          `devices ${pcs.map((i) => `${i.count}× ${i.category} @${i.currency === 'CNY' ? '¥' : '৳'}${i.rate}`).join(', ') || 'none'}`,
-        )
-      }
-      if (total !== num(shipment.charge)) {
-        data.charge = new Prisma.Decimal(total)
-        changed.push(`charge ৳${total} (${currency === 'CNY' ? '¥' : '৳'}${rate}/kg)`)
-      } else if (rateChanged || currencyChanged) {
-        changed.push(`rate ${currency === 'CNY' ? '¥' : '৳'}${rate}/kg`)
-      }
-    }
+    // moves with them (shared with a flight's rate change).
+    const pricingChanged = await repriceShipment(
+      shipment,
+      { chargeRate: body.chargeRate, chargeCurrency: body.chargeCurrency, bookedKg: body.bookedKg, pcsItems: body.pcsItems },
+      data,
+      changed,
+    )
     if (body.description !== undefined && body.description !== shipment.description) {
       data.description = body.description || '—'
       changed.push('description')

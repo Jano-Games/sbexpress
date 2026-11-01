@@ -108,7 +108,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
             const SizedBox(height: 10),
             SectionTitle(
                 key: _differencesKey,
-                title: tr('Shipment differences'),
+                title: tr('Order differences'),
                 action: Text(tr('All in BDT'),
                     style:
                         const TextStyle(fontSize: 13, color: AppColors.muted))),
@@ -174,7 +174,7 @@ class _IssuesCard extends StatelessWidget {
                   Text(tr('Everything adds up'),
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w700)),
-                  Text(tr('Every shipment payment matches the ledger and every line has an account.'),
+                  Text(tr('Every order payment matches the ledger and every line has an account.'),
                       style: const TextStyle(
                           fontSize: 13,
                           height: 1.45,
@@ -258,8 +258,8 @@ class _IssuesCard extends StatelessWidget {
             const Divider(height: 1, color: Color(0xFFF3D6D8)),
             issue(
                 differences,
-                trn(differences, 'Shipment with mismatched payments',
-                    'Shipments with mismatched payments'),
+                trn(differences, 'Order with mismatched payments',
+                    'Orders with mismatched payments'),
                 ChipTone.red,
                 onDifferences),
           ],
@@ -413,7 +413,7 @@ class _DifferenceRow extends StatelessWidget {
         ]));
     return Semantics(
         button: true,
-        label: tr('Open shipment {code}', {'code': row.code}),
+        label: tr('Open order {code}', {'code': row.code}),
         child: InkWell(
             onTap: onTap,
             child: Padding(

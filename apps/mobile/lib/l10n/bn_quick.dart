@@ -8,8 +8,8 @@ const bnQuick = <String, String>{
   'We owe': 'আমাদের দেনা',
   'tickets · costs': 'টিকিট · খরচ',
   'Nothing needs attention right now': 'এখন দেখার মতো কিছু নেই',
-  '{amount} to collect from handed-over shipments':
-      'হ্যান্ডওভার হওয়া শিপমেন্ট থেকে {amount} আদায় বাকি',
+  '{amount} to collect from handed-over orders':
+      'হ্যান্ডওভার হওয়া অর্ডার থেকে {amount} আদায় বাকি',
   'Overdue': 'দেরি হয়েছে',
   '{code} weighed {kg} kg more than booked':
       '{code}-এর ওজন বুকিংয়ের চেয়ে {kg} kg বেশি',
@@ -24,14 +24,14 @@ const bnQuick = <String, String>{
   '{bdt} + {cny} at {rate}': '{bdt} + {cny} ({rate} রেটে)',
   'Money in {in}, money out {out}': 'টাকা এসেছে {in}, গেছে {out}',
   'Net': 'নিট',
-  'Shipments by stage': 'কোন ধাপে কত শিপমেন্ট',
+  'Orders by stage': 'কোন ধাপে কত অর্ডার',
   'On a flight': 'ফ্লাইটে',
   'Charges {amount}': 'চার্জ {amount}',
   'Profit so far {amount}': 'এ পর্যন্ত প্রফিট {amount}',
   'Landed': 'নেমেছে',
   'profit {amount}': 'প্রফিট {amount}',
   '{n} bills are overdue after delivery': 'ডেলিভারির পর {n}টি বিলে দেরি হয়েছে',
-  '{n} shipments are missing costs': '{n}টি শিপমেন্টে খরচ বাকি',
+  '{n} orders are missing costs': '{n}টি অর্ডারে খরচ বাকি',
 
   // Add menu.
   'Add new': 'নতুন যোগ করুন',
@@ -49,8 +49,7 @@ const bnQuick = <String, String>{
   'Leave empty for an automatic code': 'খালি রাখলে কোড নিজে থেকে বসবে',
   'Auto': 'অটো',
   'How does this customer usually pay?': 'এই কাস্টমার সাধারণত কীভাবে টাকা দেন?',
-  'Pays for each shipment once it arrives':
-      'প্রতিটি শিপমেন্ট পৌঁছানোর পর টাকা দেন',
+  'Pays for each order once it arrives': 'প্রতিটি অর্ডার পৌঁছানোর পর টাকা দেন',
   'One bill for the whole month': 'পুরো মাসের জন্য একটি বিল',
   'New bookings for this customer start with this choice; each booking can still change it.':
       'এই কাস্টমারের নতুন বুকিংয়ে এটিই আগে থেকে বাছা থাকবে; প্রতিটি বুকিংয়ে বদলানো যাবে।',
@@ -68,7 +67,7 @@ const bnQuick = <String, String>{
   // Booking.
   'One page · fill top to bottom': 'এক পেজে · ওপর থেকে নিচে পূরণ করুন',
   '{n} of 5 done': '{n}/5 হয়েছে',
-  'Create shipment · {amount}': 'শিপমেন্ট তৈরি করুন · {amount}',
+  'Create order · {amount}': 'অর্ডার তৈরি করুন · {amount}',
   'No customer yet': 'কাস্টমার বাছা হয়নি',
   'Flight later': 'ফ্লাইট পরে',
   'No flight yet': 'ফ্লাইট বাছা হয়নি',

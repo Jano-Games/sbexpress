@@ -221,6 +221,11 @@ model Flight {
   laptops    Int          @default(1)
   status     FlightStatus @default(upcoming)
   createdAt  DateTime     @default(now())
+  /// This flight's own rate per kg for new orders; null = the default from settings.
+  kgRate         Decimal?  @db.Decimal(12, 2)
+  kgRateCurrency Currency?
+  /// This flight's own piece prices by category, BDT; null = the default from settings.
+  pcsRates       Json?
 
   flyers    FlightFlyer[]
   shipments Shipment[]

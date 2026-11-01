@@ -39,6 +39,10 @@ class ApiClient {
     return _send('PATCH', path, body: body ?? const <String, Object?>{});
   }
 
+  Future<Map<String, Object?>> putJson(String path, {required Object? body}) {
+    return _send('PUT', path, body: body ?? const <String, Object?>{});
+  }
+
   Future<Map<String, Object?>> deleteJson(String path) => _send('DELETE', path);
 
   Future<List<int>> getBytes(String path) async {

@@ -76,6 +76,8 @@ export const settingsRoutes = new Hono<AppEnv>()
         investBdt: z.number().min(0).optional(),
         investCny: z.number().min(0).optional(),
         pcsRates: z.record(z.string().min(1).max(60), z.number().min(0)).optional(),
+        kgRate: z.number().min(0).max(1_000_000).optional(),
+        kgRateCurrency: z.enum(['BDT', 'CNY']).optional(),
         costDefaults: z
           .object({
             packaging: z.number().min(0).max(1_000_000).optional(),
@@ -87,11 +89,12 @@ export const settingsRoutes = new Hono<AppEnv>()
           .optional(),
       })
       .parse(await c.req.json())
-    for (const key of ['rate', 'threshold', 'investBdt', 'investCny'] as const) {
+    for (const key of ['rate', 'threshold', 'investBdt', 'investCny', 'kgRate'] as const) {
       const value = body[key]
       if (value !== undefined) await putSetting(key, value)
     }
     if (body.pcsRates !== undefined) await putPcsRates(body.pcsRates)
+    if (body.kgRateCurrency !== undefined) await putRaw('kgRateCurrency', body.kgRateCurrency)
     if (body.costDefaults !== undefined) await putCostDefaults(body.costDefaults)
     await cacheInvalidate('dashboard')
     await cacheInvalidate('track')

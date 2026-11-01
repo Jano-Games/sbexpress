@@ -199,7 +199,7 @@ class AdminFlightCard extends StatelessWidget {
     final day = FlightDay.parse(row.date);
     final badge = adminFlightBadge(row, day, next: next);
     final noFlyer = row.flyers.isEmpty;
-    final shipments = trn(row.shipmentCount, '{n} shipment', '{n} shipments');
+    final shipments = trn(row.shipmentCount, '{n} order', '{n} orders');
     return PaperCard(
         onTap: onTap,
         padding: const EdgeInsets.all(14),

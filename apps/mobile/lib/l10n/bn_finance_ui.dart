@@ -16,7 +16,7 @@ const bnFinanceUi = <String, String>{
   'November': 'নভেম্বর',
   'December': 'ডিসেম্বর',
   // Shared parts.
-  'Open shipment {code}': 'শিপমেন্ট {code} খুলুন',
+  'Open order {code}': 'অর্ডার {code} খুলুন',
   'Clear search': 'খোঁজা মুছুন',
   '{n} lines': '{n}টি লাইন',
   '{n} lines · page {page} of {pages}': '{n}টি লাইন · পৃষ্ঠা {page}/{pages}',
@@ -39,7 +39,7 @@ const bnFinanceUi = <String, String>{
   // Customer profile.
   'Monthly terms': 'মাসিক টার্ম',
   'Instant terms': 'সাথে সাথে পরিশোধ',
-  'Shipments · {n}': 'শিপমেন্ট · {n}',
+  'Orders · {n}': 'অর্ডার · {n}',
   '{pct}% of billed amount paid': 'বিলের {pct}% পরিশোধ হয়েছে',
   'Nothing billed yet': 'এখনো কোনো বিল হয়নি',
   'Payments, advances, credit and refunds':
@@ -67,7 +67,7 @@ const bnFinanceUi = <String, String>{
   'Save customer': 'কাস্টমার সেভ করুন',
   'Shop or person name': 'দোকান বা ব্যক্তির নাম',
   'House, road and area': 'বাড়ি, রোড ও এলাকা',
-  'Billed per shipment': 'প্রতি শিপমেন্টে বিল',
+  'Billed per order': 'প্রতি অর্ডারে বিল',
   'One statement a month': 'মাসে একটি স্টেটমেন্ট',
   // Monthly statement.
   'Link copied': 'লিংক কপি হয়েছে',
@@ -101,7 +101,7 @@ const bnFinanceUi = <String, String>{
   'What is this transfer for?': 'ট্রান্সফার কিসের জন্য?',
   'After this transfer': 'ট্রান্সফারের পরে',
   // Deposit or expense.
-  'Office money outside shipments': 'শিপমেন্টের বাইরে অফিসের টাকা',
+  'Office money outside orders': 'অর্ডারের বাইরে অফিসের টাকা',
   'Save capital': 'মূলধন সেভ করুন',
   'Save expense': 'খরচ সেভ করুন',
   'Save income': 'আয় সেভ করুন',
@@ -109,10 +109,10 @@ const bnFinanceUi = <String, String>{
   'Owner adds': 'মালিক দেন',
   'Money the owner puts in. Cash goes up, profit does not.':
       'মালিকের দেওয়া টাকা। ক্যাশ বাড়বে, প্রফিট নয়।',
-  "Office costs only. Shipment costs go on the shipment's costs page.":
-      'শুধু অফিসের খরচ। শিপমেন্টের খরচ শিপমেন্টের খরচ পেজে।',
-  'Office income outside shipments. Customer payments are recorded on the shipment.':
-      'শিপমেন্টের বাইরে অফিসের আয়। কাস্টমারের পেমেন্ট শিপমেন্টে লেখা হয়।',
+  "Office costs only. Order costs go on the order's costs page.":
+      'শুধু অফিসের খরচ। অর্ডারের খরচ অর্ডারের খরচ পেজে।',
+  'Office income outside orders. Customer payments are recorded on the order.':
+      'অর্ডারের বাইরে অফিসের আয়। কাস্টমারের পেমেন্ট অর্ডারে লেখা হয়।',
   'Category': 'ক্যাটাগরি',
   'What was it for?': 'কিসের জন্য খরচ?',
   'Where did the money come from?': 'টাকা কোথা থেকে এলো?',
@@ -126,7 +126,7 @@ const bnFinanceUi = <String, String>{
   'Both sides of the transfer from {from} to {to} will be reversed.':
       '{from} থেকে {to}-এ ট্রান্সফারের দুই পাশই বাতিল হবে।',
   'Every money movement, newest first': 'টাকার সব লেনদেন, নতুনগুলো আগে',
-  'Description, reference or shipment': 'বিবরণ, রেফারেন্স বা শিপমেন্ট',
+  'Description, reference or order': 'বিবরণ, রেফারেন্স বা অর্ডার',
   'Nothing matches these filters.': 'এই ফিল্টারে কিছু মেলেনি।',
   'both sides of a transfer reverse together':
       'ট্রান্সফারের দুই পাশ একসাথে বাতিল হয়',
@@ -144,8 +144,8 @@ const bnFinanceUi = <String, String>{
   'Opening balances are worked out as current balance minus recorded movement. An older balance is normal for accounts that existed before the ledger.':
       'বর্তমান ব্যালেন্স থেকে লেজারে লেখা নড়াচড়া বাদ দিয়ে শুরুর ব্যালেন্স বের হয়। লেজারের আগে থেকে থাকা অ্যাকাউন্টে পুরনো ব্যালেন্স থাকা স্বাভাবিক।',
   'Everything adds up': 'সব মিলে গেছে',
-  'Every shipment payment matches the ledger and every line has an account.':
-      'প্রতিটি শিপমেন্টের পেমেন্ট লেজারের সাথে মেলে, আর প্রতিটি লাইনে অ্যাকাউন্ট আছে।',
+  'Every order payment matches the ledger and every line has an account.':
+      'প্রতিটি অর্ডারের পেমেন্ট লেজারের সাথে মেলে, আর প্রতিটি লাইনে অ্যাকাউন্ট আছে।',
   'Nothing is fixed automatically. Check them against bank or cash records.':
       'কিছুই নিজে থেকে ঠিক হয় না। ব্যাংক বা ক্যাশ রেকর্ডের সাথে মিলিয়ে নিন।',
   'Has opening balance': 'শুরুর ব্যালেন্স আছে',
@@ -158,6 +158,6 @@ const bnFinanceUi = <String, String>{
   'In the ledger': 'লেজারে আছে',
   'no account recorded': 'অ্যাকাউন্ট লেখা নেই',
   "{n} things don't add up": '{n}টি হিসাব মিলছে না',
-  'Shipments with mismatched payments': 'পেমেন্ট মিলছে না এমন শিপমেন্ট',
+  'Orders with mismatched payments': 'পেমেন্ট মিলছে না এমন অর্ডার',
   'Lines with no account snapshot': 'অ্যাকাউন্ট স্ন্যাপশট ছাড়া লাইন',
 };

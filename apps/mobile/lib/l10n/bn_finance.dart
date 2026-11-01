@@ -32,7 +32,7 @@ const bnFinance = <String, String>{
   'Other costs to pay': 'অন্যান্য খরচ বাকি',
   'Booking results': 'বুকিংয়ের ফলাফল',
   'Billing and costs for the selected period': 'নির্বাচিত সময়ের বিল ও খরচ',
-  'Shipments': 'শিপমেন্ট',
+  'Orders': 'অর্ডার',
   'Billed': 'বিল',
   'Costs': 'খরচ',
   'Booking profit': 'বুকিং প্রফিট',
@@ -50,8 +50,7 @@ const bnFinance = <String, String>{
   'Transaction ledger': 'লেনদেনের লেজার',
   'History of deposits, expenses and transfers':
       'জমা, খরচ ও ট্রান্সফারের ইতিহাস',
-  'Deposits {received}, expenses {expenses}':
-      'জমা {received}, ব্যয় {expenses}',
+  'Deposits {received}, expenses {expenses}': 'জমা {received}, ব্যয় {expenses}',
   'Money received': 'জমা হয়েছে',
   // New fund.
   'Enter a real account name.': 'অ্যাকাউন্টের আসল নাম লিখুন।',
@@ -95,8 +94,8 @@ const bnFinance = <String, String>{
   '{amount} goes into {account}.': '{amount} {account}-এ ঢুকবে।',
   'Cash goes up, profit does not.': 'ক্যাশ বাড়বে, প্রফিট নয়।',
   'Save': 'সেভ করুন',
-  "Office income, capital or expenses outside shipments. Shipment costs go on the shipment's costs page.":
-      'শিপমেন্ট ছাড়া অফিসের আয়, মূলধন বা খরচ। শিপমেন্ট খরচ শিপমেন্টের খরচ পেজে।',
+  "Office income, capital or expenses outside orders. Order costs go on the order's costs page.":
+      'অর্ডার ছাড়া অফিসের আয়, মূলধন বা খরচ। অর্ডার খরচ অর্ডারের খরচ পেজে।',
   'Capital': 'মূলধন',
   'Expense': 'খরচ',
   'Amount': 'অঙ্ক',
@@ -104,23 +103,23 @@ const bnFinance = <String, String>{
   'Note': 'নোট',
   // Reconciliation.
   'Reconciliation': 'মিলিয়ে দেখা',
-  'Account amounts are in their own currency; shipment differences are in BDT. Older balances not in the ledger are shown separately as opening balance.':
-      'অ্যাকাউন্টের টাকা তার মুদ্রায়। শিপমেন্টের পার্থক্য BDT। পুরনো ব্যালেন্স যা লেজারে নেই, সেটা শুরুর ব্যালেন্স হিসেবে আলাদা।',
+  'Account amounts are in their own currency; order differences are in BDT. Older balances not in the ledger are shown separately as opening balance.':
+      'অ্যাকাউন্টের টাকা তার মুদ্রায়। অর্ডারের পার্থক্য BDT। পুরনো ব্যালেন্স যা লেজারে নেই, সেটা শুরুর ব্যালেন্স হিসেবে আলাদা।',
   '{n} lines have no account snapshot.': '{n} লাইনে অ্যাকাউন্ট স্ন্যাপশট নেই।',
-  '{n} shipments have mismatched payments.': '{n} শিপমেন্টে পেমেন্ট মিলছে না।',
+  '{n} orders have mismatched payments.': '{n} অর্ডারে পেমেন্ট মিলছে না।',
   'Current balance, ledger movement, and the part not in the ledger.':
       'বর্তমান ব্যালেন্স, লেজারে নড়া, এবং যে অংশ লেজারে নেই।',
   'Open a fund to see its reconciliation here.':
       'ফান্ড খুললে এখানে মিল দেখা যাবে।',
   'Current': 'বর্তমান',
   'Opening (implied)': 'শুরু (অনুমান)',
-  'Shipment differences': 'শিপমেন্ট পার্থক্য',
+  'Order differences': 'অর্ডার পার্থক্য',
   'All amounts in BDT.': 'সব অংক BDT।',
   'No differences': 'পার্থক্য নেই',
   'Issued payments match the ledger.': 'ইস্যু করা পেমেন্ট আর লেজার একই।',
   'Allocated': 'বরাদ্দ',
   'Difference': 'পার্থক্য',
-  'Open shipment': 'শিপমেন্ট খুলুন',
+  'Open order': 'অর্ডার খুলুন',
   'Missing snapshots': 'স্ন্যাপশট নেই',
   'These are not rebuilt. Check them against bank or cash records.':
       'এগুলো আবার বানানো হয় না। ব্যাংক বা ক্যাশ রেকর্ডের সাথে মিলিয়ে নিন।',
@@ -145,11 +144,11 @@ const bnFinance = <String, String>{
   // Customers.
   'Customers': 'কাস্টমার',
   'Search name, code or phone': 'নাম, কোড বা ফোন খুঁজুন',
-  'Contacts, shipments and receivables': 'যোগাযোগ, শিপমেন্ট ও পাওনা',
+  'Contacts, orders and receivables': 'যোগাযোগ, অর্ডার ও পাওনা',
   'No customers': 'কাস্টমার নেই',
   'New customers you add will appear here.':
       'নতুন কাস্টমার যোগ করলে এখানে দেখা যাবে।',
-  '{n} shipments · {kg} kg': '{n} শিপমেন্ট · {kg} kg',
+  '{n} orders · {kg} kg': '{n} অর্ডার · {kg} kg',
   'Summary': 'সারসংক্ষেপ',
   'Terms': 'টার্ম',
   'Monthly': 'মাসিক',
@@ -162,8 +161,8 @@ const bnFinance = <String, String>{
   'Pricing pending': 'দাম বাকি',
   'Monthly statement': 'মাসিক স্টেটমেন্ট',
   'Account activity': 'অ্যাকাউন্ট হিসাব',
-  'No shipments': 'শিপমেন্ট নেই',
-  'Shipments appear here after intake.': 'ইনটেক করলে এখানে আসবে।',
+  'No orders': 'অর্ডার নেই',
+  'Orders appear here after intake.': 'ইনটেক করলে এখানে আসবে।',
   'Due {amount}': 'বাকি {amount}',
   'Recent payments': 'সাম্প্রতিক পেমেন্ট',
   'No payments': 'পেমেন্ট নেই',
@@ -187,8 +186,8 @@ const bnFinance = <String, String>{
   'Customer credit': 'কাস্টমার ক্রেডিট',
   'Apply to bill': 'বিলে বসান',
   'Refund': 'রিফান্ড',
-  'Choose a shipment and enter an amount within the credit.':
-      'শিপমেন্ট বেছে নিন এবং ক্রেডিটের মধ্যে অঙ্ক দিন।',
+  'Choose an order and enter an amount within the credit.':
+      'অর্ডার বেছে নিন এবং ক্রেডিটের মধ্যে অঙ্ক দিন।',
   'Apply credit': 'ক্রেডিট বসান',
   '{amount} will be applied to the issued invoice for {shipment}. Draft bills are not affected.':
       '{amount} {shipment}-এর ইস্যু করা ইনভয়েসে বসবে। ড্রাফট বিলে বসবে না।',

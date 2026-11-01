@@ -8,6 +8,7 @@ import '../../data/session/session_controller.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/more_parts.dart';
+import '../../widgets/quick_parts.dart' show wholeMoney;
 import '../../widgets/team_parts.dart'
     show DashedOutline, InitialsAvatar, plainNumber;
 import '../../widgets/ui.dart';
@@ -15,6 +16,7 @@ import '../admin/payment_review_screen.dart';
 import '../customers/customers_screen.dart';
 import '../flyers/flyers_screen.dart';
 import '../settings/pay_methods_screen.dart';
+import '../settings/rates_screen.dart';
 import '../settings/staff_screen.dart';
 import '../shipments/shipment_picker_screen.dart';
 import '../tasks/tasks_screen.dart';
@@ -130,6 +132,7 @@ class _MoreScreenState extends State<MoreScreen> {
           'team' => const StaffScreen(),
           'review' => const PaymentReviewScreen(),
           'pay-methods' => const PayMethodsScreen(),
+          'prices' => const RatesScreen(),
           'invoice-share' =>
             const ShipmentPickerScreen(target: ShipmentPickTarget.invoice),
           'media' =>
@@ -212,7 +215,7 @@ class _MoreScreenState extends State<MoreScreen> {
               label: tr('Log out')),
           if (_admin) ...[
             const SizedBox(height: 14),
-            Text(tr('Flights, Finance and New shipment live on the bottom bar and the + button.'),
+            Text(tr('Flights, Finance and New order live on the bottom bar and the + button.'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 12, height: 1.4, color: AppColors.muted)),
@@ -243,6 +246,18 @@ class _MoreScreenState extends State<MoreScreen> {
         if (waiting > 0) {
           trailing = StatusPill(
               label: tr('{n} waiting', {'n': waiting}), tone: ChipTone.amber);
+        }
+      case 'prices':
+        if (settings != null && settings.ratesKnown) {
+          final kg = settings.kgRate;
+          subtitle = [
+            kg == null
+                ? tr('No rate per kg yet')
+                : tr('{rate} per kg',
+                    {'rate': wholeMoney(kg, settings.kgRateCurrency)}),
+            trn(settings.pcsRates.length, '{n} piece price',
+                '{n} piece prices'),
+          ].join(' · ');
         }
       case 'rate':
         if (settings != null) {
@@ -328,6 +343,7 @@ IconData _icon(String id) => switch (id) {
       'team' => Icons.groups_outlined,
       'review' => Icons.fact_check_outlined,
       'pay-methods' => Icons.credit_card_rounded,
+      'prices' => Icons.sell_outlined,
       'rate' => Icons.swap_horiz_rounded,
       'invoice-share' => Icons.description_outlined,
       'media' => Icons.photo_outlined,
@@ -345,7 +361,7 @@ ToneColors _tone(String id) => switch (id) {
       'team' => MoreTone.purple,
       'review' => MoreTone.orange,
       'pay-methods' || 'system' => MoreTone.green,
-      'fingerprint' => MoreTone.primary,
+      'fingerprint' || 'prices' => MoreTone.primary,
       _ => MoreTone.grey,
     };
 

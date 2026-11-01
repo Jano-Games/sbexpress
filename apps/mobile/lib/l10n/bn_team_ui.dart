@@ -48,7 +48,7 @@ const bnTeamUi = <String, String>{
   // Tasks.
   'Payment reviews': 'পেমেন্ট যাচাই',
   'Close on their own': 'নিজে থেকেই বন্ধ হয়',
-  'Shipment steps': 'শিপমেন্টের ধাপ',
+  'Order steps': 'অর্ডারের ধাপ',
   'Your notes': 'আপনার নোট',
   'Tick when done': 'শেষ হলে টিক দিন',
   'Who does it': 'কে করবে',
@@ -71,8 +71,8 @@ const bnTeamUi = <String, String>{
   '{n} active': '{n} জন সক্রিয়',
   'Admins': 'অ্যাডমিন',
   'Sees everything, including money': 'টাকাসহ সবকিছু দেখে',
-  'Handles shipments. No money or customer names':
-      'শিপমেন্ট সামলায়। টাকা বা কাস্টমারের নাম দেখে না',
+  'Handles orders. No money or customer names':
+      'অর্ডার সামলায়। টাকা বা কাস্টমারের নাম দেখে না',
   "can't sign in": 'লগইন করতে পারবে না',
   'Open a person to change their role, switch them off or set a new password. Another admin has to change your own role.':
       'রোল বদলাতে, অ্যাকাউন্ট বন্ধ করতে বা নতুন পাসওয়ার্ড দিতে নাম খুলুন। আপনার নিজের রোল অন্য অ্যাডমিনকে বদলাতে হবে।',
@@ -94,7 +94,7 @@ const bnTeamUi = <String, String>{
   'Saving also creates the fund account {fund} ({currency}). It is blocked if a fund with this number already exists.':
       'সেভ করলে {fund} ({currency}) ফান্ড অ্যাকাউন্টও তৈরি হবে। এই নম্বরে আগে থেকে ফান্ড থাকলে সেভ হবে না।',
   // Invoice editor.
-  'Shipment {code}': 'শিপমেন্ট {code}',
+  'Order {code}': 'অর্ডার {code}',
   'Draft': 'ড্রাফট',
   'Issuing locks the total. Lowering it later creates a credit note.':
       'ইস্যু করলে মোট অঙ্ক লক হয়ে যায়। পরে কমালে ক্রেডিট নোট তৈরি হয়।',

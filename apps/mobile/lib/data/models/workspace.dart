@@ -272,11 +272,22 @@ class SettingsSnapshot {
       {required this.rate,
       required this.threshold,
       required this.pcsRates,
-      this.costDefaults});
+      this.costDefaults,
+      this.kgRate,
+      this.kgRateCurrency = 'BDT',
+      this.ratesKnown = false});
 
   final double rate;
   final double threshold;
   final Map<String, double> pcsRates;
+
+  /// Default rate per kg for new orders; null when the server has none
+  /// (an older server, or 0 = not set yet).
+  final double? kgRate;
+  final String kgRateCurrency;
+
+  /// The server keeps a default rate per kg; older servers do not.
+  final bool ratesKnown;
 
   /// Usual shipment cost amounts; null on a server that does not send them.
   final CostDefaults? costDefaults;
@@ -291,6 +302,12 @@ class SettingsSnapshot {
       rate: requiredDouble(json, 'rate'),
       threshold: requiredDouble(json, 'threshold'),
       pcsRates: parsed,
+      kgRate: switch (json['kgRate']) {
+        final num value when value > 0 => value.toDouble(),
+        _ => null,
+      },
+      kgRateCurrency: json['kgRateCurrency'] == 'CNY' ? 'CNY' : 'BDT',
+      ratesKnown: json.containsKey('kgRate'),
       costDefaults: json['costDefaults'] == null
           ? null
           : CostDefaults.fromJson(

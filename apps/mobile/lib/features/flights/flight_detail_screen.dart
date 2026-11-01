@@ -7,13 +7,15 @@ import '../../data/models/flight.dart';
 import '../../data/models/flow.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
+import '../../data/models/workspace.dart';
+import '../../data/rates.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/finance_parts.dart' show showAccountSheet;
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
 import '../../widgets/money_confirm.dart';
-import '../../widgets/quick_parts.dart' show plainKg;
+import '../../widgets/quick_parts.dart' show plainKg, wholeMoney;
 import '../../widgets/remove_parts.dart';
 import '../../widgets/round7_parts.dart';
 import '../../widgets/ui.dart';
@@ -21,6 +23,7 @@ import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
 import '../intake/intake_screen.dart';
 import 'add_flight_cost_sheet.dart';
+import 'flight_rates_sheet.dart';
 import 'hub_flights_screen.dart' show banglaPlace;
 import 'ticket_flyers_screen.dart';
 
@@ -37,6 +40,9 @@ class FlightDetailScreen extends StatefulWidget {
 
 class _FlightDetailScreenState extends State<FlightDetailScreen> {
   FlightDetail? _detail;
+
+  /// The default rates, for the rates card; null when they did not load.
+  SettingsSnapshot? _defaults;
   String? _error;
   var _loading = true;
   var _deleting = false;
@@ -55,9 +61,17 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
       _error = null;
     });
     try {
-      final detail = await AppScope.of(context).flights.detail(widget.code);
+      final scope = AppScope.of(context);
+      final defaults = scope.settings.current().then<SettingsSnapshot?>(
+          (value) => value,
+          onError: (Object _) => null);
+      final detail = await scope.flights.detail(widget.code);
+      final settings = await defaults;
       if (!mounted) return;
-      setState(() => _detail = detail);
+      setState(() {
+        _detail = detail;
+        _defaults = settings ?? _defaults;
+      });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
       setState(() => _error = error.message);
@@ -73,6 +87,18 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) await _load();
+  }
+
+  Future<void> _editRates(FlightDetail detail) async {
+    final updated = await showFlightRatesSheet(context,
+        detail: detail, defaults: _defaults);
+    if (updated == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(updated == 0
+            ? tr('Rates saved')
+            : trn(updated, 'Rates saved · {n} order updated',
+                'Rates saved · {n} orders updated'))));
+    await _load();
   }
 
   Future<void> _addCost(FlightDetail detail) async {
@@ -182,8 +208,8 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                       child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 150),
                           child: StatusPill(
-                              label: trn(bookings.length, '{n} shipment',
-                                  '{n} shipments'),
+                              label: trn(
+                                  bookings.length, '{n} order', '{n} orders'),
                               tone: ChipTone.neutral)))),
           ]),
       body: RefreshIndicator(
@@ -201,6 +227,11 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                 _FlightProfitCard(detail: detail)
               else
                 _ProfitCard(summary: summary, bookings: bookings),
+              const SizedBox(height: 14),
+              _FlightRatesCard(
+                  summary: summary,
+                  defaults: _defaults,
+                  onEdit: () => _editRates(detail)),
               // Shown on an older server too: Add then says it needs an update.
               const SizedBox(height: 14),
               _FlightCostsCard(
@@ -230,7 +261,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                 EmptyNote(
                     icon: Icons.inventory_2_outlined,
                     title: tr('No bookings'),
-                    body: tr('Choose this flight from shipment intake.'))
+                    body: tr('Choose this flight from order intake.'))
               else
                 RowCard(children: [
                   for (final booking in bookings)
@@ -254,7 +285,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
           : ActionFooter(
               child: AppButton(
                   key: const Key('flight-book'),
-                  label: tr('Book shipment · {kg} kg free',
+                  label: tr('Book order · {kg} kg free',
                       {'kg': _kg(summary.leftKg < 0 ? 0 : summary.leftKg)}),
                   icon: Icons.add_rounded,
                   kind: AppButtonKind.current,
@@ -275,6 +306,94 @@ String _ticketLine(FlightSummary summary) {
   }
   return tr('Flyers pay part · we pay {amount}',
       {'amount': formatBdt(summary.agencyShare)});
+}
+
+/// What new orders on the flight start with: its own rates, else the
+/// default, with each line saying which.
+class _FlightRatesCard extends StatelessWidget {
+  const _FlightRatesCard(
+      {required this.summary, required this.defaults, required this.onEdit});
+  final FlightSummary summary;
+  final SettingsSnapshot? defaults;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final own = summary.ownRates;
+    final base = defaults;
+    final kg = own?.kgRate ?? base?.kgRate;
+    final currency = own?.currency ?? base?.kgRateCurrency ?? 'BDT';
+    final pieces = base == null
+        ? (own?.pcsRates ?? const <String, double>{})
+        : orderRates(base, summary).pieces;
+    return PaperCard(
+        key: const Key('flight-rates'),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          CardHead(
+              title: tr('Rates for this flight'),
+              subtitle: tr('New orders on {flight} start with these',
+                  {'flight': summary.displayCode}),
+              trailing: OutlinedButton.icon(
+                  key: const Key('flight-rates-edit'),
+                  onPressed: onEdit,
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      minimumSize: const Size(48, 44),
+                      padding: const EdgeInsets.fromLTRB(10, 0, 14, 0),
+                      side: const BorderSide(color: AppColors.field),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(controlRadius)),
+                      textStyle: const TextStyle(
+                          fontFamily: 'HindSiliguri',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  icon: const Icon(Icons.edit_outlined, size: 17),
+                  label: Text(tr('Edit')))),
+          const SizedBox(height: 6),
+          _RateLine(
+              key: const Key('flight-rates-kg-line'),
+              label: tr('Rate per kg'),
+              value: kg == null ? tr('Not set') : wholeMoney(kg, currency),
+              own: own != null),
+          for (final entry in pieces.entries)
+            _RateLine(
+                label: entry.key,
+                value: tr('{amount} / pc',
+                    {'amount': wholeMoney(entry.value, 'BDT')}),
+                own: own != null && pieceRate(own.pcsRates, entry.key) != null),
+        ]));
+  }
+}
+
+/// "Rate per kg · Own rate ৳1,300" or "Mobile · Default ৳1,500 / pc".
+class _RateLine extends StatelessWidget {
+  const _RateLine(
+      {super.key, required this.label, required this.value, required this.own});
+  final String label, value;
+  final bool own;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(children: [
+        Expanded(
+            child:
+                Text(label, style: const TextStyle(fontSize: 14, height: 1.4))),
+        const SizedBox(width: 8),
+        if (own)
+          FlowChip(label: tr('Own rate'), tone: ChipTone.blue)
+        else
+          Text(tr('Default'),
+              style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+        const SizedBox(width: 8),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 14,
+                height: 1.4,
+                fontWeight: FontWeight.w700,
+                fontFeatures: [FontFeature.tabularFigures()])),
+      ]));
 }
 
 /// The flight costs' total: the server's sum, else the rows added up.
@@ -399,7 +518,7 @@ class _ProfitCard extends StatelessWidget {
   final List<AdminShipment> bookings;
 
   String _note() {
-    if (bookings.isEmpty) return tr('No shipments booked yet');
+    if (bookings.isEmpty) return tr('No orders booked yet');
     final none = [
       for (final row in bookings)
         if (row.costTotal != null && row.costTotal! <= 0) row.code
@@ -409,7 +528,7 @@ class _ProfitCard extends StatelessWidget {
     }
     if (none.length > 1) {
       return tr(
-          'So far · {n} shipments have no costs added yet', {'n': none.length});
+          'So far · {n} orders have no costs added yet', {'n': none.length});
     }
     final open = bookings.any((row) =>
         row.usualCosts != null &&
@@ -490,9 +609,9 @@ class _ProfitCard extends StatelessWidget {
               style:
                   const TextStyle(fontSize: 12, height: 1.4, color: heroSoft)),
           const SizedBox(height: 4),
-          line(tr('Shipment charges'), formatBdt(summary.revenue)),
+          line(tr('Order charges'), formatBdt(summary.revenue)),
           if (costs != null)
-            line('− ${tr('Shipment costs')}', '−${formatBdt(costs)}'),
+            line('− ${tr('Order costs')}', '−${formatBdt(costs)}'),
           line('− ${tr('Our ticket share')}',
               '−${formatBdt(summary.agencyShare)}',
               note: summary.actualCost > 0
@@ -577,7 +696,7 @@ class _ShipmentsHeading extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(
-              child: Text(tr('Shipments'),
+              child: Text(tr('Orders'),
                   style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -708,8 +827,8 @@ class _FlightProfitCard extends StatelessWidget {
                     child: Text(
                         trn(
                             bookings.length,
-                            '{n} shipment · {kg} kg',
-                            '{n} shipments · {kg} kg',
+                            '{n} order · {kg} kg',
+                            '{n} orders · {kg} kg',
                             {'kg': plainKg(detail.shipmentKg)}),
                         textAlign: TextAlign.right,
                         style: const TextStyle(
@@ -719,7 +838,7 @@ class _FlightProfitCard extends StatelessWidget {
           ]),
           const SizedBox(height: 6),
           MoneyRow(
-              label: tr('Shipment charges'),
+              label: tr('Order charges'),
               value: formatBdt(money.shipmentCharges)),
           MoneyRow(
               label: tr('Flyers paid us'),
@@ -730,7 +849,7 @@ class _FlightProfitCard extends StatelessWidget {
               value: '−${formatBdt(money.flightCosts)}'),
           if (money.otherCosts > 0.001)
             MoneyRow(
-                label: tr('Older shipment costs'),
+                label: tr('Older order costs'),
                 value: '−${formatBdt(money.otherCosts)}'),
           const SizedBox(height: 4),
           Text(tr("Costs on customers' bills are paid back by them, so they are left out."),
@@ -853,7 +972,7 @@ class _CostShareCard extends StatelessWidget {
       }
     }
     final text = [
-      tr("Each shipment's profit takes a share by weight."),
+      tr("Each order's profit takes a share by weight."),
       if (example != null && total > 0 && kg > 0)
         tr(
             '{code} carries {kg} of {total} kg, so its share is {share} of {costs}.',
@@ -868,7 +987,7 @@ class _CostShareCard extends StatelessWidget {
     return PaperCard(
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(tr('How the flight costs reach each shipment'),
+      Text(tr('How the flight costs reach each order'),
           style: const TextStyle(
               fontSize: 15, height: 1.3, fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),

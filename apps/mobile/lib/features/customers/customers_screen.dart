@@ -121,7 +121,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final owingCount = activeRows.where((row) => row.balance > 0).length;
     return WorkspaceScaffold(
         title: tr('Customers'),
-        subtitle: tr('Contacts, shipments and receivables'),
+        subtitle: tr('Contacts, orders and receivables'),
         root: false,
         onRefresh: _load,
         actions: [
@@ -330,7 +330,7 @@ class _CustomerRow extends StatelessWidget {
                                     height: 1.4,
                                     color: AppColors.muted)),
                             Text(
-                                '${trn(row.orderCount, '{n} shipment · {kg} kg', '{n} shipments · {kg} kg', {
+                                '${trn(row.orderCount, '{n} order · {kg} kg', '{n} orders · {kg} kg', {
                                       'kg': row.shippedKg.toStringAsFixed(1)
                                     })} · ${termsLabel(row.terms)}',
                                 style: const TextStyle(
@@ -475,8 +475,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         toolbar: ScreenTabs(labels: [
           tr('Summary'),
           detail == null
-              ? tr('Shipments')
-              : tr('Shipments · {n}', {'n': detail.orders.length}),
+              ? tr('Orders')
+              : tr('Orders · {n}', {'n': detail.orders.length}),
           tr('Transactions'),
         ], index: _tab, onChanged: (i) => setState(() => _tab = i)),
         footer: detail == null
@@ -619,8 +619,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
         if (detail.orders.isEmpty)
           EmptyNote(
               icon: Icons.inventory_2_outlined,
-              title: tr('No shipments'),
-              body: tr('Shipments appear here after intake.'))
+              title: tr('No orders'),
+              body: tr('Orders appear here after intake.'))
         else
           ListCard(children: [
             for (final order in detail.orders)

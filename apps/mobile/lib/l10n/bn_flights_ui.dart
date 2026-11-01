@@ -15,7 +15,7 @@ const bnFlightsUi = <String, String>{
   'Mobiles {n}': 'মোবাইল {n}',
   'Laptops {n}': 'ল্যাপটপ {n}',
   'Ref {code}': 'রেফারেন্স {code}',
-  'Shipment charges on this flight': 'এই ফ্লাইটের শিপমেন্ট বিল',
+  'Order charges on this flight': 'এই ফ্লাইটের অর্ডার বিল',
   'Ticket cost': 'টিকিট খরচ',
   'Paid up': 'পরিশোধ হয়েছে',
   '{amount} due': 'বাকি {amount}',

@@ -1439,3 +1439,46 @@ Map<String, Object?> round7FlightBody() {
   });
   return {'flight': flight};
 }
+
+/// Round 8: the settings with a default rate per kg of ৳1,200; [kgRate] null
+/// leaves it out, as an older server does.
+Map<String, Object?> round8Settings({num? kgRate = 1200}) => {
+      'rate': 17.5,
+      'threshold': 0.5,
+      'pcsRates': {'Mobile': 2000, 'Laptop': 3500},
+      'costDefaults': {
+        'packaging': 150,
+        'courier': 300,
+        'customs': 400,
+        'transport': 120
+      },
+      if (kgRate != null) ...{'kgRate': kgRate, 'kgRateCurrency': 'BDT'},
+    };
+
+/// BG305's own rates: ৳1,300 per kg and Mobile at ৳1,800.
+const round8OwnRates = {
+  'ownRates': true,
+  'kgRate': 1300,
+  'kgRateCurrency': 'BDT',
+  'pcsRates': {'mobile': 1800},
+};
+
+const round8NoOwnRates = {
+  'ownRates': false,
+  'kgRate': null,
+  'kgRateCurrency': null,
+  'pcsRates': null,
+};
+
+/// The round 7 flight with [rates] and how many orders still follow them.
+Map<String, Object?> round8FlightBody(Map<String, Object?> rates,
+    {int followers = 0}) {
+  final body = round7FlightBody();
+  return {
+    'flight': {
+      ...(body['flight']! as Map<String, Object?>),
+      ...rates,
+      'rateFollowers': followers,
+    }
+  };
+}

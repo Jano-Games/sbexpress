@@ -17,6 +17,7 @@ import 'package:sbexpress/l10n/bn_round5.dart';
 import 'package:sbexpress/l10n/bn_round6.dart';
 import 'package:sbexpress/l10n/bn_round7a.dart';
 import 'package:sbexpress/l10n/bn_round7b.dart';
+import 'package:sbexpress/l10n/bn_round8.dart';
 import 'package:sbexpress/l10n/bn_scan.dart';
 import 'package:sbexpress/l10n/bn_shared.dart';
 import 'package:sbexpress/l10n/bn_team_ui.dart';
@@ -115,6 +116,7 @@ void main() {
       'round6': bnRound6,
       'scan': bnScan,
       'round7b': bnRound7b,
+      'round8': bnRound8,
       'round7a': bnRound7a,
       'photos': bnPhotos,
       'core': bnCore,

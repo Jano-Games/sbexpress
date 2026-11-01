@@ -82,8 +82,8 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
             ? dayLabel ?? tr("Preparing today's parcels and deliveries")
             : [
                 if (dayLabel != null) dayLabel,
-                trn(data.atHubCount, '{n} shipment at the hub',
-                    '{n} shipments at the hub')
+                trn(data.atHubCount, '{n} order at the hub',
+                    '{n} orders at the hub')
               ].join(' · '),
         root: true,
         onRefresh: _load,
@@ -123,7 +123,7 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
           onChanged: (_) => setState(() {}),
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-              hintText: tr('Search hub shipments — code or cargo'),
+              hintText: tr('Search hub orders — code or cargo'),
               prefixIcon: const Icon(Icons.search_rounded, size: 21),
               enabledBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(14)),
@@ -181,11 +181,11 @@ class _HubHomeScreenState extends State<HubHomeScreen> {
         EmptyNote(
             icon: Icons.task_alt_rounded,
             title: query.isNotEmpty || _step != null
-                ? tr('No matching shipments')
-                : tr('No shipments waiting at the hub'),
+                ? tr('No matching orders')
+                : tr('No orders waiting at the hub'),
             body: query.isNotEmpty || _step != null
                 ? tr('Try another code or clear the filter.')
-                : tr('Shipments appear here when they reach the Dhaka hub.'))
+                : tr('Orders appear here when they reach the Dhaka hub.'))
       else
         SurfaceGroup(children: [
           for (final row in queue)
@@ -559,8 +559,8 @@ class _Incoming extends StatelessWidget {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(
-            trn(incoming.count, '{n} shipment incoming · {kg}',
-                '{n} shipments incoming · {kg}', {'kg': formatKg(incoming.kg)}),
+            trn(incoming.count, '{n} order incoming · {kg}',
+                '{n} orders incoming · {kg}', {'kg': formatKg(incoming.kg)}),
             style: const TextStyle(fontWeight: FontWeight.w600)),
         if (flight != null)
           Text(flight,

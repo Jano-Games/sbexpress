@@ -510,7 +510,7 @@ class ShipmentChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
       button: true,
-      label: tr('Open shipment {code}', {'code': code}),
+      label: tr('Open order {code}', {'code': code}),
       excludeSemantics: true,
       child: InkWell(
           onTap: onTap,

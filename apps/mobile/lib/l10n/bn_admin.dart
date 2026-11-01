@@ -2,18 +2,18 @@
 const bnAdmin = <String, String>{
   // Admin overview.
   'Overview': 'ওভারভিউ',
-  'Shipment': 'শিপমেন্ট',
+  'Order': 'অর্ডার',
   'Work to do': 'আপনার করণীয়',
   'Receipts to review': 'রসিদ যাচাই',
   'Open tasks': 'খোলা কাজ',
-  'Active shipments': 'চলমান শিপমেন্ট',
+  'Active orders': 'চলমান অর্ডার',
   'Next flight': 'পরবর্তী ফ্লাইট',
   'Schedule': 'সময়সূচি',
   '{n} awaiting delivery': '{n}টি ডেলিভারির অপেক্ষায়',
   'View all': 'সব দেখুন',
-  'No active shipments': 'চলমান শিপমেন্ট নেই',
-  'Use the Shipment button above to make a new booking.':
-      'উপরের শিপমেন্ট বাটন থেকে নতুন বুকিং করুন।',
+  'No active orders': 'চলমান অর্ডার নেই',
+  'Use the Order button above to make a new booking.':
+      'উপরের অর্ডার বাটন থেকে নতুন বুকিং করুন।',
   'Needs attention': 'নজর দিন',
   'Finance this week': 'এই সপ্তাহের হিসাব',
   'Details': 'বিস্তারিত',
@@ -72,7 +72,7 @@ const bnAdmin = <String, String>{
   'Confirm return': 'ফেরত দেওয়া নিশ্চিত করুন',
   'Cancel': 'বাতিল',
   // Shipment detail.
-  'Shipment details and finance': 'শিপমেন্টের তথ্য ও হিসাব',
+  'Order details and finance': 'অর্ডারের তথ্য ও হিসাব',
   'Summary': 'সারসংক্ষেপ',
   'Bill': 'বিল',
   'Photos': 'ছবি',
@@ -128,8 +128,8 @@ const bnAdmin = <String, String>{
   'Choose an account and enter the amount received.':
       'অ্যাকাউন্ট বেছে নিন এবং যে টাকা এসেছে সেই অঙ্ক লিখুন।',
   'Record payment': 'টাকা জমা',
-  '{amount} will be added to {account} as a payment for this shipment.':
-      '{amount} {account}-এ এই শিপমেন্টের জমা হিসেবে ঢুকবে।',
+  '{amount} will be added to {account} as a payment for this order.':
+      '{amount} {account}-এ এই অর্ডারের জমা হিসেবে ঢুকবে।',
   'Payment': 'পেমেন্ট',
   'Share link': 'শেয়ার লিংক',
   'Edit lines and discount to change it. Check the total before issuing.':
@@ -140,7 +140,7 @@ const bnAdmin = <String, String>{
   'Balance due': 'বাকি',
   'Revision reason': 'রিভিশনের কারণ',
   'Changing an issued bill needs a reason': 'ইস্যু করা বিল বদলালে কারণ লাগে',
-  'This shipment is free of charge': 'এই শিপমেন্ট ফ্রি অব চার্জ',
+  'This order is free of charge': 'এই অর্ডার ফ্রি অব চার্জ',
   'Issue invoice': 'হিসাবের লাইন ইস্যু',
   'Lines and discount': 'লাইন ও ছাড়',
   'View PDF': 'PDF দেখুন',
@@ -163,8 +163,8 @@ const bnAdmin = <String, String>{
   'Add bKash or a bank in Settings to create a fund. Then you can record payments here.':
       'সেটিংসে বিকাশ বা ব্যাংক যোগ করলে ফান্ড তৈরি হয়। তারপর এখান থেকে জমা দেওয়া যাবে।',
   'Nothing due': 'বকেয়া নেই',
-  'Nothing is left to collect on this shipment.':
-      'এই শিপমেন্টে আর জমা দেওয়ার মতো বাকি নেই।',
+  'Nothing is left to collect on this order.':
+      'এই অর্ডারে আর জমা দেওয়ার মতো বাকি নেই।',
   'Amount received ({currency})': 'প্রাপ্ত অঙ্ক ({currency})',
   '{due} due. Amount in BDT.': 'বাকি {due}। অঙ্ক BDT।',
   'Enter in {currency}. {due} BDT due; converted at the saved rate.':

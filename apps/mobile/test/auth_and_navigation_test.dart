@@ -133,7 +133,7 @@ void main() {
     }
     expect(find.byKey(const Key('nav-pill')), findsOneWidget);
     expect(find.text('হোম'), findsOneWidget);
-    expect(find.text('শিপমেন্ট'), findsOneWidget);
+    expect(find.text('অর্ডার'), findsOneWidget);
     expect(find.text('ফ্লাইট'), findsOneWidget);
     expect(find.text('কাজ'), findsOneWidget);
     expect(find.text('আরও'), findsOneWidget);

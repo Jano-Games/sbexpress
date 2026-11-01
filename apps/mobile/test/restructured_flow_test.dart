@@ -221,8 +221,8 @@ void main() {
     await t.ensureVisible(find.text('মাসিক স্টেটমেন্ট'));
     expect(find.text('মাসিক স্টেটমেন্ট'), findsOneWidget);
     // The tab shows the shipment count, as in the design.
-    await t.ensureVisible(find.text('শিপমেন্ট · 1'));
-    await t.tap(find.text('শিপমেন্ট · 1'));
+    await t.ensureVisible(find.text('অর্ডার · 1'));
+    await t.tap(find.text('অর্ডার · 1'));
     await t.pumpAndSettle();
     expect(find.text('SH-18'), findsOneWidget);
     await t.tap(find.text('লেনদেন'));

@@ -163,7 +163,7 @@ class _PaymentReviewScreenState extends State<PaymentReviewScreen> {
                 current == null ? tr('Payment review') : tr('Review receipt'),
             subtitle: current == null
                 ? null
-                : '${current.recordLabel} · ${current.kind == ReviewKind.shipment ? tr('Shipment') : tr('Monthly statement')}',
+                : '${current.recordLabel} · ${current.kind == ReviewKind.shipment ? tr('Order') : tr('Monthly statement')}',
             actions: [
               if (current == null && pending > 0)
                 Center(
@@ -373,7 +373,7 @@ class _Detail extends StatelessWidget {
               const Divider(height: 1),
               _Line(
                   label: item.kind == ReviewKind.shipment
-                      ? tr('Shipment')
+                      ? tr('Order')
                       : tr('Statement'),
                   value: item.recordLabel),
               _Line(label: tr('Customer'), value: item.supplierName),

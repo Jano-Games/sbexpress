@@ -70,10 +70,10 @@ const bnRound7b = <String, String>{
   'No flight costs yet.': 'এখনো কোনো ফ্লাইট খরচ নেই।',
   "Costs on customers' bills are paid back by them, so they are left out.":
       'কাস্টমারের বিলে যোগ করা খরচ তাঁরাই ফেরত দেন, তাই এখানে ধরা হয়নি।',
-  'How the flight costs reach each shipment':
-      'ফ্লাইটের খরচ কীভাবে প্রতিটি শিপমেন্টে ভাগ হয়',
-  "Each shipment's profit takes a share by weight.":
-      'ওজন অনুযায়ী প্রতিটি শিপমেন্টের প্রফিট থেকে একটি ভাগ কাটা হয়।',
+  'How the flight costs reach each order':
+      'ফ্লাইটের খরচ কীভাবে প্রতিটি অর্ডারে ভাগ হয়',
+  "Each order's profit takes a share by weight.":
+      'ওজন অনুযায়ী প্রতিটি অর্ডারের প্রফিট থেকে একটি ভাগ কাটা হয়।',
   '{code} carries {kg} of {total} kg, so its share is {share} of {costs}.':
       '{code}-এ {total} kg-এর মধ্যে {kg} kg, তাই {costs}-এর মধ্যে এর ভাগ {share}।',
   'bill {amount}': 'বিল {amount}',
@@ -83,7 +83,7 @@ const bnRound7b = <String, String>{
   '{name} · {amount} is reversed. If it was paid, the money goes back to its account.':
       '{name} · {amount} বাতিল হবে। টাকা দেওয়া হয়ে থাকলে তা আবার সেই অ্যাকাউন্টে ফিরবে।',
   'Not removed': 'সরানো হয়নি',
-  'Older shipment costs': 'শিপমেন্টের আগের খরচ',
+  'Older order costs': 'অর্ডারের আগের খরচ',
   'Mark paid': 'পরিশোধ লিখুন',
   'Not paid': 'পরিশোধ লেখা হয়নি',
   'The server needs an update before flight costs can be marked paid.':
@@ -110,4 +110,7 @@ const bnRound7b = <String, String>{
   // Flyer's part: the Paid tick.
   'Paid the rest': 'বাকিটা পেইড',
   'Part paid': 'কিছু পেইড',
+  // Editing a flyer.
+  'Edit flyer': 'ফ্লায়ার এডিট',
+  'Save changes': 'পরিবর্তন সেভ করুন',
 };

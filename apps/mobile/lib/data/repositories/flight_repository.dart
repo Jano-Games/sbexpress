@@ -162,6 +162,27 @@ class FlightRepository {
     await api.deleteJson('${_path(code)}/costs/${Uri.encodeComponent(id)}');
   }
 
+  /// Saves the flight's own rates, or with [own] false goes back to the
+  /// default. With [applyToOrders] unpaid orders still on the old rates move
+  /// along; returns how many did. An older server answers 404.
+  Future<int> saveRates(String code,
+      {required bool own,
+      double? kgRate,
+      String currency = 'BDT',
+      Map<String, double> pcsRates = const {},
+      bool applyToOrders = false}) async {
+    final json = await api.putJson('${_path(code)}/rates', body: {
+      'own': own,
+      if (own) ...{
+        'kgRate': kgRate ?? 0,
+        'kgRateCurrency': currency,
+        'pcsRates': pcsRates,
+      },
+      'applyToOrders': applyToOrders,
+    });
+    return optionalInt(json, 'updated') ?? 0;
+  }
+
   String _path(String code) => '/api/flights/${Uri.encodeComponent(code)}';
 }
 

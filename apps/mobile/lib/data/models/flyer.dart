@@ -272,4 +272,25 @@ class FlyerDraft {
     put('emergencyContact', emergencyContact);
     return body;
   }
+
+  /// Every field on the form, for an edit: a cleared field goes back to the
+  /// server's empty value ("—", or "" for the batch).
+  Map<String, Object?> toPatchJson() {
+    String value(String? text, {String empty = '—'}) {
+      final trimmed = text?.trim() ?? '';
+      return trimmed.isEmpty ? empty : trimmed;
+    }
+
+    return {
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'cnPhone': value(cnPhone),
+      'bdPhone': value(bdPhone),
+      'university': value(university),
+      'batch': value(batch, empty: ''),
+      'program': value(program),
+      'wechat': value(wechat),
+      'emergencyContact': value(emergencyContact),
+    };
+  }
 }

@@ -135,7 +135,7 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
     final limit = _expense ? 500 : 160;
     return WorkspaceScaffold(
         title: tr('Deposit or expense'),
-        subtitle: tr('Office money outside shipments'),
+        subtitle: tr('Office money outside orders'),
         root: false,
         footer: ActionFooter(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -205,9 +205,9 @@ class _OfficeEntryScreenState extends State<OfficeEntryScreen> {
             'capital' =>
               tr('Money the owner puts in. Cash goes up, profit does not.'),
             'expense' => tr(
-                "Office costs only. Shipment costs go on the shipment's costs page."),
+                "Office costs only. Order costs go on the order's costs page."),
             _ => tr(
-                'Office income outside shipments. Customer payments are recorded on the shipment.'),
+                'Office income outside orders. Customer payments are recorded on the order.'),
           }),
           if (_expense) ...[
             const SizedBox(height: 20),

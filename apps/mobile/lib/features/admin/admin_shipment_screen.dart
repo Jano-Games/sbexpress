@@ -8,6 +8,7 @@ import '../../data/models/flow.dart';
 import '../../data/models/ledger_actions.dart';
 import '../../data/models/media_item.dart';
 import '../../data/models/shipment.dart';
+import '../../data/money_payload.dart';
 import '../../data/models/workspace.dart';
 import '../../data/repositories/shipment_repository.dart';
 import '../../data/share_bytes.dart';
@@ -21,7 +22,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
 import '../../widgets/photo_parts.dart';
-import '../../widgets/quick_parts.dart' show plainKg;
+import '../../widgets/quick_parts.dart' show plainKg, wholeMoney;
 import '../../widgets/remove_parts.dart';
 import '../../widgets/round7_parts.dart';
 import '../../widgets/team_parts.dart' show AttentionNote;
@@ -33,6 +34,7 @@ import 'add_cost_sheet.dart';
 import 'credit_note_screen.dart';
 import 'invoice_editor_screen.dart';
 import 'money_format.dart';
+import 'order_charge_sheet.dart';
 import 'shipment_costs_screen.dart';
 
 /// One shipment on one page: where it is, the bill and getting paid, its
@@ -241,6 +243,14 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
     if (mounted) await _load();
   }
 
+  Future<void> _editCharge(AdminShipmentDetail detail) async {
+    final saved = await showOrderChargeSheet(context, detail: detail);
+    if (saved != true || !mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr('Weight and rate saved'))));
+    await _load();
+  }
+
   Future<void> _recordPayment(AdminShipmentDetail detail) async {
     final bill = HandedOverBill(
         code: detail.code,
@@ -430,10 +440,10 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
   Future<void> _delete() {
     final shipments = AppScope.of(context).shipments;
     return confirmAndDelete(context,
-        title: tr('Delete shipment'),
-        question: tr('Delete shipment {code}? This cannot be undone.',
+        title: tr('Delete order'),
+        question: tr('Delete order {code}? This cannot be undone.',
             {'code': widget.code}),
-        refusedTitle: tr('This shipment cannot be deleted'),
+        refusedTitle: tr('This order cannot be deleted'),
         delete: () => shipments.delete(widget.code),
         onBusy: (busy) {
           if (mounted) setState(() => _deleting = busy);
@@ -449,7 +459,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
         child: WorkspaceScaffold(
             title: widget.code,
             subtitle: detail == null
-                ? tr('Shipment details and finance')
+                ? tr('Order details and finance')
                 : [
                     detail.supplierName ?? detail.supplierCode,
                     if (detail.flightCode != null)
@@ -503,6 +513,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       gap,
       _BillCard(
           detail: detail,
+          onEditCharge: () => _editCharge(detail),
           onRecord: detail.dueAmount > 0 && !detail.freeOfCharge
               ? () => _recordPayment(detail)
               : null),
@@ -527,7 +538,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       const SizedBox(height: 20),
       QuietDeleteButton(
           key: const Key('shipment-delete'),
-          label: tr('Delete shipment'),
+          label: tr('Delete order'),
           busy: _deleting,
           onPressed: _delete),
     ];
@@ -630,7 +641,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
                   value: _confirmFree,
                   onChanged: (value) =>
                       setState(() => _confirmFree = value ?? false),
-                  title: Text(tr('This shipment is free of charge'))),
+                  title: Text(tr('This order is free of charge'))),
             const SizedBox(height: 8),
             AppButton(
                 key: const Key('invoice-issue'),
@@ -804,9 +815,13 @@ String _number(double value) => value == value.roundToDouble()
 
 /// The bill, how it is paid, Paid and Still due, and "Record payment".
 class _BillCard extends StatelessWidget {
-  const _BillCard({required this.detail, required this.onRecord});
+  const _BillCard(
+      {required this.detail, required this.onRecord, this.onEditCharge});
   final AdminShipmentDetail detail;
   final VoidCallback? onRecord;
+
+  /// Opens the weight and rate sheet; the lines show the charge's parts.
+  final VoidCallback? onEditCharge;
 
   @override
   Widget build(BuildContext context) => PaperCard(
@@ -835,10 +850,16 @@ class _BillCard extends StatelessWidget {
                         height: 1.15,
                         fontWeight: FontWeight.w700,
                         fontFeatures: [FontFeature.tabularFigures()]))),
-            const SizedBox(height: 2),
-            Text(_billBasis(detail),
-                style: const TextStyle(
-                    fontSize: 12, height: 1.4, color: AppColors.muted)),
+            // The charge's own parts show in the lines below; costs on the
+            // bill or a discount still need this line.
+            if (onEditCharge == null ||
+                detail.billCostTotal > 0.001 ||
+                detail.discountAmount > 0.001) ...[
+              const SizedBox(height: 2),
+              Text(_billBasis(detail),
+                  style: const TextStyle(
+                      fontSize: 12, height: 1.4, color: AppColors.muted)),
+            ],
             if (narrow) ...[const SizedBox(height: 6), terms],
           ]);
           if (narrow) return amount;
@@ -850,6 +871,10 @@ class _BillCard extends StatelessWidget {
                 child: terms),
           ]);
         }),
+        if (onEditCharge != null) ...[
+          const SizedBox(height: 10),
+          _ChargeLines(detail: detail, onTap: onEditCharge!),
+        ],
         const SizedBox(height: 12),
         IntrinsicHeight(
             child:
@@ -878,6 +903,84 @@ class _BillCard extends StatelessWidget {
               onPressed: onRecord),
         ],
       ]));
+}
+
+/// "4.0 kg × ৳1,250  ৳5,000" and each device line, tappable to change the
+/// weight, rate or pieces.
+class _ChargeLines extends StatelessWidget {
+  const _ChargeLines({required this.detail, required this.onTap});
+  final AdminShipmentDetail detail;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final weighed = detail.weighedKg;
+    final kg = weighed ?? detail.bookedKg;
+    final currency = detail.chargeCurrency;
+    final lines = <(String, String)>[
+      if (kg > 0 || detail.devices.isEmpty)
+        (
+          weighed == null
+              ? '${plainKg(kg)} kg × ${wholeMoney(detail.chargeRate, currency)}'
+              : tr('{kg} kg weighed × {rate}', {
+                  'kg': plainKg(kg),
+                  'rate': wholeMoney(detail.chargeRate, currency)
+                }),
+          wholeMoney(roundMoney(kg * detail.chargeRate), currency)
+        ),
+      for (final line in detail.devices)
+        if (line.count > 0)
+          (
+            '${line.count} ${line.category} × ${wholeMoney(line.rate, line.currency)}',
+            wholeMoney(roundMoney(line.count * line.rate), line.currency)
+          ),
+    ];
+    const muted =
+        TextStyle(fontSize: 13, height: 1.4, color: AppColors.inkSoft);
+    return Material(
+        color: AppColors.paper,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+            key: const Key('order-weight-rate'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (label, amount) in lines)
+                        Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(children: [
+                              Expanded(child: Text(label, style: muted)),
+                              const SizedBox(width: 8),
+                              Text(amount,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      height: 1.4,
+                                      fontWeight: FontWeight.w600,
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures()
+                                      ])),
+                            ])),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        const Icon(Icons.edit_outlined,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: Text(tr('Weight and rate'),
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary))),
+                        const Icon(Icons.chevron_right_rounded,
+                            size: 18, color: AppColors.faint),
+                      ]),
+                    ]))));
+  }
 }
 
 /// Charge less the shipment's share of the flight costs. An older server
@@ -937,7 +1040,7 @@ class _ProfitCard extends StatelessWidget {
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(
-                child: Text(tr('Profit on this shipment'),
+                child: Text(tr('Profit on this order'),
                     style: const TextStyle(
                         fontSize: 15,
                         height: 1.3,
@@ -1458,7 +1561,7 @@ class _Photos extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         CardHeading(
             icon: Icons.photo_library_outlined,
-            title: tr('Shipment photos'),
+            title: tr('Order photos'),
             subtitle: tr(
                 'IMEI photos are not listed here and are never shared with the customer.')),
         const SizedBox(height: 14),

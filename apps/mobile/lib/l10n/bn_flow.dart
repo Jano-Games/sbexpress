@@ -10,9 +10,9 @@ const bnFlow = <String, String>{
   '{n} overdue': '{n}টি দেরি হয়েছে',
   'Monthly bills · {month}': 'মাসিক বিল · {month}',
   'Flight profit so far': 'এ পর্যন্ত ফ্লাইটের প্রফিট',
-  '{n} shipments handed over': '{n}টি শিপমেন্ট হ্যান্ডওভার হয়েছে',
+  '{n} orders handed over': '{n}টি অর্ডার হ্যান্ডওভার হয়েছে',
   'Due from {n} customers': '{n} জন কাস্টমারের বাকি',
-  '{n} shipments missing costs': '{n}টি শিপমেন্টে খরচ বাকি',
+  '{n} orders missing costs': '{n}টি অর্ডারে খরচ বাকি',
   '{n} missing costs': '{n}টিতে খরচ বাকি',
   // Payment ways.
   'After delivery': 'ডেলিভারির পর',
@@ -34,8 +34,8 @@ const bnFlow = <String, String>{
   'Handed over, not paid': 'হ্যান্ডওভার হয়েছে, টাকা আসেনি',
   'Oldest first': 'পুরনোগুলো আগে',
   'Nothing to collect': 'আদায়ের কিছু নেই',
-  'No handed-over shipment is waiting for payment.':
-      'হ্যান্ডওভার হওয়া কোনো শিপমেন্টের টাকা বাকি নেই।',
+  'No handed-over order is waiting for payment.':
+      'হ্যান্ডওভার হওয়া কোনো অর্ডারের টাকা বাকি নেই।',
   'Coming soon': 'শিগগির আসছে',
   'Due once handed over': 'হ্যান্ডওভারের পর বাকি হবে',
   'One bill per customer for the month': 'প্রতি কাস্টমারের মাসে একটি বিল',
@@ -52,8 +52,8 @@ const bnFlow = <String, String>{
   'Link sent {date} · expired': 'লিংক পাঠানো {date} · মেয়াদ শেষ',
   'Billed {billed} · paid {paid}': 'বিল {billed} · পরিশোধ {paid}',
   'Send bill link': 'বিলের লিংক পাঠান',
-  '{n} shipments handed over and not paid':
-      '{n}টি শিপমেন্ট হ্যান্ডওভার হয়েছে, টাকা আসেনি',
+  '{n} orders handed over and not paid':
+      '{n}টি অর্ডার হ্যান্ডওভার হয়েছে, টাকা আসেনি',
   '{n} customers still owe this month': 'এই মাসে {n} জন কাস্টমারের বাকি',
   // Record payment.
   'Enter the amount received.': 'যত টাকা এসেছে তা লিখুন।',
@@ -71,20 +71,20 @@ const bnFlow = <String, String>{
   // Flight profit.
   'Ticket and flyers': 'টিকিট ও ফ্লায়ার',
   'No flyers yet': 'এখনো ফ্লায়ার নেই',
-  'Book shipment · {kg} kg free': 'শিপমেন্ট বুক · {kg} kg খালি',
+  'Book order · {kg} kg free': 'অর্ডার বুক · {kg} kg খালি',
   'Ticket cost not added yet': 'টিকিট খরচ এখনো যোগ হয়নি',
   'We pay all · {amount}': 'পুরোটা আমরা দিই · {amount}',
   'Flyers pay part · we pay {amount}': 'ফ্লায়াররা কিছু দেন · আমরা দিই {amount}',
-  'No shipments booked yet': 'এখনো কোনো শিপমেন্ট বুক হয়নি',
+  'No orders booked yet': 'এখনো কোনো অর্ডার বুক হয়নি',
   'So far · {code} has no costs added yet':
       'এ পর্যন্ত · {code}-এ এখনো খরচ যোগ হয়নি',
-  'So far · {n} shipments have no costs added yet':
-      'এ পর্যন্ত · {n}টি শিপমেন্টে এখনো খরচ যোগ হয়নি',
+  'So far · {n} orders have no costs added yet':
+      'এ পর্যন্ত · {n}টি অর্ডারে এখনো খরচ যোগ হয়নি',
   'So far · some costs are still to be added':
       'এ পর্যন্ত · কিছু খরচ এখনো যোগ করা বাকি',
   'So far': 'এ পর্যন্ত',
   'Flight profit': 'ফ্লাইটের প্রফিট',
-  'Shipment costs': 'শিপমেন্টের খরচ',
+  'Order costs': 'অর্ডারের খরচ',
   'Our ticket share': 'টিকিটে আমাদের অংশ',
   'of {amount}': '{amount}-এর মধ্যে',
   'Still to come in': 'এখনো আসা বাকি',
@@ -144,7 +144,7 @@ const bnFlow = <String, String>{
       '{name} সাধারণত ডেলিভারির পর দেন। এই বুকিং মাসিক বিলে যাবে।',
   'The flight is chosen on the next step.': 'ফ্লাইট পরের ধাপে বেছে নেওয়া হবে।',
   'Device pieces': 'ডিভাইস পিস',
-  'None in this shipment': 'এই শিপমেন্টে নেই',
+  'None in this order': 'এই অর্ডারে নেই',
   'Add in Cargo': 'কার্গো ধাপে যোগ করুন',
   'Charge for this booking': 'এই বুকিংয়ের চার্জ',
   'Updates as you type': 'লিখতে লিখতে বদলায়',
@@ -154,10 +154,10 @@ const bnFlow = <String, String>{
   'Pays when the parcel is handed over': 'পার্সেল হাতে পেলে টাকা দেন',
   'Goes on one bill for the month': 'মাসের একটি বিলে যায়',
   'Usual costs will be added': 'নিয়মিত খরচগুলো যোগ হবে',
-  'As a checklist on the shipment. Amounts come later.':
-      'শিপমেন্টে চেকলিস্ট হিসেবে। অঙ্ক পরে।',
-  'Other costs can be added on the shipment at any time.':
-      'অন্য খরচ যেকোনো সময় শিপমেন্টে যোগ করা যায়।',
+  'As a checklist on the order. Amounts come later.':
+      'অর্ডারে চেকলিস্ট হিসেবে। অঙ্ক পরে।',
+  'Other costs can be added on the order at any time.':
+      'অন্য খরচ যেকোনো সময় অর্ডারে যোগ করা যায়।',
   '{kg} kg left after this booking': 'এই বুকিংয়ের পর {kg} kg বাকি',
   // Shipment money and costs.
   'flyer {name}': 'ফ্লায়ার {name}',
@@ -177,7 +177,7 @@ const bnFlow = <String, String>{
   'Total costs': 'মোট খরচ',
   'Not added yet': 'এখনো যোগ হয়নি',
   'Add {cost} cost': '{cost} খরচ যোগ করুন',
-  'Profit on this shipment': 'এই শিপমেন্টের প্রফিট',
+  'Profit on this order': 'এই অর্ডারের প্রফিট',
   'Profit': 'প্রফিট',
   'Not added yet: {costs}. The profit goes down when they are.':
       'এখনো যোগ হয়নি: {costs}। যোগ হলে প্রফিট কমবে।',
@@ -209,9 +209,9 @@ const bnFlow = <String, String>{
   // Usual cost amounts in Settings.
   'Enter each usual cost as a number, or leave it empty for none.':
       'প্রতিটি নিয়মিত খরচ সংখ্যায় লিখুন, না থাকলে খালি রাখুন।',
-  'Usual shipment costs': 'শিপমেন্টের নিয়মিত খরচ',
-  'Filled in when one is added to a shipment':
-      'শিপমেন্টে খরচ যোগ করার সময় আগে থেকে বসে যায়',
+  'Usual order costs': 'অর্ডারের নিয়মিত খরচ',
+  'Filled in when one is added to an order':
+      'অর্ডারে খরচ যোগ করার সময় আগে থেকে বসে যায়',
   'Not set': 'ঠিক করা নেই',
   // Shared flow parts.
   'Local transport': 'লোকাল ট্রান্সপোর্ট',

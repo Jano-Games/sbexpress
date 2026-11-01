@@ -29,6 +29,32 @@ class FlightSettlement {
   }
 }
 
+/// A flight's own rates for new orders. Categories missing from
+/// [pcsRates] use the default piece price.
+class FlightRates {
+  const FlightRates(
+      {required this.kgRate, required this.currency, required this.pcsRates});
+
+  final double kgRate;
+  final String currency;
+  final Map<String, double> pcsRates;
+
+  static FlightRates? fromSummaryJson(Map<String, Object?> json) {
+    if (json['ownRates'] != true) return null;
+    final pieces = json['pcsRates'];
+    return FlightRates(
+      kgRate: requiredDouble(json, 'kgRate'),
+      currency: json['kgRateCurrency'] == 'CNY' ? 'CNY' : 'BDT',
+      pcsRates: {
+        if (pieces is Map)
+          for (final entry in pieces.entries)
+            if (entry.value is num)
+              '${entry.key}': (entry.value as num).toDouble(),
+      },
+    );
+  }
+}
+
 class FlightSummary {
   const FlightSummary({
     required this.code,
@@ -61,6 +87,8 @@ class FlightSummary {
     this.totalShipmentCosts,
     this.margin,
     this.fromTicket = false,
+    this.ownRates,
+    this.ratesKnown = false,
   });
 
   final String code;
@@ -102,6 +130,12 @@ class FlightSummary {
   /// A leg was read from an e-ticket.
   final bool fromTicket;
 
+  /// This flight's own rates; null when it uses the default.
+  final FlightRates? ownRates;
+
+  /// The server sends flight rates; older servers do not.
+  final bool ratesKnown;
+
   /// The flyers' part of the ticket: what we do not pay.
   double get flyersShare => actualCost - agencyShare;
 
@@ -130,6 +164,8 @@ class FlightSummary {
       from: legs.isEmpty ? null : _legPlace(legs.first, 'fromCity', 'fromIata'),
       to: legs.isEmpty ? null : _legPlace(legs.last, 'toCity', 'toIata'),
       fromTicket: legs.any((leg) => leg['source'] == 'ticket'),
+      ownRates: FlightRates.fromSummaryJson(json),
+      ratesKnown: json.containsKey('ownRates'),
       totalShipmentCosts: optionalDouble(json, 'totalShipmentCosts'),
       margin: optionalDouble(json, 'margin'),
       code: requiredString(json, 'code'),
@@ -277,7 +313,8 @@ class FlightDetail {
       required this.bookings,
       this.flightCosts,
       this.flightCostTotal,
-      this.profitBreakdown});
+      this.profitBreakdown,
+      this.rateFollowers = 0});
 
   final FlightSummary summary;
   final List<FlyerOnFlight> flyerDetails;
@@ -287,6 +324,10 @@ class FlightDetail {
   final List<FlightCost>? flightCosts;
   final double? flightCostTotal;
   final FlightProfitBreakdown? profitBreakdown;
+
+  /// Unpaid orders still on the flight's current rates, which a rate change
+  /// can carry along.
+  final int rateFollowers;
 
   /// The flight's kg the costs are shared by: each shipment's weighed kg,
   /// else its booked kg.
@@ -304,6 +345,7 @@ class FlightDetail {
             ]
           : null,
       flightCostTotal: optionalDouble(json, 'flightCostTotal'),
+      rateFollowers: optionalInt(json, 'rateFollowers') ?? 0,
       profitBreakdown:
           breakdown == null ? null : FlightProfitBreakdown.fromJson(breakdown),
       summary: FlightSummary.fromJson(json),

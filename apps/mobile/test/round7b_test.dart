@@ -494,7 +494,7 @@ void main() {
           formatBdt(2150));
       // SH-18 carries 4 of the 31.5 kg: 2,150 × 4 / 31.5.
       await _scrollTo(
-          t, find.text(tr('How the flight costs reach each shipment')));
+          t, find.text(tr('How the flight costs reach each order')));
       expect(
           find.textContaining(tr(
               '{code} carries {kg} of {total} kg, so its share is {share} of {costs}.',
@@ -534,7 +534,7 @@ void main() {
         return null;
       })));
       await t.pumpAndSettle();
-      expect(find.text(tr('Older shipment costs')), findsOneWidget);
+      expect(find.text(tr('Older order costs')), findsOneWidget);
       expect(find.text('−${formatBdt(1700)}'), findsOneWidget);
       expect(find.text(formatBdt(15950)), findsOneWidget);
     });

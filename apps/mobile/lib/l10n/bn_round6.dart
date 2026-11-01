@@ -12,10 +12,10 @@ const bnRound6 = <String, String>{
   'Delete flight {code}? This cannot be undone.':
       'ফ্লাইট {code} মুছে ফেলবেন? এটি আর ফেরানো যাবে না।',
   'This flight cannot be deleted': 'এই ফ্লাইট মুছে ফেলা যাবে না',
-  'Delete shipment': 'শিপমেন্ট মুছে ফেলুন',
-  'Delete shipment {code}? This cannot be undone.':
-      'শিপমেন্ট {code} মুছে ফেলবেন? এটি আর ফেরানো যাবে না।',
-  'This shipment cannot be deleted': 'এই শিপমেন্ট মুছে ফেলা যাবে না',
+  'Delete order': 'অর্ডার মুছে ফেলুন',
+  'Delete order {code}? This cannot be undone.':
+      'অর্ডার {code} মুছে ফেলবেন? এটি আর ফেরানো যাবে না।',
+  'This order cannot be deleted': 'এই অর্ডার মুছে ফেলা যাবে না',
   'Delete flyer': 'ফ্লায়ার মুছে ফেলুন',
   'Delete flyer {name}? This cannot be undone.':
       'ফ্লায়ার {name} মুছে ফেলবেন? এটি আর ফেরানো যাবে না।',

@@ -33,6 +33,13 @@ class FlyerRepository {
     return requiredString(json, 'name');
   }
 
+  /// Saves an edit and returns the flyer's name, which changes with the
+  /// first or last name.
+  Future<String> update(String name, FlyerDraft draft) async {
+    final json = await api.patchJson(_path(name), body: draft.toPatchJson());
+    return requiredString(json, 'name');
+  }
+
   Future<void> archive(String name, {required bool archived}) async {
     await api.postJson('${_path(name)}/archive', body: {'archived': archived});
   }

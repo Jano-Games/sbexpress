@@ -302,7 +302,7 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
                 : StatusPill(label: tr('Draft'), tone: ChipTone.neutral);
     return WorkspaceScaffold(
         title: tr('Invoice'),
-        subtitle: tr('Shipment {code}', {'code': widget.code}),
+        subtitle: tr('Order {code}', {'code': widget.code}),
         root: false,
         actions: [
           if (pill != null)
@@ -389,7 +389,7 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
                     value: _confirmFree,
                     onChanged: (value) =>
                         setState(() => _confirmFree = value ?? false),
-                    title: Text(tr('This shipment is free of charge'),
+                    title: Text(tr('This order is free of charge'),
                         style: const TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w600)),
                   )),
@@ -468,7 +468,7 @@ class _InvoiceEditorScreenState extends State<InvoiceEditorScreen> {
                     ])),
                 const SizedBox(width: 12),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(tr('Shipment'),
+                  Text(tr('Order'),
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.muted)),
                   Text(widget.code,
