@@ -68,4 +68,20 @@ const bnRound8 = <String, String>{
       'বিল আর কাস্টমার লিংক নিজে থেকে আপডেট হয়। হাবে ওজন মাপার পর চার্জ মাপা kg ধরে হয়।',
   'Weighed at the hub: {kg} kg. The charge uses the weighed kg; the bill updates by itself.':
       'হাবে মাপা ওজন: {kg} kg। চার্জ মাপা kg ধরে হয়; বিল নিজে থেকে আপডেট হয়।',
+  // Flight capacity.
+  'Flight capacity': 'ফ্লাইটের ক্যাপাসিটি',
+  'New flights start with this': 'নতুন ফ্লাইট এটা দিয়ে শুরু হয়',
+  'New flights start with {kg} kg': 'নতুন ফ্লাইট {kg} kg দিয়ে শুরু হয়',
+  'New flights and tickets start with this. Each flight can still have its own.':
+      'নতুন ফ্লাইট আর টিকিট এটা দিয়ে শুরু হয়। প্রতিটি ফ্লাইটে আলাদা রাখা যায়।',
+  'The server needs an update to keep the default capacity.':
+      'ডিফল্ট ক্যাপাসিটি রাখতে সার্ভার আপডেট করতে হবে।',
+  'Capacity for {flight}': '{flight}-এর ক্যাপাসিটি',
+  '{kg} kg booked so far': 'এ পর্যন্ত {kg} kg বুকড',
+  'Enter the capacity in whole kg, 1 or more.':
+      'ক্যাপাসিটি পূর্ণ kg-তে লিখুন, ১ বা তার বেশি।',
+  '{kg} kg is already booked on this flight. The capacity cannot be less than that.':
+      'এই ফ্লাইটে ইতিমধ্যে {kg} kg বুক করা আছে। ক্যাপাসিটি এর চেয়ে কম হতে পারবে না।',
+  'Save capacity': 'ক্যাপাসিটি সেভ করুন',
+  'Capacity saved': 'ক্যাপাসিটি সেভ হয়েছে',
 };

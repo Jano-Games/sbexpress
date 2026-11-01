@@ -25,6 +25,9 @@ class TicketImportScreen extends StatefulWidget {
 class _TicketImportScreenState extends State<TicketImportScreen> {
   TicketImport? _ticket;
   List<TicketFlightDraft> _drafts = [];
+
+  /// The capacity new flights start with, from settings.
+  int? _defaultSpace;
   List<FlyerSummary> _flyers = const [];
   String? _flyer;
   String? _error;
@@ -44,11 +47,17 @@ class _TicketImportScreenState extends State<TicketImportScreen> {
   }
 
   Future<void> _loadFlyers() async {
+    final scope = AppScope.of(context);
     try {
-      final rows = await AppScope.of(context).flyers.list();
+      final rows = await scope.flyers.list();
       if (mounted) setState(() => _flyers = rows);
     } catch (_) {
       // The picker still offers the flyers the ticket matched.
+    }
+    try {
+      _defaultSpace = (await scope.settings.current()).defaultSpaceKg;
+    } catch (_) {
+      // The drafts keep 44 kg.
     }
   }
 
@@ -89,7 +98,10 @@ class _TicketImportScreenState extends State<TicketImportScreen> {
       if (!mounted) return;
       setState(() {
         _ticket = ticket;
-        _drafts = TicketFlightDraft.fromImport(ticket);
+        _drafts = [
+          for (final draft in TicketFlightDraft.fromImport(ticket))
+            draft..spaceKg = _defaultSpace ?? draft.spaceKg
+        ];
         _flyer = ticket.flyerMatches.isEmpty ? null : ticket.flyerMatches.first;
       });
     } on ApiException catch (error) {

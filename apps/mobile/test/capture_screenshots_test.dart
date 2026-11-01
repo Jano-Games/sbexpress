@@ -755,7 +755,9 @@ Future<void> _round8Shots(WidgetTester tester, AppScope scope,
   final r8 = _interceptScope(scope, (request) async {
     if (request.method != 'GET') return null;
     final body = switch (request.url.path) {
-      '/api/settings' => {'settings': round8Settings()},
+      '/api/settings' => {
+          'settings': {...round8Settings(), 'defaultSpaceKg': 52}
+        },
       '/api/shipments/SH-18' => round7ShipmentBody(),
       '/api/shipments/SH-18/invoice' => round7InvoiceBody(),
       '/api/flights/$flowFlightCode' =>
@@ -803,6 +805,14 @@ Future<void> _round8Shots(WidgetTester tester, AppScope scope,
   await _revealBy(tester, find.byKey(const ValueKey('more-prices')), 200);
   await _saveShot(tester, '$prefix-a-more');
 
+  // The default flight capacity.
+  await _revealBy(tester, find.byKey(const ValueKey('more-capacity')), 200);
+  await _saveShot(tester, '$prefix-h-more-capacity');
+  await tapKey(const ValueKey('more-capacity'));
+  await _saveShot(tester, '$prefix-h-capacity-sheet');
+  Navigator.of(tester.element(find.byKey(const Key('capacity-save')))).pop();
+  await tester.pumpAndSettle();
+
   // The default rates, then a device added by name.
   await _shot(tester, _scoped(r8, const RatesScreen()), '$prefix-b-rates',
       find.byType(RatesScreen));
@@ -846,6 +856,19 @@ Future<void> _round8Shots(WidgetTester tester, AppScope scope,
   await sheetEnd('$prefix-f-order-edit-end');
   Navigator.of(tester.element(find.byKey(const Key('order-charge-save'))))
       .pop();
+  await tester.pumpAndSettle();
+
+  // One flight's capacity.
+  await _shot(
+      tester,
+      _scoped(r8, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-i-flight-capacity',
+      find.byType(FlightDetailScreen));
+  await tapKey(const Key('flight-capacity-edit'));
+  await tester.enterText(find.byKey(const Key('capacity-field')), '52');
+  await unfocus();
+  await _saveShot(tester, '$prefix-i-flight-capacity');
+  Navigator.of(tester.element(find.byKey(const Key('capacity-save')))).pop();
   await tester.pumpAndSettle();
 
   // A new order on BG305 starts with its rate.

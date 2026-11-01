@@ -13,6 +13,8 @@ export interface AppSettings {
   /** Default rate per kg for new orders; 0 = not set. */
   kgRate: number
   kgRateCurrency: 'BDT' | 'CNY'
+  /** Capacity a new flight starts with, kg. */
+  defaultSpaceKg: number
   /** Usual amount of each everyday shipment cost, BDT; 0 = no suggestion. */
   costDefaults: CostDefaults
 }
@@ -21,9 +23,9 @@ export const USUAL_COST_KEYS = ['packaging', 'courier', 'customs', 'transport'] 
 export type CostDefaults = Record<(typeof USUAL_COST_KEYS)[number], number>
 const NO_COST_DEFAULTS: CostDefaults = { packaging: 0, courier: 0, customs: 0, transport: 0 }
 
-const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {}, kgRate: 0, kgRateCurrency: 'BDT', costDefaults: NO_COST_DEFAULTS }
+const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {}, kgRate: 0, kgRateCurrency: 'BDT', defaultSpaceKg: 44, costDefaults: NO_COST_DEFAULTS }
 
-type NumberSetting = 'rate' | 'threshold' | 'investBdt' | 'investCny' | 'kgRate'
+type NumberSetting = 'rate' | 'threshold' | 'investBdt' | 'investCny' | 'kgRate' | 'defaultSpaceKg'
 
 export async function getSettings(): Promise<AppSettings> {
   const rows = await prisma.setting.findMany()
@@ -65,6 +67,10 @@ export async function getSettings(): Promise<AppSettings> {
     pcsRates,
     kgRate: Math.max(0, numFrom('kgRate')),
     kgRateCurrency: map.get('kgRateCurrency') === 'CNY' ? 'CNY' : 'BDT',
+    defaultSpaceKg: (() => {
+      const kg = Math.round(numFrom('defaultSpaceKg'))
+      return kg > 0 ? kg : DEFAULTS.defaultSpaceKg
+    })(),
     costDefaults,
   }
 }

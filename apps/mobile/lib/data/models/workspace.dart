@@ -275,7 +275,8 @@ class SettingsSnapshot {
       this.costDefaults,
       this.kgRate,
       this.kgRateCurrency = 'BDT',
-      this.ratesKnown = false});
+      this.ratesKnown = false,
+      this.defaultSpaceKg});
 
   final double rate;
   final double threshold;
@@ -288,6 +289,9 @@ class SettingsSnapshot {
 
   /// The server keeps a default rate per kg; older servers do not.
   final bool ratesKnown;
+
+  /// The capacity a new flight starts with, kg; null on an older server.
+  final int? defaultSpaceKg;
 
   /// Usual shipment cost amounts; null on a server that does not send them.
   final CostDefaults? costDefaults;
@@ -308,6 +312,10 @@ class SettingsSnapshot {
       },
       kgRateCurrency: json['kgRateCurrency'] == 'CNY' ? 'CNY' : 'BDT',
       ratesKnown: json.containsKey('kgRate'),
+      defaultSpaceKg: switch (json['defaultSpaceKg']) {
+        final num value when value > 0 => value.round(),
+        _ => null,
+      },
       costDefaults: json['costDefaults'] == null
           ? null
           : CostDefaults.fromJson(

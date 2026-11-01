@@ -35,6 +35,13 @@ class SettingsRepository {
     return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
   }
 
+  /// The capacity new flights start with.
+  Future<SettingsSnapshot> saveDefaultSpace(int kg) async {
+    final json =
+        await api.patchJson('/api/settings', body: {'defaultSpaceKg': kg});
+    return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
+  }
+
   /// The weight alert: booked and weighed kg this far apart get flagged.
   Future<SettingsSnapshot> saveThreshold(double kg) async {
     final json = await api.patchJson('/api/settings', body: {'threshold': kg});
