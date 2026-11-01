@@ -78,6 +78,7 @@ export const settingsRoutes = new Hono<AppEnv>()
         pcsRates: z.record(z.string().min(1).max(60), z.number().min(0)).optional(),
         kgRate: z.number().min(0).max(1_000_000).optional(),
         kgRateCurrency: z.enum(['BDT', 'CNY']).optional(),
+        defaultSpaceKg: z.number().int().min(1, 'Capacity must be at least 1 kg').max(1000).optional(),
         costDefaults: z
           .object({
             packaging: z.number().min(0).max(1_000_000).optional(),
@@ -89,7 +90,7 @@ export const settingsRoutes = new Hono<AppEnv>()
           .optional(),
       })
       .parse(await c.req.json())
-    for (const key of ['rate', 'threshold', 'investBdt', 'investCny', 'kgRate'] as const) {
+    for (const key of ['rate', 'threshold', 'investBdt', 'investCny', 'kgRate', 'defaultSpaceKg'] as const) {
       const value = body[key]
       if (value !== undefined) await putSetting(key, value)
     }

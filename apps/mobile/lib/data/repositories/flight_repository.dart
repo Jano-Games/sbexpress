@@ -74,6 +74,10 @@ class FlightRepository {
     });
   }
 
+  /// The flight's capacity; refused below the kg already booked.
+  Future<void> updateCapacity(String code, int kg) =>
+      api.patchJson(_path(code), body: {'spaceKg': kg});
+
   Future<void> removeFlyer(String code, String name) async {
     await api.deleteJson('${_path(code)}/flyers/${Uri.encodeComponent(name)}');
   }

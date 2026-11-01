@@ -12,6 +12,11 @@ export async function assertFlightCapacity(flightId: string, incomingKg: number,
   const capacity = capacityKg ?? flight.spaceKg
   const occupied = Number(booked._sum.bookedKg ?? 0)
   if (occupied + incomingKg > capacity + 0.000001) {
+    // Lowering the capacity itself: say what is already booked.
+    if (capacityKg !== undefined && incomingKg === 0) {
+      const bookedKg = Math.round(occupied * 100) / 100
+      throw badRequest(`${bookedKg} kg is already booked on this flight. The capacity cannot be less than that.`)
+    }
     const free = Math.max(0, Math.round((capacity - occupied) * 100) / 100)
     throw badRequest('Flight capacity exceeded. Available: ' + free + ' kg. Choose another flight or update its confirmed baggage capacity first.')
   }

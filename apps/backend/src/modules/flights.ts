@@ -265,7 +265,8 @@ export const flightRoutes = new Hono<AppEnv>()
         agencyShare: z.number().min(0).default(0),
         actualCost: z.number().min(0).default(0),
         accountName: z.string().trim().min(1).max(200).optional(),
-        spaceKg: z.number().int().min(0).default(44),
+        /** Left out, the flight starts with the default capacity from settings. */
+        spaceKg: z.number().int().min(0).optional(),
         mobiles: z.number().int().min(0).default(2),
         laptops: z.number().int().min(0).default(1),
         /** Connection itineraries: ordered segments override code/times/via. */
@@ -299,7 +300,7 @@ export const flightRoutes = new Hono<AppEnv>()
         fare: new Prisma.Decimal(body.actualCost).minus(body.agencyShare),
         ...sourceFields(body.actualCost),
         actualCost: new Prisma.Decimal(body.actualCost),
-        spaceKg: body.spaceKg,
+        spaceKg: body.spaceKg ?? (await getSettings()).defaultSpaceKg,
         mobiles: body.mobiles,
         laptops: body.laptops,
         flyers: { create: flyers.map((f) => ({ flyerId: f.id, contribution:flyers.length===1?body.actualCost-body.agencyShare:0 })) },

@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
+import '../../data/models/workspace.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../data/money_payload.dart';
@@ -39,6 +40,9 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
   String? _received;
   var _flyersPay = false;
   final _space = TextEditingController(text: '44');
+
+  /// The capacity was typed here, so the default from settings leaves it.
+  var _spaceTouched = false;
   final _mobiles = TextEditingController(text: '2');
   final _laptops = TextEditingController(text: '1');
   DateTime? _date;
@@ -81,12 +85,17 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
   Future<void> _load() async {
     try {
       final scope = AppScope.of(context);
+      final defaults = scope.settings.current().then<SettingsSnapshot?>(
+          (value) => value,
+          onError: (Object _) => null);
       final flyers = await scope.flyers.list();
       final finance = await scope.finance.snapshot();
+      final space = (await defaults)?.defaultSpaceKg;
       if (!mounted) return;
       setState(() {
         _flyers = flyers;
         _accounts = finance.accounts;
+        if (space != null && !_spaceTouched) _space.text = '$space';
       });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -376,6 +385,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
           const SizedBox(height: 8),
           TextField(
               controller: _space,
+              onChanged: (_) => _spaceTouched = true,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                   labelText: tr('Capacity kg'),

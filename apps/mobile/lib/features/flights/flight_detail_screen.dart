@@ -23,6 +23,7 @@ import '../admin/admin_shipment_screen.dart';
 import '../admin/money_format.dart';
 import '../intake/intake_screen.dart';
 import 'add_flight_cost_sheet.dart';
+import 'capacity_sheet.dart';
 import 'flight_rates_sheet.dart';
 import 'hub_flights_screen.dart' show banglaPlace;
 import 'ticket_flyers_screen.dart';
@@ -87,6 +88,14 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) await _load();
+  }
+
+  Future<void> _editCapacity(FlightSummary summary) async {
+    final saved = await showFlightCapacitySheet(context, flight: summary);
+    if (saved != true || !mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr('Capacity saved'))));
+    await _load();
   }
 
   Future<void> _editRates(FlightDetail detail) async {
@@ -221,7 +230,10 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
             if (_loading && detail == null) const LinearProgressIndicator(),
             if (_error != null) ErrorNote(message: _error!, onRetry: _load),
             if (summary != null && detail != null) ...[
-              _RouteCard(summary: summary, day: day),
+              _RouteCard(
+                  summary: summary,
+                  day: day,
+                  onCapacity: () => _editCapacity(summary)),
               const SizedBox(height: 14),
               if (detail.profitBreakdown != null)
                 _FlightProfitCard(detail: detail)
@@ -403,9 +415,13 @@ double _costTotal(FlightDetail detail) =>
         .fold(0.0, (sum, cost) => sum + cost.amount);
 
 class _RouteCard extends StatelessWidget {
-  const _RouteCard({required this.summary, required this.day});
+  const _RouteCard(
+      {required this.summary, required this.day, required this.onCapacity});
   final FlightSummary summary;
   final FlightDay? day;
+
+  /// Opens the capacity sheet.
+  final VoidCallback onCapacity;
 
   @override
   Widget build(BuildContext context) {
@@ -480,6 +496,19 @@ class _RouteCard extends StatelessWidget {
                 child: CapacityText(
                     booked: summary.bookedKg,
                     space: summary.spaceKg.toDouble())),
+            const SizedBox(width: 8),
+            TextButton(
+                key: const Key('flight-capacity-edit'),
+                onPressed: onCapacity,
+                style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    minimumSize: const Size(48, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    textStyle: const TextStyle(
+                        fontFamily: 'HindSiliguri',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+                child: Text(tr('Change'))),
           ]),
           const SizedBox(height: 4),
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [

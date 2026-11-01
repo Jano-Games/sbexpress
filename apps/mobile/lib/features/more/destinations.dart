@@ -78,6 +78,11 @@ List<MoreDestination> moreDestinations(UserRole role) {
           body: tr('Parcel and device photos'),
         ),
         MoreDestination(
+          id: 'capacity',
+          title: tr('Flight capacity'),
+          body: tr('New flights start with this'),
+        ),
+        MoreDestination(
           id: 'weight',
           title: tr('Weight alert'),
           body: tr('Booked vs weighed difference'),
@@ -122,8 +127,8 @@ List<MoreGroup> moreGroups(UserRole role) {
         MoreGroup(tr('People'), const ['customers', 'flyers', 'team']),
         MoreGroup(
             tr('Money'), const ['review', 'pay-methods', 'prices', 'rate']),
-        MoreGroup(
-            tr('Order tools'), const ['invoice-share', 'media', 'weight']),
+        MoreGroup(tr('Order tools'),
+            const ['invoice-share', 'media', 'capacity', 'weight']),
         MoreGroup(tr('Work'), const ['tasks']),
         MoreGroup(tr('Security'), const ['fingerprint', 'system']),
       ];

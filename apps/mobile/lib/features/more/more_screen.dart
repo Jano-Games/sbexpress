@@ -14,6 +14,7 @@ import '../../widgets/team_parts.dart'
 import '../../widgets/ui.dart';
 import '../admin/payment_review_screen.dart';
 import '../customers/customers_screen.dart';
+import '../flights/capacity_sheet.dart';
 import '../flyers/flyers_screen.dart';
 import '../settings/pay_methods_screen.dart';
 import '../settings/rates_screen.dart';
@@ -119,6 +120,14 @@ class _MoreScreenState extends State<MoreScreen> {
         final settings = _settings;
         if (settings == null) return;
         if (await showWeightAlertSheet(context, settings.threshold) == true) {
+          await _load();
+        }
+      case 'capacity':
+        final settings = _settings;
+        if (settings == null) return;
+        if (await showDefaultCapacitySheet(
+                context, settings.defaultSpaceKg ?? 44) ==
+            true) {
           await _load();
         }
       case 'system':
@@ -268,6 +277,12 @@ class _MoreScreenState extends State<MoreScreen> {
           ].join(' · ');
           trailing = TileAction(tr('Change'));
         }
+      case 'capacity':
+        final kg = settings?.defaultSpaceKg;
+        if (kg != null) {
+          subtitle = tr('New flights start with {kg} kg', {'kg': kg});
+          trailing = TileAction('$kg kg');
+        }
       case 'weight':
         if (settings != null) {
           final kg = plainNumber(settings.threshold);
@@ -320,7 +335,7 @@ class _MoreScreenState extends State<MoreScreen> {
     }
     final opens = switch (id) {
       // The sheets need today's figures; the checklist needs the status.
-      'rate' || 'weight' => settings != null,
+      'rate' || 'weight' || 'capacity' => settings != null,
       'system' => setup != null,
       _ => true,
     };
@@ -349,6 +364,7 @@ IconData _icon(String id) => switch (id) {
       'media' => Icons.photo_outlined,
       'imei' => Icons.qr_code_scanner_rounded,
       'weight' => Icons.balance_rounded,
+      'capacity' => Icons.luggage_outlined,
       'tasks' => Icons.checklist_rounded,
       'fingerprint' => Icons.fingerprint_rounded,
       'system' => Icons.verified_user_outlined,
@@ -357,7 +373,7 @@ IconData _icon(String id) => switch (id) {
 
 ToneColors _tone(String id) => switch (id) {
       'customers' || 'rate' => MoreTone.blue,
-      'flyers' => MoreTone.teal,
+      'flyers' || 'capacity' => MoreTone.teal,
       'team' => MoreTone.purple,
       'review' => MoreTone.orange,
       'pay-methods' || 'system' => MoreTone.green,
