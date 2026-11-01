@@ -39,8 +39,8 @@ const bnRound7a = <String, String>{
   '{n} waiting': '{n}টি অপেক্ষায়',
   '{rate} per ¥1': 'প্রতি ¥1-এ {rate}',
   'Bills and customer links': 'বিল ও customer link',
-  'Pick a shipment to see its bill and link':
-      'শিপমেন্ট বেছে নিয়ে তার বিল ও লিংক দেখুন',
+  'Pick an order to see its bill and link':
+      'অর্ডার বেছে নিয়ে তার বিল ও লিংক দেখুন',
   'Photos and media': 'ছবি ও মিডিয়া',
   'Parcel and device photos': 'পার্সেল ও ডিভাইসের ছবি',
   'Warn when weighed is {kg} kg off the booking':
@@ -54,8 +54,8 @@ const bnRound7a = <String, String>{
       'স্টোরেজ, রেট ও অ্যাকাউন্ট সব সেট আছে',
   '{done} of {total} set up': '{total}টির মধ্যে {done}টি সেট আছে',
   'All good': 'সব ঠিক আছে',
-  'Flights, Finance and New shipment live on the bottom bar and the + button.':
-      'ফ্লাইট, হিসাব আর নতুন শিপমেন্ট নিচের বারে ও + বাটনে আছে।',
+  'Flights, Finance and New order live on the bottom bar and the + button.':
+      'ফ্লাইট, হিসাব আর নতুন অর্ডার নিচের বারে ও + বাটনে আছে।',
   // The rate and weight alert sheets.
   '1 CNY = {amount}': '1 CNY = {amount}',
   'Warn when the weighed weight is this far from the booking.':

@@ -22,6 +22,19 @@ class SettingsRepository {
     return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
   }
 
+  /// The default rate per kg and piece prices new orders start with.
+  Future<SettingsSnapshot> saveRates(
+      {required double kgRate,
+      required String currency,
+      required Map<String, double> pcsRates}) async {
+    final json = await api.patchJson('/api/settings', body: {
+      'kgRate': kgRate,
+      'kgRateCurrency': currency,
+      'pcsRates': pcsRates,
+    });
+    return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
+  }
+
   /// The weight alert: booked and weighed kg this far apart get flagged.
   Future<SettingsSnapshot> saveThreshold(double kg) async {
     final json = await api.patchJson('/api/settings', body: {'threshold': kg});

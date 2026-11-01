@@ -468,7 +468,7 @@ class _AddMenu extends StatelessWidget {
                   children: [
                     TileRow(children: [
                       tile(AddChoice.shipment, Icons.inventory_2_outlined,
-                          tr('Shipment'), tr('Book cargo for a customer'),
+                          tr('Order'), tr('Book cargo for a customer'),
                           main: true),
                       tile(AddChoice.flight, Icons.flight_rounded, tr('Flight'),
                           tr('Enter it or import the e-ticket')),

@@ -193,7 +193,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
             ChoiceTile(
                 key: const Key('customer-terms-instant'),
                 title: tr('After delivery'),
-                subtitle: tr('Pays for each shipment once it arrives'),
+                subtitle: tr('Pays for each order once it arrives'),
                 selected: _terms == 'instant',
                 onTap: () => setState(() => _terms = 'instant')),
             ChoiceTile(

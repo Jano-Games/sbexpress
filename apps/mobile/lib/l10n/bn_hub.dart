@@ -4,17 +4,17 @@ const bnHub = <String, String>{
   'Dhaka hub': 'ঢাকা হাব',
   "Preparing today's parcels and deliveries":
       'আজকের পার্সেল ও ডেলিভারির প্রস্তুতি',
-  '{n} shipments at the hub': 'হাবে {n}টি শিপমেন্ট',
-  'Search hub shipments — code or cargo': 'হাবের শিপমেন্ট খুঁজুন — কোড বা পণ্য',
+  '{n} orders at the hub': 'হাবে {n}টি অর্ডার',
+  'Search hub orders — code or cargo': 'হাবের অর্ডার খুঁজুন — কোড বা পণ্য',
   'Upcoming flights': 'আসন্ন ফ্লাইট',
   'See all': 'সব দেখুন',
   'Show all': 'সব দেখান',
   'Awaiting processing': 'প্রসেসিং-এর অপেক্ষায়',
   '{step} pending': '{step} বাকি',
-  'No matching shipments': 'মিলছে এমন শিপমেন্ট নেই',
-  'No shipments waiting at the hub': 'হাবে অপেক্ষমাণ শিপমেন্ট নেই',
+  'No matching orders': 'মিলছে এমন অর্ডার নেই',
+  'No orders waiting at the hub': 'হাবে অপেক্ষমাণ অর্ডার নেই',
   'Try another code or clear the filter.': 'অন্য কোড লিখুন বা ফিল্টার সরান।',
-  'Shipments appear here when they reach the Dhaka hub.':
+  'Orders appear here when they reach the Dhaka hub.':
       'ঢাকা হাবে এলে এখানে দেখা যাবে।',
   'Needs attention': 'নজর দিন',
   "Today's tasks": 'আজকের কাজ',
@@ -30,11 +30,11 @@ const bnHub = <String, String>{
   '{code} — lighter than booked': '{code} — ওজন বুকিংয়ের চেয়ে কম',
   'Weighed {weighed} kg · booked {booked} kg':
       'মাপা {weighed} kg · বুকিং {booked} kg',
-  '{n} shipments incoming · {kg}': 'আসছে {n}টি শিপমেন্ট · {kg}',
+  '{n} orders incoming · {kg}': 'আসছে {n}টি অর্ডার · {kg}',
   // Counts and shared labels.
   '{n}': '{n}টি',
-  '{n} shipments': '{n}টি শিপমেন্ট',
-  'Shipments': 'শিপমেন্ট',
+  '{n} orders': '{n}টি অর্ডার',
+  'Orders': 'অর্ডার',
   'Flights': 'ফ্লাইট',
   'Flight': 'ফ্লাইট',
   'Total weight': 'মোট ওজন',
@@ -61,10 +61,10 @@ const bnHub = <String, String>{
   'En route': 'পথে',
   'Reached hub': 'হাবে এসেছে',
   'On this flight': 'এই ফ্লাইটে আসছে',
-  'No shipments on this flight': 'এই ফ্লাইটে শিপমেন্ট নেই',
-  'Shipments appear here once booked.': 'বুকিং হলে এখানে দেখা যাবে।',
-  'Once customs clears, open each shipment and tap "Receive at hub" — the weighing step starts next.':
-      'কাস্টমস ক্লিয়ার হলে প্রতিটি শিপমেন্ট খুলে "হাবে গ্রহণ করুন" চাপুন — তারপর ওজনের ধাপ শুরু হবে।',
+  'No orders on this flight': 'এই ফ্লাইটে অর্ডার নেই',
+  'Orders appear here once booked.': 'বুকিং হলে এখানে দেখা যাবে।',
+  'Once customs clears, open each order and tap "Receive at hub" — the weighing step starts next.':
+      'কাস্টমস ক্লিয়ার হলে প্রতিটি অর্ডার খুলে "হাবে গ্রহণ করুন" চাপুন — তারপর ওজনের ধাপ শুরু হবে।',
   'China': 'চীন',
   'Dhaka': 'ঢাকা',
   'Chengdu': 'চেংদু',
@@ -95,7 +95,7 @@ const bnHub = <String, String>{
   'From booking to delivery': 'বুকিং থেকে ডেলিভারি',
   'New': 'নতুন',
   'Search code, customer or cargo': 'কোড, কাস্টমার বা পণ্য খুঁজুন',
-  'No shipments found': 'শিপমেন্ট পাওয়া যায়নি',
+  'No orders found': 'অর্ডার পাওয়া যায়নি',
   'Try another word or filter.': 'অন্য শব্দ বা ফিল্টার দিয়ে খুঁজুন।',
   'Processing at hub': 'হাবে প্রসেসিং',
   'Ready for delivery': 'ডেলিভারির জন্য প্রস্তুত',
@@ -126,7 +126,7 @@ const bnHub = <String, String>{
   'Devices: {n} · photos {done}/{n}': 'ডিভাইস {n} · ছবি {done}/{n}',
   'Photos: {n}': 'ছবি {n}',
   'Exception: {type}': 'এক্সসেপশন: {type}',
-  'Weigh shipment': 'ওজন মাপুন',
+  'Weigh order': 'ওজন মাপুন',
   'Weigh on the scale and enter kg': 'স্কেলে মেপে kg-তে লিখুন',
   'Confirm when packing is done': 'প্যাকিং শেষ হলে কনফার্ম',
   'Courier or hub pickup': 'কুরিয়ার বা হাব পিকআপ',
@@ -145,11 +145,10 @@ const bnHub = <String, String>{
   'It can be received at the hub once customs clears.':
       'কাস্টমস ক্লিয়ার হলে হাবে গ্রহণ করা যাবে।',
   'Not at the Dhaka hub yet': 'এখনো ঢাকা হাবে নয়',
-  'This shipment has not entered the hub chain.':
-      'এই শিপমেন্ট হাব চেইনে ঢোকেনি।',
+  'This order has not entered the hub chain.': 'এই অর্ডার হাব চেইনে ঢোকেনি।',
   'Receive at hub': 'হাবে গ্রহণ করুন',
   'Handed over': 'হ্যান্ডওভার হয়ে গেছে',
-  'The hub chain for this shipment is complete.': 'এই শিপমেন্টের হাব চেইন শেষ।',
+  'The hub chain for this order is complete.': 'এই অর্ডারের হাব চেইন শেষ।',
   'Measured weight (kg)': 'মাপা ওজন (kg)',
   'Booked {kg} · enter 0 if device-only': 'বুকিং {kg} · ডিভাইস-অনলি হলে ০',
   'Save weight': 'ওজন সেভ করুন',
@@ -169,7 +168,7 @@ const bnHub = <String, String>{
   'Book courier': 'কুরিয়ার বুক করুন',
   'Enter a reference. A change needs a reason of at least 3 characters.':
       'রেফারেন্স দিন। বদল হলে অন্তত ৩ অক্ষরের কারণ লাগে।',
-  'Shipment photos': 'শিপমেন্ট ছবি',
+  'Order photos': 'অর্ডার ছবি',
   'Add photos of the packages and goods.': 'প্যাকেজ ও পণ্যের ছবি যোগ করুন।',
   'Photo added.': 'ছবি যোগ হয়েছে।',
   // Shipment picker.
@@ -177,9 +176,9 @@ const bnHub = <String, String>{
   'Invoice & share': 'ইনভয়েস ও শেয়ার',
   'Open by customer code. Names are not shown here.':
       'কাস্টমার কোড দিয়ে খুলুন। নাম এখানে নেই।',
-  'Choose the shipment to open.': 'যে শিপমেন্ট খুলবেন সেটা বেছে নিন।',
+  'Choose the order to open.': 'যে অর্ডার খুলবেন সেটা বেছে নিন।',
   'Code': 'কোড',
-  'No shipments': 'শিপমেন্ট নেই',
+  'No orders': 'অর্ডার নেই',
   'The list is empty.': 'তালিকা খালি।',
   // IMEI photos.
   'Each device has its own serial photo. It is not shared with the customer.':

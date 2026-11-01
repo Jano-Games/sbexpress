@@ -123,7 +123,7 @@ class _ScheduleSummary extends StatelessWidget {
         const VerticalDivider(width: 24, color: AppColors.lineSoft),
         Expanded(
             child: AmountLabel(
-                label: tr('Shipments'),
+                label: tr('Orders'),
                 value: tr('{n}', {'n': data.shipmentCount}),
                 size: 19)),
         const VerticalDivider(width: 24, color: AppColors.lineSoft),
@@ -186,8 +186,7 @@ class HubFlightCard extends StatelessWidget {
           Wrap(spacing: 8, runSpacing: 8, children: [
             InfoChip(
                 icon: Icons.inventory_2_outlined,
-                label:
-                    trn(flight.shipmentCount, '{n} shipment', '{n} shipments')),
+                label: trn(flight.shipmentCount, '{n} order', '{n} orders')),
             InfoChip(icon: Icons.scale_outlined, label: _kg(flight.kg)),
             InfoChip(
                 icon: Icons.person_outline_rounded,
@@ -283,8 +282,7 @@ class HubFlightStripCard extends StatelessWidget {
                 Expanded(
                     child: Text(
                         [
-                          trn(flight.shipmentCount, '{n} shipment',
-                              '{n} shipments'),
+                          trn(flight.shipmentCount, '{n} order', '{n} orders'),
                           _kg(flight.kg)
                         ].join(' · '),
                         maxLines: 1,
@@ -382,7 +380,7 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                   Row(children: [
                     Expanded(
                         child: MetricTile(
-                            label: tr('Shipments'),
+                            label: tr('Orders'),
                             value: tr('{n}', {'n': flight.shipmentCount}))),
                     const SizedBox(width: 10),
                     Expanded(
@@ -404,8 +402,8 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                   if (flight.shipments.isEmpty)
                     EmptyNote(
                         icon: Icons.inventory_2_outlined,
-                        title: tr('No shipments on this flight'),
-                        body: tr('Shipments appear here once booked.'))
+                        title: tr('No orders on this flight'),
+                        body: tr('Orders appear here once booked.'))
                   else
                     SurfaceGroup(children: [
                       for (final row in flight.shipments)
@@ -415,7 +413,7 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                     const SizedBox(height: 14),
                     HintNote(
                         text: tr(
-                            'Once customs clears, open each shipment and tap "Receive at hub" — the weighing step starts next.')),
+                            'Once customs clears, open each order and tap "Receive at hub" — the weighing step starts next.')),
                   ],
                 ],
               ])),

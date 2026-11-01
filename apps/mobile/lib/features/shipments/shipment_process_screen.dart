@@ -389,7 +389,7 @@ class _Facts extends StatelessWidget {
 
 Map<HubChainStep, (String, String)> get _stepHints => {
       HubChainStep.weigh: (
-        tr('Weigh shipment'),
+        tr('Weigh order'),
         tr('Weigh on the scale and enter kg')
       ),
       HubChainStep.pack: (tr('Pack'), tr('Confirm when packing is done')),
@@ -562,7 +562,7 @@ class _Action extends StatelessWidget {
     if (chain.notAtHub) {
       return EmptyNote(
           title: tr('Not at the Dhaka hub yet'),
-          body: tr('This shipment has not entered the hub chain.'));
+          body: tr('This order has not entered the hub chain.'));
     }
     if (chain.needsReceive) {
       return AppButton(
@@ -575,7 +575,7 @@ class _Action extends StatelessWidget {
     if (chain.delivered) {
       return EmptyNote(
           title: tr('Handed over'),
-          body: tr('The hub chain for this shipment is complete.'));
+          body: tr('The hub chain for this order is complete.'));
     }
     final current = chain.current;
     if (current == null) return const SizedBox.shrink();
@@ -794,7 +794,7 @@ class _Photos extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(tr('Shipment photos'),
+          Text(tr('Order photos'),
               style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(tr('Add photos of the packages and goods.'),

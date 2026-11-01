@@ -166,7 +166,7 @@ void main() {
     await t.pumpAndSettle();
     for (final title in [
       'Payment reviews',
-      'Shipment steps',
+      'Order steps',
       'Your notes',
       'Completed'
     ]) {
@@ -303,7 +303,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text(formatBdt(0)), findsOneWidget);
     await t.scrollUntilVisible(
-        find.text(tr('This shipment is free of charge')), 200,
+        find.text(tr('This order is free of charge')), 200,
         scrollable: find.byType(Scrollable).first);
     await t.tap(find.text(tr('Issue {amount}', {'amount': '৳0'})));
     await t.pumpAndSettle();

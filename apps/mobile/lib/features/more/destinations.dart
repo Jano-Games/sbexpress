@@ -26,7 +26,7 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'media',
           title: tr('Photos / media'),
-          body: tr('View and add shipment photos'),
+          body: tr('View and add order photos'),
         ),
         _fingerprint(),
       ];
@@ -35,7 +35,7 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'customers',
           title: tr('Customers'),
-          body: tr('Dues and shipment accounts'),
+          body: tr('Dues and order accounts'),
         ),
         MoreDestination(
           id: 'flyers',
@@ -58,6 +58,11 @@ List<MoreDestination> moreDestinations(UserRole role) {
           body: tr('Shown on the customer link'),
         ),
         MoreDestination(
+          id: 'prices',
+          title: tr('Rates and prices'),
+          body: tr('New orders start with these'),
+        ),
+        MoreDestination(
           id: 'rate',
           title: tr('Exchange rate'),
           body: tr('New transactions use this rate.'),
@@ -65,7 +70,7 @@ List<MoreDestination> moreDestinations(UserRole role) {
         MoreDestination(
           id: 'invoice-share',
           title: tr('Bills and customer links'),
-          body: tr('Pick a shipment to see its bill and link'),
+          body: tr('Pick an order to see its bill and link'),
         ),
         MoreDestination(
           id: 'media',
@@ -109,15 +114,16 @@ List<MoreGroup> moreGroups(UserRole role) {
   switch (role) {
     case UserRole.hub:
       return [
-        MoreGroup(tr('Shipment tools'), const ['imei', 'media']),
+        MoreGroup(tr('Order tools'), const ['imei', 'media']),
         MoreGroup(tr('Security'), const ['fingerprint']),
       ];
     case UserRole.admin:
       return [
         MoreGroup(tr('People'), const ['customers', 'flyers', 'team']),
-        MoreGroup(tr('Money'), const ['review', 'pay-methods', 'rate']),
         MoreGroup(
-            tr('Shipment tools'), const ['invoice-share', 'media', 'weight']),
+            tr('Money'), const ['review', 'pay-methods', 'prices', 'rate']),
+        MoreGroup(
+            tr('Order tools'), const ['invoice-share', 'media', 'weight']),
         MoreGroup(tr('Work'), const ['tasks']),
         MoreGroup(tr('Security'), const ['fingerprint', 'system']),
       ];

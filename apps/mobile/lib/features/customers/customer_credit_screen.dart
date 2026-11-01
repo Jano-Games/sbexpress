@@ -152,7 +152,7 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
         amount <= 0 ||
         amount > widget.balance + 0.001) {
       setState(() => _error =
-          tr('Choose a shipment and enter an amount within the credit.'));
+          tr('Choose an order and enter an amount within the credit.'));
       return;
     }
     final shipmentCode = code;
@@ -201,11 +201,11 @@ class _ApplyCreditScreenState extends State<ApplyCreditScreen> {
                   'Balance {amount}. Applies only to issued invoices that are not under review.',
                   {'amount': formatBdt(widget.balance)})),
           const SizedBox(height: 20),
-          SectionTitle(title: tr('Shipment')),
+          SectionTitle(title: tr('Order')),
           if (widget.orders.isEmpty)
             EmptyNote(
                 icon: Icons.inventory_2_outlined,
-                title: tr('No shipments'),
+                title: tr('No orders'),
                 body:
                     tr('Credit can be applied here once an invoice is issued.'))
           else

@@ -419,7 +419,7 @@ void main() {
       final setup = _setup();
       await t.pumpWidget(_more(setup.session));
       await t.pumpAndSettle();
-      for (final group in ['People', 'Money', 'Shipment tools', 'Work']) {
+      for (final group in ['People', 'Money', 'Order tools', 'Work']) {
         expect(find.text(tr(group).toUpperCase()), findsOneWidget,
             reason: group);
       }
@@ -448,12 +448,12 @@ void main() {
       for (final gone in [
         'Flights',
         'Finance overview',
-        'Shipment intake',
+        'Order intake',
         'Settings',
         'Staff',
         'Add admin or hub manager',
         'Assign tasks',
-        'Usual shipment costs',
+        'Usual order costs',
       ]) {
         expect(find.text(tr(gone)), findsNothing, reason: gone);
       }
@@ -602,8 +602,8 @@ void main() {
               '{n} bills are overdue after delivery')),
           findsNothing);
       expect(
-          find.text(trn(2, '{n} shipment is missing costs',
-              '{n} shipments are missing costs')),
+          find.text(trn(
+              2, '{n} order is missing costs', '{n} orders are missing costs')),
           findsNothing);
 
       await t.tap(afterDelivery);
@@ -627,8 +627,8 @@ void main() {
       await pumpHome(t, overviewBody());
       expect(find.text(tr('Late')), findsNothing);
       expect(
-          find.text(trn(2, '{n} shipment is missing costs',
-              '{n} shipments are missing costs')),
+          find.text(trn(
+              2, '{n} order is missing costs', '{n} orders are missing costs')),
           findsNothing);
       expect(
           find.text(trn(1, '{n} bill is overdue after delivery',

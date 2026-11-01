@@ -227,7 +227,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
               key: const Key('ledger-search'),
               controller: _search,
               maxLength: 200,
-              hint: tr('Description, reference or shipment'),
+              hint: tr('Description, reference or order'),
               onChanged: _onSearch),
           const SizedBox(height: 10),
           SingleChildScrollView(

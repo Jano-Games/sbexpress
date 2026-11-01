@@ -248,7 +248,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 caption: tr('Billing and costs for the selected period'),
                 children: [
                   KvRow(
-                      label: tr('Shipments'),
+                      label: tr('Orders'),
                       value: '${data.results.shipmentCount}'),
                   KvRow(
                       label: tr('Billed'),

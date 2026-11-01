@@ -59,6 +59,7 @@ export function auditLabel(method: string, path: string) {
     password: 'Changed staff password',
     costs: 'Recorded flight cost',
     pay: 'Paid flight cost',
+    rates: 'Saved flight rates',
   }
   return {
     action:

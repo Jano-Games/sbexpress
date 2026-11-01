@@ -151,7 +151,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             icon: Icons.inventory_2_outlined,
             tone: ChipTone.neutral,
             value: '${data.activeShipmentCount}',
-            label: tr('Active shipments'),
+            label: tr('Active orders'),
             onTap: _openShipments),
       ]),
       const SizedBox(height: 16),
@@ -237,7 +237,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           tone: ChipTone.red,
           title: trn(collect.overdueCount, '{n} bill is overdue after delivery',
               '{n} bills are overdue after delivery'),
-          detail: tr('{amount} to collect from handed-over shipments',
+          detail: tr('{amount} to collect from handed-over orders',
               {'amount': wholeBdt(collect.afterDeliveryDue)}),
           badge: StatusPill(label: tr('Overdue'), tone: ChipTone.red),
           onTap: () => _push(const GetPaidScreen())));
@@ -744,7 +744,7 @@ class _StageCard extends StatelessWidget {
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(
-                child: Text(tr('Shipments by stage'),
+                child: Text(tr('Orders by stage'),
                     style: const TextStyle(
                         fontSize: 15,
                         height: 1.35,
@@ -859,7 +859,7 @@ class _NextFlight extends StatelessWidget {
               booked: flight.bookedKg,
               space: flight.spaceKg,
               extra:
-                  '· ${trn(flight.shipmentCount, '{n} shipment', '{n} shipments')}'),
+                  '· ${trn(flight.shipmentCount, '{n} order', '{n} orders')}'),
           if (revenue != null || profit != null) ...[
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -888,10 +888,10 @@ class _FlightRow extends StatelessWidget {
     final upcoming = flight.status == 'upcoming';
     final profit = flight.profit;
     final line = upcoming
-        ? '${flight.bookedKg.toStringAsFixed(1)} / ${plainKg(flight.spaceKg)} kg · ${trn(flight.shipmentCount, '{n} shipment', '{n} shipments')}'
+        ? '${flight.bookedKg.toStringAsFixed(1)} / ${plainKg(flight.spaceKg)} kg · ${trn(flight.shipmentCount, '{n} order', '{n} orders')}'
         : [
             flight.status == 'departed' ? tr('Departed') : tr('Landed'),
-            trn(flight.shipmentCount, '{n} shipment', '{n} shipments'),
+            trn(flight.shipmentCount, '{n} order', '{n} orders'),
             if (profit != null)
               tr('profit {amount}', {'amount': wholeBdt(profit)}),
           ].join(' · ');

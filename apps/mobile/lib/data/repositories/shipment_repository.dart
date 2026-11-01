@@ -38,6 +38,21 @@ class ShipmentRepository {
         asJsonMap(json['shipment'], 'shipment'));
   }
 
+  /// Changes the booked kg, rate per kg and, when given, the device pieces.
+  /// The server works out the new charge and updates the bill.
+  Future<void> updateCharge(String code,
+      {required double bookedKg,
+      required double chargeRate,
+      required String currency,
+      List<Map<String, Object?>>? pcsItems}) async {
+    await api.patchJson(_path(code), body: {
+      'bookedKg': bookedKg,
+      'chargeRate': chargeRate,
+      'chargeCurrency': currency,
+      if (pcsItems != null) 'pcsItems': pcsItems,
+    });
+  }
+
   /// Refused with a 400 once the shipment has an invoice, payments, costs,
   /// receipts or credit.
   Future<void> delete(String code) async {

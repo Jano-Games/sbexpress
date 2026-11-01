@@ -12,8 +12,8 @@ const bnFlights = <String, String>{
   'New flights will appear here.': 'নতুন ফ্লাইট যোগ করলে এখানে দেখা যাবে।',
   '{n} flights': '{n}টি ফ্লাইট',
   'No flyer assigned': 'ফ্লায়ার অ্যাসাইন করা হয়নি',
-  '{n} shipments · Mobiles {mobiles} · Laptops {laptops}':
-      '{n} শিপমেন্ট · মোবাইল {mobiles} · ল্যাপটপ {laptops}',
+  '{n} orders · Mobiles {mobiles} · Laptops {laptops}':
+      '{n} অর্ডার · মোবাইল {mobiles} · ল্যাপটপ {laptops}',
   'Date has passed · Confirm the status':
       'তারিখ পেরিয়েছে · স্ট্যাটাস নিশ্চিত করুন',
   // Flight detail.
@@ -30,7 +30,7 @@ const bnFlights = <String, String>{
   'Ticket paid': 'টিকিট পরিশোধ',
   'Ticket due': 'টিকিট বাকি',
   'Ticket refund': 'টিকিট রিফান্ড',
-  'Shipment charges': 'শিপমেন্ট বিল',
+  'Order charges': 'অর্ডার বিল',
   'Ticket and contributions': 'টিকিট ও কনট্রিবিউশন',
   'No flyers': 'ফ্লায়ার নেই',
   'Add one below.': 'নিচ থেকে একজন যোগ করুন।',
@@ -39,10 +39,10 @@ const bnFlights = <String, String>{
   'No active flyers left to add.': 'যোগ করার মতো সক্রিয় ফ্লায়ার নেই।',
   'Add flyer': 'ফ্লায়ার যোগ করুন',
   'Add to flight': 'ফ্লাইটে যোগ করুন',
-  '{n} shipments': '{n}টি শিপমেন্ট',
+  '{n} orders': '{n}টি অর্ডার',
   'No bookings': 'বুকিং নেই',
-  'Choose this flight from shipment intake.':
-      'শিপমেন্ট ইনটেক থেকে এই ফ্লাইট বেছে নিন।',
+  'Choose this flight from order intake.':
+      'অর্ডার ইনটেক থেকে এই ফ্লাইট বেছে নিন।',
   '{supplier} · {kg} · {due} due': '{supplier} · {kg} · বাকি {due}',
   // New flight form.
   'Enter the airline flight number.': 'এয়ারলাইন ফ্লাইট নম্বর দিন।',
@@ -236,8 +236,8 @@ const bnFlights = <String, String>{
   'Enter a name, email and a password of 8–128 characters.':
       'নাম, ইমেইল ও ৮–১২৮ অক্ষরের পাসওয়ার্ড দিন।',
   'Create staff': 'স্টাফ তৈরি',
-  'Hub managers handle shipments. Money is handled by admins.':
-      'হাব ম্যানেজার শিপমেন্ট হ্যান্ডেল করে। টাকার কাজ অ্যাডমিনের।',
+  'Hub managers handle orders. Money is handled by admins.':
+      'হাব ম্যানেজার অর্ডার হ্যান্ডেল করে। টাকার কাজ অ্যাডমিনের।',
   'Name': 'নাম',
   'Email': 'ইমেইল',
   'Password': 'পাসওয়ার্ড',

@@ -8,6 +8,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/workspace.dart';
+import '../../data/rates.dart';
 import '../../data/uploads/photo_upload.dart';
 import '../../data/uploads/quick_uploads.dart';
 import '../../data/uploads/upload_queue.dart';
@@ -16,6 +17,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart'
     show CategoryChip, LetterAvatar, heroSoft, shortDay;
 import '../../widgets/quick_parts.dart';
+import '../../widgets/rate_parts.dart' show rateText;
 import '../../widgets/team_parts.dart'
     show FooterActions, LabeledField, PairRow, fieldSign;
 import '../../widgets/ui.dart';
@@ -55,6 +57,9 @@ class _DeviceDraft {
   final List<_ModelRow> models;
   final photos = <PickedPhoto>[];
 
+  /// The price was typed here, so a flight change leaves it alone.
+  var touched = false;
+
   int get count => models.fold(0, (sum, row) => sum + row.count);
   double get rateValue => double.tryParse(rate.text.trim()) ?? 0;
 
@@ -87,7 +92,11 @@ class _IntakeScreenState extends State<IntakeScreen> {
   List<CustomerSummary> _customers = const [];
   List<FlightSummary> _flights = const [];
   List<String> _categories = const [];
-  Map<String, double> _pcsRates = const {};
+  SettingsSnapshot? _settings;
+
+  /// The rate per kg or its currency was set here, so a flight change
+  /// leaves them alone.
+  var _rateTouched = false;
   String? _error;
   String? _formError;
   var _loading = true;
@@ -156,10 +165,11 @@ class _IntakeScreenState extends State<IntakeScreen> {
             if (flight.status == 'upcoming') flight
         ];
         _categories = categories;
-        _pcsRates = settings.pcsRates;
+        _settings = settings;
         // A flight chosen before the booking opened brings its only flyer.
         final flyers = _selectedFlight?.flyers ?? const <String>[];
         if (_flyer == null && flyers.length == 1) _flyer = flyers.first;
+        _applyRates();
       });
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -170,6 +180,36 @@ class _IntakeScreenState extends State<IntakeScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// The flight's own rates, else the default; null until settings load.
+  OrderRates? get _rates {
+    final settings = _settings;
+    return settings == null ? null : orderRates(settings, _selectedFlight);
+  }
+
+  /// Fills the rate per kg and the piece prices from [_rates], except what
+  /// was typed here.
+  void _applyRates() {
+    final rates = _rates;
+    if (rates == null) return;
+    if (!_rateTouched) {
+      _rate.text = rateText(rates.kgRate);
+      _currency = rates.currency;
+    }
+    for (final MapEntry(key: name, value: device) in _devices.entries) {
+      if (!device.touched) device.rate.text = rateText(rates.piece(name));
+    }
+  }
+
+  /// Under the rate field: where the filled-in rate came from.
+  String? get _rateSource {
+    final rates = _rates;
+    if (_rateTouched || rates == null || rates.kgRate == null) return null;
+    final flight = rates.flight;
+    return flight == null
+        ? tr('Default rate')
+        : tr("{flight}'s rate", {'flight': flight});
   }
 
   FlightSummary? get _selectedFlight {
@@ -270,18 +310,12 @@ class _IntakeScreenState extends State<IntakeScreen> {
       _flightDecided = true;
       final flyers = _selectedFlight?.flyers ?? <String>[];
       _flyer = flyers.length == 1 ? flyers.first : null;
+      _applyRates();
     });
   }
 
-  /// The piece price for [name], whatever its case: the server may send
-  /// "mobile" while the rates say "Mobile".
-  double? _pieceRate(String name) {
-    final lower = name.trim().toLowerCase();
-    for (final entry in _pcsRates.entries) {
-      if (entry.key.trim().toLowerCase() == lower) return entry.value;
-    }
-    return null;
-  }
+  /// The piece price for [name] from the flight or the default.
+  double? _pieceRate(String name) => _rates?.piece(name);
 
   bool _isPiece(String name) =>
       _pieceRate(name) != null ||
@@ -442,7 +476,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
   Widget build(BuildContext context) {
     final done = _done.where((value) => value).length;
     return WorkspaceScaffold(
-        title: tr('New shipment'),
+        title: tr('New order'),
         subtitle: tr('One page · fill top to bottom'),
         actions: [
           Padding(
@@ -467,7 +501,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
                   const SizedBox(height: 8),
                   AppButton(
                       key: const Key('intake-create'),
-                      label: tr('Create shipment · {amount}',
+                      label: tr('Create order · {amount}',
                           {'amount': wholeMoney(_total, _currency)}),
                       icon: Icons.check_rounded,
                       kind: AppButtonKind.current,
@@ -800,7 +834,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
                     ],
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => setState(() => device.touched = true),
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
@@ -848,7 +882,10 @@ class _IntakeScreenState extends State<IntakeScreen> {
         trailing: PillToggle(
             options: const ['BDT', 'CNY'],
             selected: _currency,
-            onChanged: (value) => setState(() => _currency = value)),
+            onChanged: (value) => setState(() {
+                  _currency = value;
+                  _rateTouched = true;
+                })),
         children: [
           PairRow(
               first: LabeledField(
@@ -880,11 +917,13 @@ class _IntakeScreenState extends State<IntakeScreen> {
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
                       ],
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) => setState(() => _rateTouched = true),
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
                           hintText: '0',
+                          helperText: _rateSource,
+                          helperMaxLines: 2,
                           prefixIcon: fieldSign(_sign),
                           prefixIconConstraints: const BoxConstraints(
                               minWidth: 0, minHeight: 0))))),

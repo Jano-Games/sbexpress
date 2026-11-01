@@ -344,7 +344,7 @@ class CapacityText extends StatelessWidget {
       this.size = 13});
   final double booked, space;
 
-  /// Muted text after the booked figure, e.g. "· 4 shipments".
+  /// Muted text after the booked figure, e.g. "· 4 orders".
   final String? extra;
   final double size;
 

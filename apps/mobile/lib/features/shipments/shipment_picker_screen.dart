@@ -95,7 +95,7 @@ class _ShipmentPickerScreenState extends State<ShipmentPickerScreen> {
               child: Text(
                   _hub
                       ? tr('Open by customer code. Names are not shown here.')
-                      : tr('Choose the shipment to open.'),
+                      : tr('Choose the order to open.'),
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.muted, height: 1.5))),
           TextField(
@@ -108,8 +108,7 @@ class _ShipmentPickerScreenState extends State<ShipmentPickerScreen> {
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
           if (_error != null) ErrorNote(message: _error!, onRetry: _load),
           if (!_loading && visible.isEmpty)
-            EmptyNote(
-                title: tr('No shipments'), body: tr('The list is empty.')),
+            EmptyNote(title: tr('No orders'), body: tr('The list is empty.')),
           for (final row in visible) ...[
             DirectoryTile(
               title: row.code,

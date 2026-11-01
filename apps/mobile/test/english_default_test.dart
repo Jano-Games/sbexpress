@@ -117,7 +117,7 @@ void main() {
         SbExpressApp(session: session, api: api, language: language));
     await tester.pumpAndSettle();
 
-    for (final label in ['Home', 'Shipments', 'Flights', 'Tasks', 'More']) {
+    for (final label in ['Home', 'Orders', 'Flights', 'Tasks', 'More']) {
       expect(find.text(label), findsWidgets, reason: label);
     }
     await tester.tap(find.text('More'));

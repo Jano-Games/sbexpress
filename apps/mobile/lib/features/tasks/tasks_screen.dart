@@ -161,7 +161,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 ]),
           if (steps.isNotEmpty)
             _Section(
-                title: tr('Shipment steps'),
+                title: tr('Order steps'),
                 caption: tr('Close on their own'),
                 children: [
                   for (final item in steps)

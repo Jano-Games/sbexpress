@@ -108,7 +108,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
     final moving = _hub.where(_moving).length;
     return WorkspaceScaffold(
         root: true,
-        title: tr('Shipments'),
+        title: tr('Orders'),
         subtitle: _isHub
             ? tr('{atHub} at Dhaka hub · {moving} incoming',
                 {'atHub': atHub, 'moving': moving})
@@ -167,7 +167,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
           if (!_loading && _error == null && visible.isEmpty)
             EmptyNote(
                 icon: Icons.search_off_rounded,
-                title: tr('No shipments found'),
+                title: tr('No orders found'),
                 body: tr('Try another word or filter.')),
           if (visible.isNotEmpty)
             ...(_isHub ? _hubGroups(visible) : _adminList(visible)),
@@ -221,7 +221,7 @@ class _ShipmentsScreenState extends State<ShipmentsScreen> {
   }
 
   List<Widget> _adminList(List<OperationalShipment> visible) => [
-        _GroupHeader(title: tr('Shipments'), count: visible.length),
+        _GroupHeader(title: tr('Orders'), count: visible.length),
         SurfaceGroup(children: [
           for (final row in visible)
             _AdminRow(row: row, onOpen: () => _open(row)),

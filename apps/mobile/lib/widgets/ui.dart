@@ -486,7 +486,7 @@ class StepBars extends StatelessWidget {
   }
 }
 
-/// Small grey chip with an icon, e.g. "2 shipments".
+/// Small grey chip with an icon, e.g. "2 orders".
 class InfoChip extends StatelessWidget {
   const InfoChip(
       {super.key,
@@ -737,9 +737,9 @@ class AppBottomNav extends StatelessWidget {
 
   /// Hub tabs. Flights sit beside shipments so the hub sees what is landing.
   static List<String> get labels =>
-      [tr('Home'), tr('Shipments'), tr('Flights'), tr('Tasks'), tr('More')];
+      [tr('Home'), tr('Orders'), tr('Flights'), tr('Tasks'), tr('More')];
   static List<String> get adminLabels =>
-      [tr('Home'), tr('Shipments'), tr('Flights'), tr('Finance'), tr('More')];
+      [tr('Home'), tr('Orders'), tr('Flights'), tr('Finance'), tr('More')];
   @override
   Widget build(BuildContext context) {
     final names = admin ? adminLabels : labels;

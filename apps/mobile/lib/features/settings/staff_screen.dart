@@ -151,7 +151,7 @@ class _RoleCards extends StatelessWidget {
       const SizedBox(width: 10),
       Expanded(
           child: card(Icons.inventory_2_outlined, ChipTone.neutral, tr('Hub'),
-              tr('Handles shipments. No money or customer names'))),
+              tr('Handles orders. No money or customer names'))),
     ]);
   }
 }
@@ -222,7 +222,7 @@ List<SegmentOption<String>> _roleOptions() => [
     ];
 
 String _roleNote(String role) => role == 'hub'
-    ? tr('Handles shipments. No money or customer names')
+    ? tr('Handles orders. No money or customer names')
     : tr('Sees everything, including money');
 
 class StaffCreateScreen extends StatefulWidget {
@@ -328,7 +328,7 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
           const SizedBox(height: 14),
           TipNote(
               text: tr(
-                  'Hub managers handle shipments. Money is handled by admins.')),
+                  'Hub managers handle orders. Money is handled by admins.')),
         ]);
   }
 }
