@@ -18,6 +18,8 @@ import '../../widgets/team_parts.dart' show FooterActions;
 import '../../widgets/ui.dart';
 import '../admin/money_format.dart';
 import '../flyers/flyer_form_screen.dart';
+import 'flyer_picker.dart';
+import 'itinerary_parts.dart';
 
 class FlightFormScreen extends StatefulWidget {
   const FlightFormScreen({super.key});
@@ -27,7 +29,7 @@ class FlightFormScreen extends StatefulWidget {
 }
 
 class _FlightFormScreenState extends State<FlightFormScreen> {
-  final _code = TextEditingController();
+  final _itinerary = ItineraryController();
   final _cost = TextEditingController();
 
   /// Each picked flyer's part of the ticket when the flyers pay part.
@@ -45,7 +47,6 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
   var _spaceTouched = false;
   final _mobiles = TextEditingController(text: '2');
   final _laptops = TextEditingController(text: '1');
-  DateTime? _date;
   List<FlyerSummary> _flyers = const [];
   List<FinanceAccount> _accounts = const [];
   String? _account;
@@ -71,7 +72,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
 
   @override
   void dispose() {
-    _code.dispose();
+    _itinerary.dispose();
     _cost.dispose();
     for (final field in [..._parts.values, ..._paid.values]) {
       field.dispose();
@@ -93,7 +94,10 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       final space = (await defaults)?.defaultSpaceKg;
       if (!mounted) return;
       setState(() {
-        _flyers = flyers;
+        _flyers = [
+          for (final flyer in flyers)
+            if (!flyer.archived) flyer
+        ];
         _accounts = finance.accounts;
         if (space != null && !_spaceTouched) _space.text = '$space';
       });
@@ -109,6 +113,20 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
     _picked.add(name);
     _parts.putIfAbsent(name, TextEditingController.new);
     _paid.putIfAbsent(name, TextEditingController.new);
+  }
+
+  /// The flyer list sheet; its choice replaces the picked flyers.
+  Future<void> _chooseFlyers() async {
+    final choice =
+        await showFlyerPicker(context, flyers: _flyers, picked: {..._picked});
+    if (choice == null || !mounted) return;
+    setState(() {
+      _picked.removeWhere((name) => !choice.names.contains(name));
+      for (final name in choice.names) {
+        _pick(name);
+      }
+    });
+    if (choice.addNew) await _addFlyer();
   }
 
   /// Opens the new flyer form, then picks the flyer it made.
@@ -127,30 +145,15 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
 
   bool get _anyPaid => _picked.any((name) => _typedPaid(name) > 0);
 
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date ?? now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 2),
-    );
-    if (picked != null) setState(() => _date = picked);
-  }
-
   Future<void> _save() async {
     if (_savedCode != null) {
       Navigator.of(context).pop(true);
       return;
     }
-    final code = _code.text.trim().toUpperCase();
-    final date = _date;
-    if (code.length < 2) {
-      setState(() => _error = tr('Enter the airline flight number.'));
-      return;
-    }
-    if (date == null) {
-      setState(() => _error = tr('Choose a date.'));
+    _itinerary.showErrors = true;
+    final problem = _itinerary.problem();
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
     if (_picked.isEmpty) {
@@ -230,6 +233,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
               accountName: into.name, accountCurrency: into.currency));
       if (!ok || !mounted) return;
     }
+    _itinerary.pauseLookups = true;
     setState(() {
       _busy = true;
       _error = null;
@@ -237,8 +241,11 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
     try {
       final flights = AppScope.of(context).flights;
       final created = await flights.create(FlightDraft(
-        airlineCode: code,
-        date: _iso(date),
+        airlineCode: _itinerary.numbers.join('+'),
+        date: _itinerary.date!,
+        depTime: _itinerary.depTime.text.trim(),
+        arrTime: _itinerary.arrTime.text.trim(),
+        legs: _itinerary.legs(),
         flyerNames: names,
         spaceKg: int.tryParse(_space.text.trim()) ?? 44,
         mobiles: int.tryParse(_mobiles.text.trim()) ?? 2,
@@ -289,6 +296,7 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
       setState(() => _error = error.message);
     } finally {
       if (mounted) {
+        _itinerary.pauseLookups = false;
         setState(() {
           _busy = false;
           _recording = null;
@@ -299,7 +307,6 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = _date == null ? tr('Choose date') : _iso(_date!);
     return WorkspaceScaffold(
         title: tr('New flight'),
         root: false,
@@ -332,17 +339,8 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
           if (_loading)
             const LinearProgressIndicator(
                 color: AppColors.teal, backgroundColor: AppColors.tealSoft),
-          TextField(
-              controller: _code,
-              textCapitalization: TextCapitalization.characters,
-              decoration:
-                  InputDecoration(labelText: tr('Airline flight number'))),
-          const SizedBox(height: 12),
-          AppButton(
-              label: dateLabel,
-              kind: AppButtonKind.quiet,
-              onPressed: _pickDate),
-          const SizedBox(height: 16),
+          ItineraryFields(controller: _itinerary),
+          const SizedBox(height: 20),
           SectionTitle(
               title: tr('Flyers'),
               subtitle: tr('Who will fly on this ticket.'),
@@ -367,22 +365,12 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
                 onPressed: _busy ? null : _addFlyer),
             const SizedBox(height: 12),
           ],
-          for (final flyer in _flyers)
-            CheckboxListTile(
-              value: _picked.contains(flyer.name),
-              onChanged: (value) => setState(() {
-                if (value == true) {
-                  _pick(flyer.name);
-                } else {
-                  _picked.remove(flyer.name);
-                }
-              }),
-              contentPadding: EdgeInsets.zero,
-              title: Text(flyer.name),
-              subtitle: Text(flyer.bdPhone),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-          const SizedBox(height: 8),
+          if (_flyers.isNotEmpty)
+            FlyerPickerField(
+                picked: _picked.toList(),
+                onTap: _busy ? null : _chooseFlyers,
+                onRemove: (name) => setState(() => _picked.remove(name))),
+          const SizedBox(height: 16),
           TextField(
               controller: _space,
               onChanged: (_) => _spaceTouched = true,
@@ -497,10 +485,4 @@ class _FlightFormScreenState extends State<FlightFormScreen> {
           ],
         ]);
   }
-}
-
-String _iso(DateTime date) {
-  final month = date.month.toString().padLeft(2, '0');
-  final day = date.day.toString().padLeft(2, '0');
-  return '${date.year}-$month-$day';
 }

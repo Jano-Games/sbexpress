@@ -330,6 +330,7 @@ void main() {
     await _round7bShots(tester, scope);
     await _round7aShots(tester, scope);
     await _round8Shots(tester, scope);
+    await _round9Shots(tester, scope);
     await _scanShots(tester, scope);
     await _shot(
         tester,
@@ -439,6 +440,7 @@ void main() {
     await _round7bShots(tester, scope, compact: true);
     await _round7aShots(tester, scope, compact: true);
     await _round8Shots(tester, scope, compact: true);
+    await _round9Shots(tester, scope, compact: true);
     await _scanShots(tester, scope, compact: true);
     await _photoShots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
@@ -526,11 +528,15 @@ Future<void> _round5Shots(WidgetTester tester, AppScope scope,
   // A new flight whose two flyers pay part, one of them already.
   await _shot(tester, _scoped(_teamScope(scope), const FlightFormScreen()),
       '$prefix-a-flight-form-paid', find.byType(FlightFormScreen));
+  await _revealBy(tester, find.byKey(const Key('flight-flyers')), 150);
+  await tester.tap(find.byKey(const Key('flight-flyers')));
+  await tester.pumpAndSettle();
   for (final name in ['Arif Rahman', 'Rakib Hasan']) {
-    await _revealBy(tester, find.text(name), 150);
-    await tester.tap(find.text(name));
+    await tester.tap(find.byKey(ValueKey('flyer-pick-$name')));
     await tester.pumpAndSettle();
   }
+  await tester.tap(find.byKey(const Key('flyer-picker-done')));
+  await tester.pumpAndSettle();
   final cost = find.byWidgetPredicate((w) =>
       w is TextField &&
       w.decoration?.labelText == tr('Actual ticket cost (BDT)'));
@@ -880,6 +886,176 @@ Future<void> _round8Shots(WidgetTester tester, AppScope scope,
   await tester.pumpAndSettle();
   await _revealBy(tester, find.byKey(const Key('intake-rate')), 300);
   await _saveShot(tester, '$prefix-g-booking');
+}
+
+Map<String, Object?> _r9Flyer(String name, String phone) => {
+      'name': name,
+      'firstName': name.split(' ').first,
+      'lastName': name.split(' ').skip(1).join(' '),
+      'cnPhone': '',
+      'bdPhone': phone,
+      'university': '',
+      'batch': '',
+      'program': '',
+      'wechat': '',
+      'docStudentId': true,
+      'docVisa': true,
+      'docAdmission': true,
+      'documentCount': 0,
+      'verifiedDocumentCount': 0,
+      'archivedAt': null,
+    };
+
+String _r9NextDay(String iso) {
+  final day = DateTime.parse(iso).add(const Duration(days: 1));
+  return '${day.year}-${day.month.toString().padLeft(2, '0')}-'
+      '${day.day.toString().padLeft(2, '0')}';
+}
+
+Map<String, Object?> _r9Leg(String code, String? date, String from,
+        String fromCity, String to, String toCity, String dep, String arr,
+        {String source = 'schedule'}) =>
+    {
+      'source': source,
+      'code': code,
+      'date': date,
+      'fromIata': from,
+      'fromCity': fromCity,
+      'toIata': to,
+      'toCity': toCity,
+      'depTime': dep,
+      'arrTime': arr,
+    };
+
+/// Round 9: times on a new flight, a connection, the airline schedule, the
+/// flyer list and Edit flight. [compact] saves the 320 px versions.
+Future<void> _round9Shots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r9' : '96';
+  final base = round8FlightBody(round8NoOwnRates);
+  final flight = Map<String, Object?>.from(base['flight']! as Map);
+  final day = flight['date']! as String;
+  flight.addAll({
+    'code': 'MU5842+MU2035-${day.replaceAll('-', '')}-ef56gh',
+    'depTime': '09:40',
+    'arrTime': '11:25',
+    'via': 'Via PVG Shanghai',
+    'legs': [
+      _r9Leg(
+          'MU5842', day, 'PEK', 'Beijing', 'PVG', 'Shanghai', '09:40', '11:55'),
+      _r9Leg('MU2035', _r9NextDay(day), 'PVG', 'Shanghai', 'DAC', 'Dhaka',
+          '08:10', '11:25'),
+    ],
+  });
+  final r9 = _interceptScope(scope, (request) async {
+    if (request.method != 'GET') return null;
+    final query = request.url.queryParameters;
+    final Object? body = switch (request.url.path) {
+      '/api/settings' => {
+          'settings': {...round8Settings(), 'defaultSpaceKg': 52}
+        },
+      '/api/flyers' => {
+          'flyers': [
+            _r9Flyer('Arif Rahman', '01800000000'),
+            _r9Flyer('Rakib Hasan', '01811000000'),
+            _r9Flyer('Sumon Ahmed', '01722000000'),
+          ]
+        },
+      '/api/flights/lookup-route' when query['code']!.contains('+') => {
+          'configured': true,
+          'found': true,
+          'missing': <String>[],
+          'depTime': '09:40',
+          'arrTime': '11:25',
+          'via': 'Via PVG Shanghai',
+          'legs': [
+            for (final leg in [
+              _r9Leg('MU5842', query['date'], 'PEK', 'Beijing', 'PVG',
+                  'Shanghai', '09:40', '11:55'),
+              _r9Leg('MU2035', _r9NextDay(query['date']!), 'PVG', 'Shanghai',
+                  'DAC', 'Dhaka', '08:10', '11:25'),
+            ])
+              {...leg, 'found': true, 'airline': 'China Eastern'}
+          ],
+        },
+      '/api/flights/lookup-route' => {
+          'configured': false,
+          'found': false,
+          'legs': <Object>[],
+          'missing': <String>[],
+        },
+      '/api/flights/$flowFlightCode' => {...base, 'flight': flight},
+      _ => null,
+    };
+    return body == null
+        ? null
+        : http.Response.bytes(utf8.encode(jsonEncode(body)), 200,
+            headers: {'content-type': 'application/json; charset=utf-8'});
+  });
+
+  Future<void> tapKey(Key key) async {
+    await tester.ensureVisible(find.byKey(key));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(key));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> unfocus() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pickToday() async {
+    await tapKey(const Key('flight-date'));
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+  }
+
+  // A connection: the two flights, then the schedule's times.
+  await _shot(tester, _scoped(r9, const FlightFormScreen()),
+      '$prefix-a-new-flight', find.byType(FlightFormScreen));
+  await tester.enterText(
+      find.byKey(const Key('flight-number')), 'MU5842+MU2035');
+  await tester.pumpAndSettle();
+  await unfocus();
+  await _saveShot(tester, '$prefix-a-new-flight');
+  await pickToday();
+  await _revealBy(tester, find.byKey(const Key('schedule-card')), 200);
+  await _saveShot(tester, '$prefix-b-schedule-found');
+  await _revealBy(tester, find.byKey(const Key('flight-stop')), 200);
+  await _saveShot(tester, '$prefix-b-times-filled');
+
+  // The flyer list, then the chosen flyers in the field.
+  await _revealBy(tester, find.byKey(const Key('flight-flyers')), 200);
+  await tapKey(const Key('flight-flyers'));
+  await tester.tap(find.byKey(const ValueKey('flyer-pick-Arif Rahman')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-c-flyer-list');
+  await tapKey(const Key('flyer-picker-done'));
+  await _revealBy(tester, find.byKey(const Key('flight-flyers')), 200);
+  await _saveShot(tester, '$prefix-d-flyers-chosen');
+
+  // A direct flight without times, on a server with no flight data key.
+  await _shot(tester, _scoped(r9, const FlightFormScreen()),
+      '$prefix-e-times-required', find.byType(FlightFormScreen));
+  await tester.enterText(find.byKey(const Key('flight-number')), 'BG305');
+  await tester.pumpAndSettle();
+  await unfocus();
+  await pickToday();
+  await tapKey(const Key('flight-save'));
+  await _revealBy(tester, find.byKey(const Key('flight-dep')), 200);
+  await _saveShot(tester, '$prefix-e-times-required');
+
+  // The flight page's Edit, then Edit flight.
+  await _shot(
+      tester,
+      _scoped(r9, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-f-flight',
+      find.byType(FlightDetailScreen));
+  await tapKey(const Key('flight-edit'));
+  await _saveShot(tester, '$prefix-g-edit-flight');
+  await _revealBy(tester, find.byKey(const Key('flight-edit-space')), 200);
+  await _saveShot(tester, '$prefix-g-edit-flight-end');
 }
 
 /// Round 6: the quiet delete on flights, shipments, flyers and customers,

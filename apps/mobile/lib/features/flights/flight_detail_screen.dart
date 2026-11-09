@@ -24,8 +24,10 @@ import '../admin/money_format.dart';
 import '../intake/intake_screen.dart';
 import 'add_flight_cost_sheet.dart';
 import 'capacity_sheet.dart';
+import 'flight_edit_screen.dart';
 import 'flight_rates_sheet.dart';
 import 'hub_flights_screen.dart' show banglaPlace;
+import 'itinerary_parts.dart' show flightNumberOf;
 import 'ticket_flyers_screen.dart';
 
 /// One flight: its route and load, what it earns, its costs, the ticket and
@@ -40,6 +42,8 @@ class FlightDetailScreen extends StatefulWidget {
 }
 
 class _FlightDetailScreenState extends State<FlightDetailScreen> {
+  /// The flight's reference; it changes when its number or date is edited.
+  late var _code = widget.code;
   FlightDetail? _detail;
 
   /// The default rates, for the rates card; null when they did not load.
@@ -66,7 +70,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
       final defaults = scope.settings.current().then<SettingsSnapshot?>(
           (value) => value,
           onError: (Object _) => null);
-      final detail = await scope.flights.detail(widget.code);
+      final detail = await scope.flights.detail(_code);
       final settings = await defaults;
       if (!mounted) return;
       setState(() {
@@ -88,6 +92,16 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => screen));
     if (mounted) await _load();
+  }
+
+  Future<void> _editFlight(FlightSummary summary) async {
+    final code = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => FlightEditScreen(flight: summary)));
+    if (code == null || !mounted) return;
+    setState(() => _code = code);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr('Flight saved'))));
+    await _load();
   }
 
   Future<void> _editCapacity(FlightSummary summary) async {
@@ -112,7 +126,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
 
   Future<void> _addCost(FlightDetail detail) async {
     final saved = await showAddFlightCostSheet(context,
-        code: widget.code,
+        code: _code,
         flight: detail.summary.displayCode,
         costsSoFar: _costTotal(detail),
         profit: detail.profitBreakdown?.profit);
@@ -144,8 +158,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
             intoAccount: false));
     if (!ok || !mounted) return;
     try {
-      await scope.flights
-          .payCost(widget.code, cost.id, accountName: account.name);
+      await scope.flights.payCost(_code, cost.id, accountName: account.name);
       if (mounted) await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -169,7 +182,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
         action: tr('Remove'));
     if (!ok || !mounted) return;
     try {
-      await AppScope.of(context).flights.removeCost(widget.code, cost.id);
+      await AppScope.of(context).flights.removeCost(_code, cost.id);
       if (mounted) await _load();
     } on ApiException catch (error) {
       if (!mounted || error.status == 401) return;
@@ -191,7 +204,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
         question: tr('Delete flight {code}? This cannot be undone.',
             {'code': summary.displayCode}),
         refusedTitle: tr('This flight cannot be deleted'),
-        delete: () => flights.delete(widget.code),
+        delete: () => flights.delete(_code),
         onBusy: (busy) {
           if (mounted) setState(() => _deleting = busy);
         });
@@ -205,7 +218,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     final bookings = detail?.bookings ?? const <AdminShipment>[];
     return Scaffold(
       appBar: BackTitle(
-          title: summary?.displayCode ?? displayFlightCode(widget.code),
+          title: summary?.displayCode ?? displayFlightCode(_code),
           subtitle: day == null
               ? null
               : '${day.weekdayName} · ${day.day} ${day.month}',
@@ -233,6 +246,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
               _RouteCard(
                   summary: summary,
                   day: day,
+                  onEdit: () => _editFlight(summary),
                   onCapacity: () => _editCapacity(summary)),
               const SizedBox(height: 14),
               if (detail.profitBreakdown != null)
@@ -266,7 +280,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                         ? tr('No flyers yet')
                         : summary.flyers.join(', '),
                   ],
-                  onTap: () => _push(TicketFlyersScreen(code: widget.code))),
+                  onTap: () => _push(TicketFlyersScreen(code: _code))),
               const SizedBox(height: 20),
               _ShipmentsHeading(bookings: bookings),
               if (bookings.isEmpty)
@@ -302,7 +316,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                   icon: Icons.add_rounded,
                   kind: AppButtonKind.current,
                   onPressed: () =>
-                      _push(IntakeScreen(lockedFlightCode: widget.code)))),
+                      _push(IntakeScreen(lockedFlightCode: _code)))),
     );
   }
 }
@@ -416,9 +430,15 @@ double _costTotal(FlightDetail detail) =>
 
 class _RouteCard extends StatelessWidget {
   const _RouteCard(
-      {required this.summary, required this.day, required this.onCapacity});
+      {required this.summary,
+      required this.day,
+      required this.onEdit,
+      required this.onCapacity});
   final FlightSummary summary;
   final FlightDay? day;
+
+  /// Opens Edit flight.
+  final VoidCallback onEdit;
 
   /// Opens the capacity sheet.
   final VoidCallback onCapacity;
@@ -426,6 +446,7 @@ class _RouteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badge = adminFlightBadge(summary, day, detail: true);
+    final numbers = flightNumberOf(summary.code).split('+');
     final plain = summary.status == 'upcoming' &&
         !summary.scheduleNeedsConfirmation &&
         (day == null || day!.daysAway >= 0);
@@ -453,18 +474,48 @@ class _RouteCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (!plain) ...[
-            Align(
-                alignment: Alignment.centerLeft,
-                child: StatusPill(
-                    label: summary.scheduleNeedsConfirmation
-                        ? tr('Date has passed · Confirm the status')
-                        : badge.$1,
-                    tone: summary.scheduleNeedsConfirmation
-                        ? ChipTone.amber
-                        : badge.$2)),
-            const SizedBox(height: 10),
-          ],
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                  if (!plain)
+                    StatusPill(
+                        label: summary.scheduleNeedsConfirmation
+                            ? tr('Date has passed · Confirm the status')
+                            : badge.$1,
+                        tone: summary.scheduleNeedsConfirmation
+                            ? ChipTone.amber
+                            : badge.$2),
+                  if (numbers.length > 1)
+                    for (final (i, number) in numbers.indexed) ...[
+                      if (i > 0)
+                        const Icon(Icons.arrow_forward_rounded,
+                            size: 14, color: AppColors.faint),
+                      StatusPill(label: number, tone: ChipTone.neutral),
+                    ],
+                ])),
+            const SizedBox(width: 8),
+            TextButton.icon(
+                key: const Key('flight-edit'),
+                onPressed: onEdit,
+                style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    minimumSize: const Size(48, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    side: const BorderSide(color: AppColors.field),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(
+                        fontFamily: 'HindSiliguri',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: Text(tr('Edit'))),
+          ]),
+          const SizedBox(height: 10),
           Row(children: [
             Expanded(
                 flex: 3,

@@ -441,6 +441,8 @@ bool isClockTime(String value) =>
 /// such as "KMG Kunming" shows the city alone.
 String stopText(String? stop) {
   if (stop == null) return tr('Direct');
+  // A hand-entered connection that does not say where it changes planes.
+  if (stop == 'Connection') return tr('Connection');
   final cities = [
     for (final part in stop.split(','))
       if (part.trim().isNotEmpty)

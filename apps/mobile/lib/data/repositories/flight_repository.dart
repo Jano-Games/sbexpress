@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/api_exception.dart';
 import '../json_read.dart';
 import '../models/flight.dart';
+import '../models/flight_route.dart';
 import '../models/hub_flight.dart';
 import '../models/ticket_import.dart';
 import '../money_payload.dart';
@@ -59,6 +60,20 @@ class FlightRepository {
   Future<String> create(FlightDraft draft) async {
     final json = await api.postJson('/api/flights', body: draft.toJson());
     return requiredString(json, 'code');
+  }
+
+  /// Airline schedule times for "BG305" or a connection "MU5842+MU2035".
+  Future<RouteLookup> lookupRoute(String numbers, String date) async {
+    final json = await api.getJson('/api/flights/lookup-route'
+        '?code=${Uri.encodeQueryComponent(numbers)}&date=$date');
+    return RouteLookup.fromJson(json);
+  }
+
+  /// Saves a flight's number, date, times and space. Returns its reference,
+  /// which changes with the number or the date.
+  Future<String> updateDetails(String code, FlightEdit edit) async {
+    final json = await api.patchJson(_path(code), body: edit.toJson());
+    return optionalString(json, 'code') ?? code;
   }
 
   Future<void> assignFlyer(String code, String name) async {
