@@ -131,3 +131,108 @@ export async function lookupFlight(codeInput: string, date: string): Promise<Fli
   await cacheSetJson(cacheKey, result, CACHE_TTL_SECONDS)
   return result
 }
+
+/** "mu5842 + MU2035" or "MU5842, MU2035" → ["MU5842", "MU2035"]. */
+export const splitFlightNumbers = (input: string): string[] =>
+  input
+    .split(/[+,]/)
+    .map(normalizeFlightNumber)
+    .filter(Boolean)
+
+export interface RouteLeg {
+  code: string
+  /** The day the leg was found on; a connection may leave the next day. */
+  date: string
+  found: boolean
+  airline: string | null
+  fromIata: string
+  fromCity: string
+  toIata: string
+  toCity: string
+  depTime: string | null
+  arrTime: string | null
+  status: string | null
+}
+
+export interface RouteLookupResult {
+  /** False when the server has no flight data key: nothing is looked up. */
+  configured: boolean
+  /** Every leg was found on the schedule. */
+  found: boolean
+  legs: RouteLeg[]
+  /** Numbers not found on the schedule that day or the next. */
+  missing: string[]
+  depTime: string | null
+  arrTime: string | null
+  via: string | null
+}
+
+const MAX_ROUTE_LEGS = 4
+
+const nextDay = (date: string): string => {
+  const day = new Date(`${date}T00:00:00Z`)
+  day.setUTCDate(day.getUTCDate() + 1)
+  return day.toISOString().slice(0, 10)
+}
+
+const routeLeg = (code: string, date: string, result: FlightLookupResult): RouteLeg => {
+  const flight = result.found ? result.flight : undefined
+  return {
+    code,
+    date,
+    found: Boolean(flight),
+    airline: flight?.airline ?? null,
+    fromIata: flight?.from.iata ?? '',
+    fromCity: flight?.from.city ?? '',
+    toIata: flight?.to.iata ?? '',
+    toCity: flight?.to.city ?? '',
+    depTime: flight?.depTime ?? null,
+    arrTime: flight?.arrTime ?? null,
+    status: flight?.status ?? null,
+  }
+}
+
+/**
+ * Schedule times for a direct flight or a connection typed as
+ * "MU5842+MU2035". Each later leg is looked up on the day the previous leg
+ * was found, then the next day, since a connection often leaves overnight.
+ * Without a flight data key nothing is invented: `configured` is false.
+ */
+export async function lookupRoute(codeInput: string, date: string): Promise<RouteLookupResult> {
+  const codes = splitFlightNumbers(codeInput)
+  if (!codes.length) throw badRequest('Enter the airline flight number')
+  if (codes.length > MAX_ROUTE_LEGS) throw badRequest(`A connection can have at most ${MAX_ROUTE_LEGS} flights`)
+  const invalid = codes.find((code) => !FLIGHT_NUMBER.test(code))
+  if (invalid) throw badRequest(`"${invalid}" is not a valid flight number`)
+
+  if (!config.aerodataboxKey) {
+    return { configured: false, found: false, legs: [], missing: [], depTime: null, arrTime: null, via: null }
+  }
+
+  const legs: RouteLeg[] = []
+  let day = date
+  for (const [index, code] of codes.entries()) {
+    let leg = routeLeg(code, day, await lookupFlight(code, day))
+    if (!leg.found && index > 0) {
+      const later = nextDay(day)
+      const retry = routeLeg(code, later, await lookupFlight(code, later))
+      if (retry.found) leg = retry
+    }
+    if (leg.found) day = leg.date
+    legs.push(leg)
+  }
+
+  const stops = legs
+    .slice(0, -1)
+    .map((leg) => [leg.toIata, leg.toCity].filter(Boolean).join(' '))
+    .filter(Boolean)
+  return {
+    configured: true,
+    found: legs.every((leg) => leg.found),
+    legs,
+    missing: legs.filter((leg) => !leg.found).map((leg) => leg.code),
+    depTime: legs[0]!.depTime,
+    arrTime: legs[legs.length - 1]!.arrTime,
+    via: legs.length > 1 ? (stops.length ? `Via ${stops.join(', ')}` : null) : 'Direct',
+  }
+}

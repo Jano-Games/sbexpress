@@ -256,8 +256,15 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('OK'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Arif Rahman'));
-      await t.tap(find.text('Rakib Hasan'));
+      await _reveal(t, find.byKey(const Key('flight-dep')));
+      await t.enterText(find.byKey(const Key('flight-dep')), '0940');
+      await t.enterText(find.byKey(const Key('flight-arr')), '1725');
+      await _reveal(t, find.byKey(const Key('flight-flyers')));
+      await t.tap(find.byKey(const Key('flight-flyers')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('flyer-pick-Arif Rahman')));
+      await t.tap(find.byKey(const ValueKey('flyer-pick-Rakib Hasan')));
+      await t.tap(find.byKey(const Key('flyer-picker-done')));
       await t.pumpAndSettle();
       await _reveal(t, field(tr('Actual ticket cost (BDT)')));
       await t.enterText(field(tr('Actual ticket cost (BDT)')), '42000');
@@ -296,6 +303,8 @@ void main() {
         '/api/flights/$created/payments',
       ]);
       expect((bodies[0] as Map)['flyerNames'], ['Arif Rahman', 'Rakib Hasan']);
+      expect((bodies[0] as Map)['depTime'], '09:40');
+      expect((bodies[0] as Map)['arrTime'], '17:25');
       expect((bodies[0] as Map)['agencyShare'], 12000);
       expect(bodies[2], {
         'amount': 5000.0,
@@ -469,6 +478,7 @@ void main() {
         return _ok({'flyers': flyers});
       }));
       await _open(t);
+      await _reveal(t, find.text(tr('Create a flyer profile first.')));
       expect(find.text(tr('Create a flyer profile first.')), findsOneWidget);
       await _reveal(t, find.byKey(const Key('flight-add-flyer')));
       await t.tap(find.byKey(const Key('flight-add-flyer')));
@@ -484,12 +494,9 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byType(FlightFormScreen), findsOneWidget);
       expect(find.text(tr('Create a flyer profile first.')), findsNothing);
-      expect(
-          t
-              .widget<CheckboxListTile>(
-                  find.widgetWithText(CheckboxListTile, 'Sumi Akter'))
-              .value,
-          isTrue);
+      await _reveal(t, find.byKey(const ValueKey('flight-flyer-Sumi Akter')));
+      expect(find.byKey(const ValueKey('flight-flyer-Sumi Akter')),
+          findsOneWidget);
       expect(t.takeException(), isNull);
     });
   });

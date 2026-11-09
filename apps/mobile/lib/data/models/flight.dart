@@ -8,6 +8,79 @@ String displayFlightCode(String code) {
       .replaceAll('+', '-');
 }
 
+/// One flight of an itinerary as the server keeps it. A direct flight has
+/// one leg; "MU5842+MU2035" has two.
+class FlightLeg {
+  const FlightLeg({
+    required this.code,
+    this.source = 'manual',
+    this.date,
+    this.fromIata = '',
+    this.fromCity = '',
+    this.toIata = '',
+    this.toCity = '',
+    this.depTime = '—',
+    this.arrTime = '—',
+  });
+
+  /// `manual`, `schedule`, `ticket` or `legacy`.
+  final String source;
+  final String code;
+  final String? date;
+  final String fromIata;
+  final String fromCity;
+  final String toIata;
+  final String toCity;
+  final String depTime;
+  final String arrTime;
+
+  factory FlightLeg.fromJson(Map<String, Object?> json) => FlightLeg(
+        source: optionalString(json, 'source') ?? 'legacy',
+        code: optionalString(json, 'code') ?? '',
+        date: optionalString(json, 'date'),
+        fromIata: optionalString(json, 'fromIata') ?? '',
+        fromCity: optionalString(json, 'fromCity') ?? '',
+        toIata: optionalString(json, 'toIata') ?? '',
+        toCity: optionalString(json, 'toCity') ?? '',
+        depTime: optionalString(json, 'depTime') ?? '—',
+        arrTime: optionalString(json, 'arrTime') ?? '—',
+      );
+
+  FlightLeg copyWith({
+    String? source,
+    String? date,
+    String? fromIata,
+    String? fromCity,
+    String? toIata,
+    String? toCity,
+    String? depTime,
+    String? arrTime,
+  }) =>
+      FlightLeg(
+        code: code,
+        source: source ?? this.source,
+        date: date ?? this.date,
+        fromIata: fromIata ?? this.fromIata,
+        fromCity: fromCity ?? this.fromCity,
+        toIata: toIata ?? this.toIata,
+        toCity: toCity ?? this.toCity,
+        depTime: depTime ?? this.depTime,
+        arrTime: arrTime ?? this.arrTime,
+      );
+
+  Map<String, Object?> toJson() => {
+        'source': source,
+        'code': code,
+        if (date != null) 'date': date,
+        'fromIata': fromIata,
+        'fromCity': fromCity,
+        'toIata': toIata,
+        'toCity': toCity,
+        'depTime': depTime,
+        'arrTime': arrTime,
+      };
+}
+
 class FlightSettlement {
   const FlightSettlement(
       {required this.name,
@@ -89,6 +162,7 @@ class FlightSummary {
     this.fromTicket = false,
     this.ownRates,
     this.ratesKnown = false,
+    this.legs = const [],
   });
 
   final String code;
@@ -136,6 +210,9 @@ class FlightSummary {
   /// The server sends flight rates; older servers do not.
   final bool ratesKnown;
 
+  /// The itinerary, first flight first.
+  final List<FlightLeg> legs;
+
   /// The flyers' part of the ticket: what we do not pay.
   double get flyersShare => actualCost - agencyShare;
 
@@ -164,6 +241,7 @@ class FlightSummary {
       from: legs.isEmpty ? null : _legPlace(legs.first, 'fromCity', 'fromIata'),
       to: legs.isEmpty ? null : _legPlace(legs.last, 'toCity', 'toIata'),
       fromTicket: legs.any((leg) => leg['source'] == 'ticket'),
+      legs: [for (final leg in legs) FlightLeg.fromJson(leg)],
       ownRates: FlightRates.fromSummaryJson(json),
       ratesKnown: json.containsKey('ownRates'),
       totalShipmentCosts: optionalDouble(json, 'totalShipmentCosts'),
@@ -372,6 +450,9 @@ class FlightDraft {
     required this.actualCost,
     required this.agencyShare,
     this.accountName,
+    this.depTime,
+    this.arrTime,
+    this.legs = const [],
   });
 
   final String airlineCode;
@@ -386,9 +467,19 @@ class FlightDraft {
   /// When set, ticket cash leaves this ledger account. Omitted means no cash movement.
   final String? accountName;
 
+  /// First departure and last landing, HH:mm local time.
+  final String? depTime;
+  final String? arrTime;
+
+  /// The itinerary; the server takes the number, times and stops from it.
+  final List<FlightLeg> legs;
+
   Map<String, Object?> toJson() => {
         'code': airlineCode,
         'date': date,
+        if (depTime != null) 'depTime': depTime,
+        if (arrTime != null) 'arrTime': arrTime,
+        if (legs.isNotEmpty) 'legs': [for (final leg in legs) leg.toJson()],
         'flyerNames': flyerNames,
         'spaceKg': spaceKg,
         'mobiles': mobiles,

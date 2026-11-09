@@ -12,7 +12,7 @@ import { FLIGHT_LABEL } from '../shared/status'
 import { effectiveBill, num, isoDate, shipmentRow, shipmentOperatingCosts } from '../shared/serialize'
 import { getSettings } from '../shared/settings'
 import { creditPayment, debitCash } from '../shared/ledger'
-import { lookupFlight } from '../shared/flightLookup'
+import { lookupFlight, lookupRoute } from '../shared/flightLookup'
 import { HUB_FLIGHT_DETAIL_INCLUDE, HUB_FLIGHT_INCLUDE, hubFlightDetail, hubFlightRow } from '../shared/hubFlights'
 import { matchFlyers, parseTicketText, ticketText } from '../shared/ticketImport'
 import { FLIGHT_COST_CATEGORIES, FLIGHT_COST_LABEL, flightCostRow, flightCostRows, flightCostTotal } from '../shared/flightCosts'
@@ -87,13 +87,22 @@ function deriveFromLegs(legs: LegInput[]) {
   const codes = legs
     .map((l) => l.code.toUpperCase())
     .filter((code, i, all) => i === 0 || code !== all[i - 1])
-  const stops = legs.slice(0, -1).map((l) => [l.toIata, l.toCity].filter(Boolean).join(' '))
+  const stops = legs
+    .slice(0, -1)
+    .map((l) => [l.toIata, l.toCity].filter(Boolean).join(' '))
+    .filter(Boolean)
   return {
     code: codes.join('+'),
     depTime: legs[0]!.depTime,
     arrTime: legs[legs.length - 1]!.arrTime,
-    via: stops.length ? `Via ${stops.join(', ')}` : 'Direct',
+    // A hand-entered connection may not name where it changes planes.
+    via: stops.length ? `Via ${stops.join(', ')}` : legs.length > 1 ? 'Connection' : 'Direct',
   }
+}
+
+/** "BG305" from "BG305-20261024-ab12cd"; an older code stays as it is. */
+export function flightNumberOf(code: string): string {
+  return code.replace(/-\d{8}-[0-9a-z]+$/i, '')
 }
 
 function summary(f: FlightSummarySource) {
@@ -211,6 +220,17 @@ export const flightRoutes = new Hono<AppEnv>()
       })
       .parse({ code: c.req.query('code'), date: c.req.query('date') })
     return c.json(await lookupFlight(code, date))
+  })
+
+  // Schedule times for a whole itinerary ("MU5842+MU2035") in one call.
+  .get('/lookup-route', requireRole('admin'), async (c) => {
+    const { code, date } = z
+      .object({
+        code: z.string().min(2, 'Flight no required'),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date required'),
+      })
+      .parse({ code: c.req.query('code'), date: c.req.query('date') })
+    return c.json(await lookupRoute(code, date))
   })
 
   // Reads an e-ticket PDF into reviewable flight drafts. Nothing is stored:
@@ -460,16 +480,26 @@ export const flightRoutes = new Hono<AppEnv>()
 
     if (body.spaceKg !== undefined && body.spaceKg !== flight.spaceKg) await assertFlightCapacity(flight.id, 0, undefined, body.spaceKg)
     const derived = body.legs?.length ? deriveFromLegs(body.legs) : null
-    // Keep the booking reference stable when itinerary details change.
-    const newCode = flight.code
-    if (newCode && newCode !== flight.code) {
+    const members=await prisma.flightFlyer.findMany({where:{flightId:flight.id}})
+    // The reference follows the flight number and date: "BG305-20261024-ab12cd".
+    // Its random end stays, so the same ticket keeps the same tail. A full
+    // reference sent back as the number (the web form does) reads as the number.
+    const numberNow = flightNumberOf(flight.code)
+    const typedNumber = body.code ? flightNumberOf(body.code.trim()).toUpperCase().replace(/\s+/g, '') : undefined
+    const nextNumber = derived?.code ?? typedNumber ?? numberNow
+    const nextDate = body.date ?? isoDate(flight.date)
+    let newCode = flight.code
+    if (nextNumber !== numberNow || nextDate !== isoDate(flight.date)) {
+      const prefix = `${nextNumber}-${nextDate.replaceAll('-', '')}-`
+      await refuseSameFlightFlyers(prefix, members.map((m) => m.flyerId), flight.id)
+      const tail = /-\d{8}-([0-9a-z]+)$/i.exec(flight.code)?.[1]
+      newCode = `${prefix}${tail ?? randomBytes(3).toString('hex')}`
       const clash = await prisma.flight.findUnique({ where: { code: newCode } })
-      if (clash) throw badRequest(`Flight ${newCode} already exists`)
+      if (clash && clash.id !== flight.id) newCode = `${prefix}${randomBytes(3).toString('hex')}`
     }
     const actualCost = body.actualCost ?? num(flight.actualCost)
     const agencyShare = body.agencyShare ?? num(flight.agencyShare)
     if (agencyShare > actualCost || actualCost - agencyShare < num(flight.flyerPaidAmount)) throw badRequest('Ticket split cannot be less than flyer payments already received')
-    const members=await prisma.flightFlyer.findMany({where:{flightId:flight.id}})
     if(members.length>1 && (actualCost!==num(flight.actualCost)||agencyShare!==num(flight.agencyShare)))for(const m of members)await prisma.flightFlyer.update({where:{flightId_flyerId:{flightId:flight.id,flyerId:m.flyerId}},data:{contribution:m.paidAmount}})
     if(members.length===1)await prisma.flightFlyer.update({where:{flightId_flyerId:{flightId:flight.id,flyerId:members[0]!.flyerId}},data:{contribution:actualCost-agencyShare}})
     const updated = await prisma.flight.update({
