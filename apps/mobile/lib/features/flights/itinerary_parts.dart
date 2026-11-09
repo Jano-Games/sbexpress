@@ -224,9 +224,13 @@ class ItineraryController extends ChangeNotifier {
       if (found.configured) _fill(found, force: false);
     } on ApiException catch (error) {
       state = LookupState.failed;
-      lookupError = error.status == 404
-          ? tr('The server needs an update to look up flight times.')
-          : error.message;
+      lookupError = switch (error.status) {
+        404 => tr('The server needs an update to look up flight times.'),
+        // The flight data plan allows about one call a second.
+        429 || 503 => tr(
+            'The flight schedule is busy. Wait a few seconds, then tap Look again.'),
+        _ => error.message,
+      };
     } on FormatException {
       // A server that does not know this lookup answers with something else.
       state = LookupState.failed;
