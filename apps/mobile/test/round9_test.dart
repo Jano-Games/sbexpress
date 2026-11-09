@@ -373,6 +373,47 @@ void main() {
       expect(t.takeException(), isNull);
     });
 
+    testWidgets('a busy schedule says so, and Look again finds the times',
+        (t) async {
+      phone(t);
+      var lookups = 0;
+      await t.pumpWidget(
+          app(const _Host(FlightFormScreen()), intercept: (r) async {
+        final path = r.url.path;
+        if (path == '/api/flyers') return _ok({'flyers': _flyers});
+        if (path == '/api/flights/lookup-route') {
+          return ++lookups == 1
+              ? _ok({
+                  'error': 'The flight schedule service is busy. '
+                      'Try again in a few seconds.'
+                }, 503)
+              : _ok(_found(r.url.queryParameters['date']!));
+        }
+        return null;
+      }));
+      await t.tap(find.text('open'));
+      await t.pumpAndSettle();
+      await t.enterText(
+          find.byKey(const Key('flight-number')), 'MU5842+MU2035');
+      await _pickToday(t);
+
+      expect(find.text(tr('Could not look up the times')), findsOneWidget);
+      expect(
+          find.text(tr('The flight schedule is busy. '
+              'Wait a few seconds, then tap Look again.')),
+          findsOneWidget);
+      await _tap(t, find.byKey(const Key('schedule-find')));
+      expect(lookups, 2);
+      expect(find.text(tr('Found on the airline schedule')), findsOneWidget);
+      expect(
+          t
+              .widget<TextField>(find.byKey(const Key('flight-dep')))
+              .controller!
+              .text,
+          '09:40');
+      expect(t.takeException(), isNull);
+    });
+
     testWidgets('flyers are chosen from a list with search', (t) async {
       phone(t);
       await t.pumpWidget(app(const FlightFormScreen(), intercept: (r) async {

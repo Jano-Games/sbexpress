@@ -20,6 +20,8 @@ vi.mock('@node-rs/argon2', () => ({ verify: vi.fn(), hash: vi.fn() }))
 const { flightRoutes, flightNumberOf } = await import('../src/modules/flights')
 const { handleError } = await import('../src/core/errors')
 const { config } = await import('../src/core/config')
+const { providerPacing } = await import('../src/shared/flightLookup')
+const realPacing = { ...providerPacing }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any
@@ -69,9 +71,13 @@ const mu2035 = {
 }
 
 describe('Looking up a whole itinerary', () => {
+  beforeEach(() => {
+    Object.assign(providerPacing, { gapMs: 0, retryMs: 0 })
+  })
   afterEach(() => {
     vi.unstubAllGlobals()
     ;(config as Any).aerodataboxKey = ''
+    Object.assign(providerPacing, realPacing)
   })
 
   it('looks nothing up without a flight data key', async () => {
@@ -110,6 +116,55 @@ describe('Looking up a whole itinerary', () => {
     expect(res.status).toBe(400)
     expect(((await res.json()) as Any).error ?? '').toContain('"12" is not a valid flight number')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('Staying inside the flight data plan', () => {
+  const refused = () => new Response('Too many requests', { status: 429 })
+
+  beforeEach(() => {
+    ;(config as Any).aerodataboxKey = 'unit-key'
+    Object.assign(providerPacing, { gapMs: 0, retryMs: 0 })
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    ;(config as Any).aerodataboxKey = ''
+    Object.assign(providerPacing, realPacing)
+  })
+
+  it('spaces the calls for a connection apart', async () => {
+    providerPacing.gapMs = 60
+    const calledAt: number[] = []
+    const fetchMock = schedule({ 'MU5842/2026-11-20': mu5842, 'MU2035/2026-11-21': mu2035 })
+    const answer = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string) => {
+      calledAt.push(Date.now())
+      return answer(url)
+    })
+    const res = await flights().request('/flights/lookup-route?code=MU5842%2BMU2035&date=2026-11-20')
+    expect(((await res.json()) as Any).found).toBe(true)
+    // MU5842, MU2035 on the same day (a miss), then MU2035 the next day.
+    expect(calledAt).toHaveLength(3)
+    for (let i = 1; i < calledAt.length; i++) expect(calledAt[i]! - calledAt[i - 1]!).toBeGreaterThanOrEqual(50)
+  })
+
+  it('waits and tries again when the provider refuses a call', async () => {
+    const fetchMock = schedule({ 'MU5842/2026-11-20': mu5842 })
+    const answer = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementationOnce(async () => refused()).mockImplementation(answer)
+    const res = await flights().request('/flights/lookup-route?code=MU5842&date=2026-11-20')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ found: true, depTime: '09:40', arrTime: '11:55' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('says the service is busy when it keeps refusing', async () => {
+    const fetchMock = vi.fn(async () => refused())
+    vi.stubGlobal('fetch', fetchMock)
+    const res = await flights().request('/flights/lookup-route?code=MU5842&date=2026-11-20')
+    expect(res.status).toBe(503)
+    expect(((await res.json()) as Any).error).toBe('The flight schedule service is busy. Try again in a few seconds.')
+    expect(fetchMock).toHaveBeenCalledTimes(providerPacing.retries + 1)
   })
 })
 

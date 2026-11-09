@@ -46,6 +46,8 @@ const bnRound9 = <String, String>{
   'Could not look up the times': 'সময় খোঁজা যায়নি',
   'The server needs an update to look up flight times.':
       'ফ্লাইটের সময় খুঁজতে সার্ভার আপডেট করা লাগবে।',
+  'The flight schedule is busy. Wait a few seconds, then tap Look again.':
+      'ফ্লাইটের সময়সূচি এখন ব্যস্ত। কয়েক সেকেন্ড পর "আবার খুঁজুন" চাপুন।',
   'Find times': 'সময় খুঁজুন',
   'Use these times': 'এই সময় নিন',
   'Look again': 'আবার খুঁজুন',
@@ -61,7 +63,8 @@ const bnRound9 = <String, String>{
   // Edit flight.
   'Edit flight': 'ফ্লাইট এডিট',
   '{flight} · {n} orders': '{flight} · {n}টি অর্ডার',
-  'Enter 0 or more mobiles and laptops.': 'মোবাইল আর ল্যাপটপ ০ বা তার বেশি দিন।',
+  'Enter 0 or more mobiles and laptops.':
+      'মোবাইল আর ল্যাপটপ ০ বা তার বেশি দিন।',
   '{kg} kg is booked, so the capacity cannot go below that.':
       '{kg} kg বুক হয়ে আছে, তাই ক্যাপাসিটি এর কম হবে না।',
   'The orders stay on this flight': 'অর্ডারগুলো এই ফ্লাইটেই থাকবে',

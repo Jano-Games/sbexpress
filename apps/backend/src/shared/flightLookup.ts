@@ -1,8 +1,8 @@
 /**
  * Flight-schedule lookup for the Add flight form, backed by AeroDataBox
- * (RapidAPI). The free tier is ~800 requests/month, so answers are cached in
- * Redis; without a key the lookup serves deterministic, clearly-labeled
- * sample data so the flow stays testable without spending quota.
+ * (RapidAPI). The free plan has a small monthly allowance (600 units), so
+ * answers are cached in Redis; without a key the lookup serves deterministic,
+ * clearly-labeled sample data so the flow stays testable without spending it.
  */
 
 import { config } from '../core/config'
@@ -11,6 +11,50 @@ import { cacheGetJson, cacheSetJson } from '../core/redis'
 
 const BASE_URL = 'https://aerodatabox.p.rapidapi.com'
 const CACHE_TTL_SECONDS = 15 * 60
+
+/**
+ * The free plan refuses a second call within about a second (429), and a
+ * connection looks its legs up one after another. Calls are spaced out, and a
+ * refused call waits and tries again before the lookup gives up. Tests lower
+ * these numbers.
+ */
+export const providerPacing = { gapMs: 1100, retryMs: 1200, retries: 2, maxWaitMs: 8000 }
+let nextCallAt = 0
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+const providerBusy = () => new HttpError(503, 'The flight schedule service is busy. Try again in a few seconds.')
+
+/** Takes this server's next free turn with the provider, waiting for it. */
+async function waitForTurn(): Promise<void> {
+  const now = Date.now()
+  const at = Math.max(now, nextCallAt)
+  if (at - now > providerPacing.maxWaitMs) throw providerBusy()
+  nextCallAt = at + providerPacing.gapMs
+  if (at > now) await sleep(at - now)
+}
+
+/** The pause a refused call asks for, kept within a few seconds. */
+function retryPause(response: Response): number {
+  const seconds = Number(response.headers.get('retry-after'))
+  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds * 1000, 5000) : providerPacing.retryMs
+}
+
+/** One AeroDataBox call, spaced from the others and retried when refused. */
+async function providerFetch(path: string, key: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    await waitForTurn()
+    const response = await fetch(`${BASE_URL}${path}`, {
+      headers: { 'X-RapidAPI-Key': key, 'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com' },
+      // A hanging provider must not hold the form open indefinitely.
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (response.status !== 429) return response
+    await response.body?.cancel().catch(() => undefined)
+    if (attempt >= providerPacing.retries) throw providerBusy()
+    nextCallAt = Math.max(nextCallAt, Date.now() + retryPause(response))
+  }
+}
 
 export const normalizeFlightNumber = (input: string): string => input.toUpperCase().replace(/\s+/g, '')
 
@@ -85,14 +129,7 @@ export async function lookupFlight(codeInput: string, date: string): Promise<Fli
   const cached = await cacheGetJson<FlightLookupResult>(cacheKey)
   if (cached) return cached
 
-  const response = await fetch(`${BASE_URL}/flights/number/${code}/${date}?dateLocalRole=Both`, {
-    headers: {
-      'X-RapidAPI-Key': config.aerodataboxKey,
-      'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com',
-    },
-    // A hanging provider must not hold the form open indefinitely.
-    signal: AbortSignal.timeout(10_000),
-  })
+  const response = await providerFetch(`/flights/number/${code}/${date}?dateLocalRole=Both`, config.aerodataboxKey)
 
   // 404 means "no such flight that day" — a real answer, not a failure.
   if (response.status === 404) {
