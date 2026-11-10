@@ -5,6 +5,7 @@ import { badRequest, notFound } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { FLIGHT_LABEL } from '../shared/status'
 import { num, isoDate } from '../shared/serialize'
+import { photoRefs } from '../shared/personPhotos'
 
 /** Display convention across the app: plain "First Last". */
 const composeName = (firstName: string, lastName: string): string =>
@@ -13,6 +14,7 @@ const composeName = (firstName: string, lastName: string): string =>
 const documentSummary = { where: { status: 'ready' }, select: { kind: true, verifiedAt: true } } as const
 
 function flyerDto(f: {
+  id: string
   documents: {kind: string; verifiedAt: Date|null}[]
   archivedAt: Date|null
   name: string
@@ -32,7 +34,7 @@ function flyerDto(f: {
   docStudentId: boolean
   docVisa: boolean
   docAdmission: boolean
-}) {
+}, photos: Map<string, string> = new Map()) {
   return {
     archivedAt:f.archivedAt?.toISOString()??null,
     name: f.name,
@@ -54,6 +56,8 @@ function flyerDto(f: {
     docAdmission: f.documents.some(d => d.kind === 'admission' && d.verifiedAt !== null),
     documentCount: f.documents.length,
     verifiedDocumentCount: f.documents.filter(d => d.verifiedAt !== null).length,
+    /** The flyer's face photo, so the hub knows who is arriving. */
+    photoRef: photos.get(f.id) ?? null,
   }
 }
 
@@ -79,7 +83,8 @@ const normalizeBatch = (batch: string): string =>
 export const flyerRoutes = new Hono<AppEnv>()
   .get('/', requireRole('admin'), async (c) => {
     const flyers = await prisma.flyer.findMany({ where:c.req.query('includeArchived')==='1'?{}:{archivedAt:null}, orderBy: { createdAt: 'asc' }, include: { documents: documentSummary } })
-    return c.json({ flyers: flyers.map(flyerDto) })
+    const photos = await photoRefs('flyer', flyers.map((f) => f.id))
+    return c.json({ flyers: flyers.map((f) => flyerDto(f, photos)) })
   })
 
   .post('/', requireRole('admin'), async (c) => {
@@ -198,7 +203,7 @@ export const flyerRoutes = new Hono<AppEnv>()
 
     return c.json({
       flyer: {
-        ...flyerDto(flyer),
+        ...flyerDto(flyer, await photoRefs('flyer', [flyer.id])),
         flights,
         totalKg: Math.round(flights.reduce((a, f) => a + f.bookedKg, 0) * 10) / 10,
         nextFlight: upcoming[0] ?? null,

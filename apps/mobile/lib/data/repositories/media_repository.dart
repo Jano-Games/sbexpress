@@ -77,13 +77,15 @@ class MediaRepository {
         body: {'shared': shared});
   }
 
-  /// Private IMEI photo. It is never marked shared with the customer.
+  /// A private photo of one device piece: its IMEI or serial label, or
+  /// with [piece] the piece itself. It is never shared with the customer.
   Future<String> uploadDevicePhoto({
     required String code,
     required int itemIndex,
     required int unitIndex,
     required PreparedImage image,
     required void Function(double progress) onProgress,
+    bool piece = false,
   }) {
     return transferPreparedUpload(
       file: image,
@@ -92,6 +94,7 @@ class MediaRepository {
         final json = await api.postJson('${_path(code)}/device-photo', body: {
           'itemIndex': itemIndex,
           'unitIndex': unitIndex,
+          if (piece) 'kind': 'device',
           'name': file.filename,
           'contentType': file.contentType,
           'size': file.size,

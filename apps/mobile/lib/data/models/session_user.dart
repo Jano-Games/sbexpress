@@ -20,6 +20,7 @@ class SessionUser {
     required this.email,
     required this.role,
     required this.roleLabel,
+    this.photoRef,
   });
 
   final String id;
@@ -27,6 +28,9 @@ class SessionUser {
   final String email;
   final UserRole role;
   final String roleLabel;
+
+  /// The person's face photo, shown on the orders they receive.
+  final String? photoRef;
 
   bool get isHub => role == UserRole.hub;
   bool get isAdmin => role == UserRole.admin;
@@ -39,6 +43,7 @@ class SessionUser {
       email: requiredString(json, 'email'),
       role: role,
       roleLabel: requiredString(json, 'roleLabel'),
+      photoRef: json['photoRef'] is String ? json['photoRef'] as String : null,
     );
   }
 
@@ -48,5 +53,6 @@ class SessionUser {
         'email': email,
         'role': role.name,
         'roleLabel': roleLabel,
+        if (photoRef != null) 'photoRef': photoRef,
       };
 }

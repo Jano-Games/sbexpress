@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Hono, type Context, type Next } from 'hono'
 import type { AppEnv, Role } from '../src/modules/auth'
 
-const db = vi.hoisted(() => ({ flight: { findMany: vi.fn(), findUnique: vi.fn() } }))
+const db = vi.hoisted(() => ({
+  flight: { findMany: vi.fn(), findUnique: vi.fn() },
+  personPhoto: { findMany: vi.fn(async () => []) },
+  shipmentLog: { findMany: vi.fn(async () => []) },
+  user: { findMany: vi.fn(async () => []) },
+}))
 vi.mock('../src/core/db', () => ({ prisma: db }))
 vi.mock('../src/core/redis', () => ({ cacheInvalidate: vi.fn(), cacheGetJson: vi.fn(), cacheSetJson: vi.fn() }))
 vi.mock('../src/shared/settings', () => ({ getSettings: vi.fn(async () => ({ threshold: 0.5 })) }))
@@ -152,7 +157,7 @@ describe('hub flight schedule', () => {
     expect(response.status).toBe(200)
     const { flight } = await response.json() as { flight: { flyerDetails: unknown[]; shipments: unknown[] } }
     assertNoMoney(flight)
-    expect(flight.flyerDetails).toEqual([{ name: 'Arif Rahman', initial: 'A', bdPhone: '01800000000' }])
+    expect(flight.flyerDetails).toEqual([{ name: 'Arif Rahman', initial: 'A', bdPhone: '01800000000', photoRef: null }])
     expect(flight.shipments).toHaveLength(1)
     expect(flight.shipments[0]).toMatchObject({ code: 'SH-2051', supplierCode: 'C-14', supplierName: null, bookedKg: 8.2 })
     expect(db.flight.findUnique.mock.calls[0]![0]).toMatchObject({ where: { code: upcoming.code } })

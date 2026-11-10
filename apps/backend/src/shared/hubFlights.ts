@@ -10,6 +10,14 @@ import type { FlightStatus, Prisma, ShipmentStatus } from '@prisma/client'
 import { effectiveKg } from './compute'
 import { isoDate, num, numOrNull, shipmentRowHub, type ShipmentWithRelations } from './serialize'
 import { FLIGHT_LABEL, statusIndex } from './status'
+import type { ReceivedGroup } from './receivedBy'
+
+/** Extra facts the hub flight page shows, read alongside the flight. */
+export interface HubFlightExtras {
+  /** Face photos of the flyers, by flyer id. */
+  flyerPhotos?: Map<string, string>
+  receivedBy?: ReceivedGroup[]
+}
 
 const LEGS = {
   orderBy: { order: 'asc' as const },
@@ -23,7 +31,7 @@ export const HUB_FLIGHT_INCLUDE = {
 } as const
 
 export const HUB_FLIGHT_DETAIL_INCLUDE = {
-  flyers: { select: { flyer: { select: { name: true, bdPhone: true } } } },
+  flyers: { select: { flyer: { select: { id: true, name: true, bdPhone: true } } } },
   shipments: {
     include: { supplier: true, flight: true, receipts: true, expenses: true, costs: true },
     orderBy: { code: 'asc' as const },
@@ -73,15 +81,24 @@ export type HubFlightRow = ReturnType<typeof hubFlightRow>
 /** The schedule row plus flyer contacts and the hub view of every booking on board. */
 export function hubFlightDetail(
   f: Omit<HubFlightSource, 'flyers' | 'shipments'> & {
-    flyers: { flyer: { name: string; bdPhone: string } }[]
+    flyers: { flyer: { id: string; name: string; bdPhone: string } }[]
     shipments: ShipmentWithRelations[]
   },
   threshold: number,
   today = new Date(),
+  extras: HubFlightExtras = {},
 ) {
   return {
     ...hubFlightRow(f, today),
-    flyerDetails: f.flyers.map(({ flyer }) => ({ name: flyer.name, initial: flyer.name.charAt(0), bdPhone: flyer.bdPhone })),
+    flyerDetails: f.flyers.map(({ flyer }) => ({
+      name: flyer.name,
+      initial: flyer.name.charAt(0),
+      bdPhone: flyer.bdPhone,
+      photoRef: extras.flyerPhotos?.get(flyer.id) ?? null,
+    })),
     shipments: f.shipments.map((s) => shipmentRowHub(s, threshold)),
+    /** Orders through customs and free of exceptions: one tap receives them. */
+    readyToReceive: f.shipments.filter((s) => s.status === 'customs_cleared' && !s.exception).length,
+    receivedBy: extras.receivedBy ?? [],
   }
 }

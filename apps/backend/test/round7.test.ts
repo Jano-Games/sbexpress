@@ -17,7 +17,7 @@ const kv = vi.hoisted(() => ({
 }))
 
 const db = vi.hoisted(() => ({
-  user: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn(), findMany: vi.fn(async () => []) },
   flight: { findUnique: vi.fn(), findMany: vi.fn() },
   expense: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   account: { findMany: vi.fn(), update: vi.fn() },
@@ -28,7 +28,8 @@ const db = vi.hoisted(() => ({
   invoice: { upsert: vi.fn(), update: vi.fn(), delete: vi.fn() },
   invoiceRevision: { count: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
   creditNote: { create: vi.fn(), count: vi.fn() },
-  shipmentLog: { create: vi.fn() },
+  shipmentLog: { create: vi.fn(), findMany: vi.fn(async () => []) },
+  personPhoto: { findMany: vi.fn(async () => []) },
   payment: { findMany: vi.fn() },
   customerRefund: { findMany: vi.fn() },
   fundTransfer: { findMany: vi.fn() },

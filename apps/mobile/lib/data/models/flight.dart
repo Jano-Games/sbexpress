@@ -294,19 +294,71 @@ String? _legPlace(Map<String, Object?> leg, String cityKey, String iataKey) {
 
 class FlyerOnFlight {
   const FlyerOnFlight(
-      {required this.name, required this.bdPhone, required this.initial});
+      {required this.name,
+      required this.bdPhone,
+      required this.initial,
+      this.photoRef});
 
   final String name;
   final String bdPhone;
   final String initial;
+
+  /// The flyer's face photo, so the hub knows who is arriving.
+  final String? photoRef;
 
   factory FlyerOnFlight.fromJson(Map<String, Object?> json) {
     return FlyerOnFlight(
       name: requiredString(json, 'name'),
       bdPhone: requiredString(json, 'bdPhone'),
       initial: requiredString(json, 'initial'),
+      photoRef: json['photoRef'] is String ? json['photoRef'] as String : null,
     );
   }
+}
+
+/// One person who received orders of a flight at the BD hub.
+class ReceivedGroup {
+  const ReceivedGroup(
+      {required this.name,
+      required this.count,
+      required this.at,
+      this.userId,
+      this.role,
+      this.photoRef});
+
+  final String name;
+
+  /// How many of the flight's orders they received.
+  final int count;
+
+  /// When they last received one.
+  final String at;
+
+  /// Their staff id, for adding a photo; null for older history.
+  final String? userId;
+
+  /// `admin` or `hub`.
+  final String? role;
+  final String? photoRef;
+
+  factory ReceivedGroup.fromJson(Map<String, Object?> json) => ReceivedGroup(
+        name: requiredString(json, 'name'),
+        count: requiredInt(json, 'count'),
+        at: requiredString(json, 'at'),
+        userId: json['userId'] is String ? json['userId'] as String : null,
+        role: json['role'] is String ? json['role'] as String : null,
+        photoRef:
+            json['photoRef'] is String ? json['photoRef'] as String : null,
+      );
+
+  /// The list under [key], empty on an older server.
+  static List<ReceivedGroup> listOf(Map<String, Object?> json) =>
+      json['receivedBy'] is List
+          ? [
+              for (final row in asMapList(json['receivedBy'], 'receivedBy'))
+                ReceivedGroup.fromJson(row)
+            ]
+          : const [];
 }
 
 /// The flight-cost categories the server takes; labour and anything else
@@ -389,6 +441,7 @@ class FlightDetail {
       {required this.summary,
       required this.flyerDetails,
       required this.bookings,
+      this.receivedBy = const [],
       this.flightCosts,
       this.flightCostTotal,
       this.profitBreakdown,
@@ -397,6 +450,9 @@ class FlightDetail {
   final FlightSummary summary;
   final List<FlyerOnFlight> flyerDetails;
   final List<AdminShipment> bookings;
+
+  /// Who received the flight's orders at the BD hub, latest first.
+  final List<ReceivedGroup> receivedBy;
 
   /// Costs for the whole flight, newest first; null on an older server.
   final List<FlightCost>? flightCosts;
@@ -427,6 +483,7 @@ class FlightDetail {
       profitBreakdown:
           breakdown == null ? null : FlightProfitBreakdown.fromJson(breakdown),
       summary: FlightSummary.fromJson(json),
+      receivedBy: ReceivedGroup.listOf(json),
       flyerDetails: [
         for (final row in requiredMapList(json, 'flyerDetails'))
           FlyerOnFlight.fromJson(row)

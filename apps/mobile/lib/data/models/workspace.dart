@@ -381,6 +381,7 @@ class StaffAccount {
     required this.email,
     required this.role,
     required this.active,
+    this.photoRef,
   });
 
   final String id;
@@ -389,6 +390,9 @@ class StaffAccount {
   final String role;
   final bool active;
 
+  /// Face photo, shown on the orders this person receives.
+  final String? photoRef;
+
   factory StaffAccount.fromJson(Map<String, Object?> json) {
     return StaffAccount(
       id: requiredString(json, 'id'),
@@ -396,6 +400,7 @@ class StaffAccount {
       email: requiredString(json, 'email'),
       role: requiredString(json, 'role'),
       active: requiredBool(json, 'active'),
+      photoRef: json['photoRef'] is String ? json['photoRef'] as String : null,
     );
   }
 }
@@ -508,7 +513,10 @@ class IntakePiece {
   final int count;
   final double rate;
   final String currency;
-  final List<({String model, String serial})> units;
+
+  /// One per piece. [customerCode] is who ordered it; null is the order's
+  /// customer.
+  final List<({String model, String serial, String? customerCode})> units;
 
   Map<String, Object?> toJson() => {
         'category': category,
@@ -517,7 +525,11 @@ class IntakePiece {
         'currency': currency,
         'units': [
           for (final unit in units)
-            {'model': unit.model, 'serial': unit.serial},
+            {
+              'model': unit.model,
+              'serial': unit.serial,
+              if (unit.customerCode != null) 'customerCode': unit.customerCode,
+            },
         ],
       };
 }

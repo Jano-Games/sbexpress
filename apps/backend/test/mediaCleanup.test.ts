@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fake=vi.hoisted(()=>({store:{findMany:vi.fn(),findUnique:vi.fn(),delete:vi.fn()},remove:vi.fn(),atomic:vi.fn()}))
-vi.mock('../src/core/db',()=>({prisma:{shipmentMedia:fake.store,receiptUpload:fake.store,flyerDocument:fake.store},atomicMutation:fake.atomic}))
+vi.mock('../src/core/db',()=>({prisma:{shipmentMedia:fake.store,receiptUpload:fake.store,flyerDocument:fake.store,personPhoto:fake.store},atomicMutation:fake.atomic}))
 vi.mock('../src/shared/r2',()=>({removeStoredObject:fake.remove}))
 import {cleanupMedia} from '../src/shared/mediaCleanup'
 const row={id:'a',stagingKey:'staging/test',objectKey:'media/test',expiresAt:new Date(Date.now()-8*86400_000),status:'pending'}

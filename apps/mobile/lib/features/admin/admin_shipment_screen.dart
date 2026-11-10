@@ -13,6 +13,7 @@ import '../../data/models/workspace.dart';
 import '../../data/repositories/shipment_repository.dart';
 import '../../data/share_bytes.dart';
 import '../../data/uploads/flutter_heic.dart';
+import '../../data/uploads/image_prepare.dart';
 import '../../data/uploads/photo_tray.dart';
 import '../../data/uploads/photo_upload.dart';
 import '../../data/uploads/quick_uploads.dart';
@@ -22,11 +23,14 @@ import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
 import '../../widgets/photo_parts.dart';
-import '../../widgets/quick_parts.dart' show plainKg, wholeMoney;
+import '../../widgets/picker_sheet.dart';
+import '../../widgets/quick_parts.dart'
+    show askPhotoSource, plainKg, wholeMoney;
 import '../../widgets/remove_parts.dart';
 import '../../widgets/round7_parts.dart';
 import '../../widgets/team_parts.dart' show AttentionNote;
 import '../../widgets/ui.dart';
+import '../customers/customer_form_screen.dart';
 import '../finance/record_payment_sheet.dart';
 import '../flights/flight_detail_screen.dart';
 import '../pdf/pdf_bytes_screen.dart';
@@ -35,6 +39,7 @@ import 'credit_note_screen.dart';
 import 'invoice_editor_screen.dart';
 import 'money_format.dart';
 import 'order_charge_sheet.dart';
+import 'order_people_cards.dart';
 import 'shipment_costs_screen.dart';
 
 /// One shipment on one page: where it is, the bill and getting paid, its
@@ -80,6 +85,12 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
   PhotoTrayController? _tray;
   SignedPhotoLoader? _photos;
 
+  /// Staff face photos for the history.
+  SignedPhotoLoader? _faces;
+
+  /// `item:unit` of device pieces whose photo is going up.
+  final _pieceBusy = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +105,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
     super.didChangeDependencies();
     final media = AppScope.of(context).media;
     _photos ??= media.photoLoader(widget.code);
+    _faces ??= AppScope.of(context).photos.loader();
     _tray ??= PhotoTrayController(
         decodeHeic: flutterDecodeHeic,
         upload: (image, progress) =>
@@ -105,6 +117,7 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
   void dispose() {
     _tray?.dispose();
     _photos?.dispose();
+    _faces?.dispose();
     _reason.dispose();
     super.dispose();
   }
@@ -207,6 +220,108 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
         loader: _photos,
         onShare: (i, shared) => _share(ordered[i], shared));
   }
+
+  /// "Who ordered it?" for one row of pieces; saved for each piece.
+  Future<void> _changeOwner(DeviceGroup group) async {
+    final scope = AppScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final detail = _detail;
+    if (detail == null) return;
+    try {
+      var customers = await scope.customers.list();
+      if (!mounted) return;
+      final current = group.first.customerCode ?? detail.supplierCode;
+      final model = group.model.isEmpty ? group.category : group.model;
+      final value = await showModalBottomSheet<String>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => PickerSheet(
+              key: const Key('owner-picker'),
+              title: tr('Who ordered it?'),
+              subtitle: trn(group.units.length, '{model} · {n} piece',
+                  '{model} · {n} pieces', {'model': model}),
+              options: [
+                (
+                  value: detail.supplierCode,
+                  title: detail.supplierName ?? detail.supplierCode,
+                  subtitle: tr("{code} · the order's customer",
+                      {'code': detail.supplierCode})
+                ),
+                for (final customer in customers)
+                  if (customer.code != detail.supplierCode)
+                    (
+                      value: customer.code,
+                      title: customer.name,
+                      subtitle: '${customer.code} · ${customer.phone}'
+                    ),
+              ],
+              selected: current));
+      if (!mounted || value == null) return;
+      var chosen = value;
+      if (value == pickerNewCustomer) {
+        final before = {for (final customer in customers) customer.code};
+        final created = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => const CustomerFormScreen()));
+        if (created != true || !mounted) return;
+        customers = await scope.customers.list();
+        final fresh = [
+          for (final customer in customers)
+            if (!before.contains(customer.code)) customer
+        ];
+        if (fresh.length != 1) return;
+        chosen = fresh.single.code;
+      }
+      if (chosen == current) return;
+      for (final unit in group.unitIndexes) {
+        await scope.shipments.setDeviceOwner(widget.code,
+            item: group.item,
+            unit: unit,
+            customerCode: chosen == detail.supplierCode ? null : chosen);
+      }
+      if (mounted) await _load();
+    } on ApiException catch (error) {
+      if (error.status == 401) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  /// Takes or picks a photo of one device piece and sends it now.
+  Future<void> _addPiecePhoto(DeviceGroup group, int index) async {
+    final scope = AppScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final source = await askPhotoSource(context);
+    if (source == null || !mounted) return;
+    final key = '${group.item}:${group.unitIndexes[index]}';
+    try {
+      final photos = await (widget.pickPhotos ?? pickPhotos)(source);
+      if (!mounted || photos.isEmpty) return;
+      setState(() => _pieceBusy.add(key));
+      final photo = photos.first;
+      final image = await prepareForUpload(photo.bytes,
+          name: photo.name, mime: photo.mime, decodeHeic: flutterDecodeHeic);
+      await scope.media.uploadDevicePhoto(
+          code: widget.code,
+          itemIndex: group.item,
+          unitIndex: group.unitIndexes[index],
+          image: image,
+          onProgress: (_) {},
+          piece: true);
+      if (mounted) await _load();
+    } on ApiException catch (error) {
+      if (error.status != 401) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _pieceBusy.remove(key));
+    }
+  }
+
+  Future<void> _openPiecePhoto(String reference) => showPhotoViewer(context,
+      photos: [ViewerPhoto.stored(reference, group: tr('Device photo'))],
+      loader: _photos);
 
   /// Saves the switch in the viewer; false when the server refused.
   Future<bool> _share(MediaItem item, bool shared) async {
@@ -520,6 +635,16 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
       if (profit) ...[gap, _ProfitCard(detail: detail)],
       gap,
       _HandlingCard(detail: detail),
+      if (detail.devices.any((line) => line.units.isNotEmpty)) ...[
+        gap,
+        OrderDevicesCard(
+            detail: detail,
+            loader: _photos!,
+            busy: _pieceBusy,
+            onChangeOwner: _changeOwner,
+            onAddPhoto: _addPiecePhoto,
+            onOpenPhoto: _openPiecePhoto),
+      ],
       gap,
       _BillCostsCard(
           detail: detail,
@@ -535,6 +660,8 @@ class _AdminShipmentScreenState extends State<AdminShipmentScreen> {
           onOpenFlight: detail.flightCode == null
               ? null
               : () => _push(FlightDetailScreen(code: detail.flightCode!))),
+      gap,
+      OrderHistoryCard(entries: detail.log, loader: _faces),
       const SizedBox(height: 20),
       QuietDeleteButton(
           key: const Key('shipment-delete'),

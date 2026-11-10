@@ -12,6 +12,7 @@ import type { Role } from '../modules/auth'
 import { STATUS_LABEL, statusIndex } from './status'
 import { billAmount, effectiveKg, fareShare, weightDelta } from './compute'
 import { shipmentProfitBreakdown, type FlightCostBasis } from './profit'
+import type { StaffPerson } from './personPhotos'
 
 /** Prisma Decimal (or null) to plain number for JSON. */
 export const num = (value: Prisma.Decimal | number | null | undefined): number =>
@@ -58,7 +59,23 @@ export function shipmentOperatingCosts(s: {
   return { ...costs, total: costs.cnTransport + costs.courier + costs.customs + costs.other }
 }
 
-type PcsUnit = { model?: string; serial?: string; serialPhotoRef?: string | null }
+type PcsUnit = {
+  model?: string
+  serial?: string
+  serialPhotoRef?: string | null
+  /** A photo of the piece itself. */
+  photoRef?: string | null
+  /** The customer who ordered this piece; unset means the order's customer. */
+  customerCode?: string | null
+}
+
+/** Names behind the codes and ids an order detail mentions. */
+export interface DetailPeople {
+  /** Customers who ordered device pieces, by customer code (admin only). */
+  customers?: Map<string, { code: string; name: string; phone: string }>
+  /** Staff who wrote the order history, by user id. */
+  staff?: Map<string, StaffPerson>
+}
 type StoredPcsItem = {
   category?: string
   count?: number
@@ -148,7 +165,7 @@ export function shipmentRow(s: ShipmentWithRelations, role: Role, threshold: num
   }
 }
 
-const adminPcsItems = (value: unknown) =>
+const adminPcsItems = (value: unknown, customers?: DetailPeople['customers']) =>
   (Array.isArray(value) ? value as StoredPcsItem[] : []).map((item) => ({
     category: item.category ?? '',
     count: item.count ?? 0,
@@ -158,6 +175,9 @@ const adminPcsItems = (value: unknown) =>
       model: unit.model ?? '',
       serial: unit.serial ?? '',
       serialPhotoRef: unit.serialPhotoRef ?? null,
+      photoRef: unit.photoRef ?? null,
+      customerCode: unit.customerCode ?? null,
+      customer: unit.customerCode ? customers?.get(unit.customerCode) ?? null : null,
     })),
   }))
 
@@ -171,6 +191,9 @@ export function hubPcsItems(value: unknown) {
       model: unit.model ?? '',
       serial: unit.serial ?? '',
       ...(unit.serialPhotoRef ? { serialPhotoRef: unit.serialPhotoRef } : {}),
+      ...(unit.photoRef ? { photoRef: unit.photoRef } : {}),
+      // The hub sees customer codes, never names.
+      ...(unit.customerCode ? { customerCode: unit.customerCode } : {}),
     })),
   }))
 }
@@ -179,7 +202,7 @@ export function shipmentDetail(
   s: ShipmentWithRelations & {
     receipts: (ShipmentWithRelations['receipts'][number] & { screenshot?: {reference:string;name:string;contentType:string;size:number} | null; payments?: {amount:unknown;reversedAt:Date|null}[] })[]
     flyer?: { name: string } | null
-    logs: { actor: string; message: string; at: Date }[]
+    logs: { actor: string; actorId?: string | null; message: string; at: Date }[]
     invoice?: ({ state:string;needsReview:boolean;pricingMode:string; number: string; total: Prisma.Decimal; discount: Prisma.Decimal; issuedAt: Date; updatedAt: Date } & StoredMoney) | null
     payments?: ({ id:string;reference:string;reversedAt:Date|null;reversalOfId:string|null; method: string; amount: Prisma.Decimal; createdAt: Date } & StoredMoney)[]
   },
@@ -187,7 +210,18 @@ export function shipmentDetail(
   threshold: number,
   /** The flight's cost total and weight, for this shipment's share of the flight costs. */
   flightCosts: FlightCostBasis | null = null,
+  people: DetailPeople = {},
 ) {
+  const logEntry = (l: { actor: string; actorId?: string | null; message: string; at: Date }) => {
+    const staff = l.actorId ? people.staff?.get(l.actorId) : undefined
+    return {
+      actor: l.actor,
+      message: l.message,
+      at: l.at.toISOString(),
+      actorRole: staff?.role ?? null,
+      actorPhotoRef: staff?.photoRef ?? null,
+    }
+  }
   const handling = {
     flyerName:s.flyer?.name ?? null,
     packedAt:s.packedAt?.toISOString() ?? null,
@@ -204,7 +238,7 @@ export function shipmentDetail(
       ...shipmentRowHub(s, threshold),
       ...handling,
       pcsItems: hubPcsItems(s.pcsItems),
-      log: s.logs.filter(l => /^(Status|Weighed|Packed|Last mile|Delivery|Exception|Shipment resumed|Checkpoint|Device)/.test(l.message)).map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
+      log: s.logs.filter(l => /^(Status|Weighed|Packed|Last mile|Delivery|Exception|Shipment resumed|Checkpoint|Device)/.test(l.message)).map(logEntry),
       costs: null,
       receipt: null,
       receiptHistory: [],
@@ -235,8 +269,8 @@ export function shipmentDetail(
     costSources: s.costSources as Record<string,{sourceCurrency:string;sourceFxRate:number;sourceAmount:number}>,
     chargeRate: num(s.chargeRate),
     chargeCurrency: s.chargeCurrency,
-    pcsItems: adminPcsItems(s.pcsItems),
-    log: s.logs.map((l) => ({ actor: l.actor, message: l.message, at: l.at.toISOString() })),
+    pcsItems: adminPcsItems(s.pcsItems, people.customers),
+    log: s.logs.map(logEntry),
     costs: {
       items: shipmentCostItems(s),
       usualCosts: usualCosts(s),

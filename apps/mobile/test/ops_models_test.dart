@@ -51,7 +51,7 @@ void main() {
       description: '',
       paymentTerms: 'invoice',
       pieces: [
-        IntakePiece(category: 'mobile', count: 1, rate: 0, currency: 'BDT', units: [(model: 'A', serial: 'IMEI')]),
+        IntakePiece(category: 'mobile', count: 1, rate: 0, currency: 'BDT', units: [(model: 'A', serial: 'IMEI', customerCode: null)]),
       ],
     ).toJson();
     expect(body.containsKey('flightCode'), isFalse);

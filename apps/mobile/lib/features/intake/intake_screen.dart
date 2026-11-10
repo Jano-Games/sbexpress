@@ -16,6 +16,8 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart'
     show CategoryChip, LetterAvatar, heroSoft, shortDay;
+import '../../widgets/people_parts.dart' show PiecePhotoSlot;
+import '../../widgets/picker_sheet.dart';
 import '../../widgets/quick_parts.dart';
 import '../../widgets/rate_parts.dart' show rateText;
 import '../../widgets/team_parts.dart'
@@ -40,14 +42,26 @@ class IntakeScreen extends StatefulWidget {
   State<IntakeScreen> createState() => _IntakeScreenState();
 }
 
-/// One model of a device category and how many pieces of it.
+/// One model of a device category, how many pieces of it, who ordered it
+/// and a photo of each piece.
 class _ModelRow {
   _ModelRow() : model = TextEditingController();
   final TextEditingController model;
   int count = 1;
+
+  /// The customer who ordered these pieces; null is the order's customer.
+  String? customer;
+
+  /// Photo of each piece, by piece number from 0.
+  final photos = <int, PickedPhoto>{};
+
+  void less() {
+    count--;
+    photos.remove(count);
+  }
 }
 
-/// A device category on the booking: its models, piece price and photos.
+/// A device category on the booking: its models and piece price.
 class _DeviceDraft {
   _DeviceDraft({required double rate})
       : rate = TextEditingController(text: rate == 0 ? '' : _number(rate)),
@@ -55,7 +69,6 @@ class _DeviceDraft {
 
   final TextEditingController rate;
   final List<_ModelRow> models;
-  final photos = <PickedPhoto>[];
 
   /// The price was typed here, so a flight change leaves it alone.
   var touched = false;
@@ -63,7 +76,8 @@ class _DeviceDraft {
   int get count => models.fold(0, (sum, row) => sum + row.count);
   double get rateValue => double.tryParse(rate.text.trim()) ?? 0;
 
-  /// One unit per piece with its model; no serial or IMEI is asked for.
+  /// One unit per piece with its model and who ordered it; no serial or
+  /// IMEI is asked for.
   IntakePiece toPiece(String category, String currency) => IntakePiece(
           category: category,
           count: count,
@@ -72,8 +86,27 @@ class _DeviceDraft {
           units: [
             for (final row in models)
               for (var i = 0; i < row.count; i++)
-                (model: row.model.text.trim(), serial: ''),
+                (
+                  model: row.model.text.trim(),
+                  serial: '',
+                  customerCode: row.customer
+                ),
           ]);
+
+  /// The piece photos with each piece's place among all units of the line.
+  List<({int unit, PickedPhoto photo})> get piecePhotos {
+    final photos = <({int unit, PickedPhoto photo})>[];
+    var first = 0;
+    for (final row in models) {
+      for (var i = 0; i < row.count; i++) {
+        if (row.photos[i] case final photo?) {
+          photos.add((unit: first + i, photo: photo));
+        }
+      }
+      first += row.count;
+    }
+    return photos;
+  }
 
   void dispose() {
     rate.dispose();
@@ -85,8 +118,6 @@ class _DeviceDraft {
 
 /// The server keeps at most 20 units per device category.
 const _maxPieces = 20;
-
-const _newCustomer = '\u0000new';
 
 class _IntakeScreenState extends State<IntakeScreen> {
   List<CustomerSummary> _customers = const [];
@@ -259,7 +290,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        builder: (_) => _PickerSheet(
+        builder: (_) => PickerSheet(
             title: tr('Choose a customer'),
             options: [
               for (final customer in _customers)
@@ -271,7 +302,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
             ],
             selected: _supplier));
     if (!mounted || value == null) return;
-    if (value == _newCustomer) return _addCustomer();
+    if (value == pickerNewCustomer) return _addCustomer();
     setState(() {
       _supplier = value;
       _formError = null;
@@ -301,6 +332,88 @@ class _IntakeScreenState extends State<IntakeScreen> {
         _supplier = fresh.single.code;
         if (!_termsChosen) _terms = _usualTerms(fresh.single);
       });
+    }
+  }
+
+  CustomerSummary? _customerByCode(String? code) {
+    for (final customer in _customers) {
+      if (customer.code == code) return customer;
+    }
+    return null;
+  }
+
+  /// "Who ordered it?": the order's customer first, then everyone else.
+  Future<void> _pickOwner(String category, _ModelRow row) async {
+    final order = _selectedCustomer;
+    final model = row.model.text.trim();
+    final value = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => PickerSheet(
+            key: const Key('owner-picker'),
+            title: tr('Who ordered it?'),
+            subtitle: trn(
+                row.count,
+                '{model} · {n} piece',
+                '{model} · {n} pieces',
+                {'model': model.isEmpty ? category : model}),
+            options: [
+              if (order != null)
+                (
+                  value: order.code,
+                  title: order.name,
+                  subtitle:
+                      tr("{code} · the order's customer", {'code': order.code})
+                ),
+              for (final customer in _customers)
+                if (customer.code != order?.code)
+                  (
+                    value: customer.code,
+                    title: customer.name,
+                    subtitle: '${customer.code} · ${customer.phone}'
+                  ),
+            ],
+            selected: row.customer ?? order?.code));
+    if (!mounted || value == null) return;
+    if (value == pickerNewCustomer) {
+      final before = {for (final customer in _customers) customer.code};
+      final created = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(builder: (_) => const CustomerFormScreen()));
+      if (created != true || !mounted) return;
+      await _load();
+      if (!mounted) return;
+      final fresh = [
+        for (final customer in _customers)
+          if (!before.contains(customer.code)) customer
+      ];
+      if (fresh.length == 1) setState(() => row.customer = fresh.single.code);
+      return;
+    }
+    setState(() => row.customer = value == order?.code ? null : value);
+  }
+
+  /// Fills piece [piece] of [row], then its empty pieces after it when
+  /// more than one photo was chosen.
+  Future<void> _addPiecePhoto(_ModelRow row, int piece) async {
+    final source = await askPhotoSource(context);
+    if (source == null || !mounted) return;
+    try {
+      final photos = await (widget.pickPhotos ?? pickPhotos)(source);
+      if (!mounted || photos.isEmpty) return;
+      setState(() {
+        row.photos[piece] = photos.first;
+        var next = piece + 1;
+        for (final photo in photos.skip(1)) {
+          while (next < row.count && row.photos.containsKey(next)) {
+            next++;
+          }
+          if (next >= row.count) break;
+          row.photos[next++] = photo;
+        }
+      });
+    } catch (error) {
+      if (mounted) setState(() => _formError = error.toString());
     }
   }
 
@@ -423,9 +536,12 @@ class _IntakeScreenState extends State<IntakeScreen> {
       // Photos go up after the shipment exists and keep going if the next
       // screen is left.
       final jobs = [
-        for (final (name, device) in devices)
-          for (final photo in device.photos)
-            shipmentPhotoJob(scope.media, code, photo, deviceCategory: name),
+        for (var item = 0; item < devices.length; item++)
+          for (final piece in devices[item].$2.piecePhotos)
+            piecePhotoJob(scope.media, code, piece.photo,
+                itemIndex: item,
+                unitIndex: piece.unit,
+                group: devices[item].$1),
         for (final photo in _parcelPhotos)
           shipmentPhotoJob(scope.media, code, photo),
       ];
@@ -742,7 +858,11 @@ class _IntakeScreenState extends State<IntakeScreen> {
             ]),
           for (final (name, device) in devices) _deviceBlock(name, device),
           if (devices.isNotEmpty)
-            Text(tr('Only the model is needed — no IMEI or serial.'),
+            Text(
+                [
+                  tr('Only the model is needed — no IMEI or serial.'),
+                  tr('Each model can be for a different customer. The bill still goes to the order customer.'),
+                ].join(' '),
                 style: const TextStyle(
                     fontSize: 12, height: 1.4, color: AppColors.muted)),
         ]);
@@ -773,37 +893,7 @@ class _IntakeScreenState extends State<IntakeScreen> {
           ]),
           for (var i = 0; i < device.models.length; i++) ...[
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                  child: TextField(
-                      key: ValueKey('$name-model-$i'),
-                      controller: device.models[i].model,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: InputDecoration(
-                          isDense: true,
-                          hintText: tr('Model, e.g. {example}', {
-                            'example': _pieceIcon(name) == Icons.laptop_rounded
-                                ? 'MacBook Air'
-                                : 'iPhone 13'
-                          }),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 12)))),
-              const SizedBox(width: 8),
-              MiniStepper(
-                  value: device.models[i].count,
-                  lessLabel: device.models[i].count == 1
-                      ? tr('Remove this model')
-                      : null,
-                  onLess: device.models[i].count > 1
-                      ? () => setState(() => device.models[i].count--)
-                      : device.models.length > 1
-                          ? () => setState(
-                              () => device.models.removeAt(i).model.dispose())
-                          : null,
-                  onMore: total < _maxPieces
-                      ? () => setState(() => device.models[i].count++)
-                      : null),
-            ]),
+            _modelBlock(name, device, i, total),
           ],
           Align(
               alignment: AlignmentDirectional.centerStart,
@@ -846,25 +936,160 @@ class _IntakeScreenState extends State<IntakeScreen> {
                         contentPadding:
                             const EdgeInsets.fromLTRB(0, 12, 10, 12)))),
           ]),
-          const SizedBox(height: 12),
+        ]));
+  }
+
+  /// One model: its name and pieces, who ordered it and a photo per piece.
+  Widget _modelBlock(String name, _DeviceDraft device, int i, int total) {
+    final row = device.models[i];
+    return Container(
+        key: ValueKey('$name-block-$i'),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+            color: AppColors.card,
+            border: Border.all(color: AppColors.line),
+            borderRadius: BorderRadius.circular(14)),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(
+                child: TextField(
+                    key: ValueKey('$name-model-$i'),
+                    controller: row.model,
+                    textCapitalization: TextCapitalization.words,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                        isDense: true,
+                        hintText: tr('Model, e.g. {example}', {
+                          'example': _pieceIcon(name) == Icons.laptop_rounded
+                              ? 'MacBook Air'
+                              : 'iPhone 13'
+                        }),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12)))),
+            const SizedBox(width: 8),
+            MiniStepper(
+                value: row.count,
+                lessLabel: row.count == 1 ? tr('Remove this model') : null,
+                onLess: row.count > 1
+                    ? () => setState(row.less)
+                    : device.models.length > 1
+                        ? () => setState(
+                            () => device.models.removeAt(i).model.dispose())
+                        : null,
+                onMore: total < _maxPieces
+                    ? () => setState(() => row.count++)
+                    : null),
+          ]),
+          const SizedBox(height: 10),
+          _orderedBy(name, row, i),
+          const SizedBox(height: 10),
           Text.rich(
               TextSpan(children: [
-                TextSpan(text: tr('{name} photos', {'name': name})),
+                TextSpan(text: tr('Photos')),
                 TextSpan(
-                    text: ' · ${device.photos.length}',
+                    text:
+                        ' · ${row.count > 1 ? tr('one for each piece') : tr('tap to take or choose')}',
                     style: const TextStyle(
                         fontWeight: FontWeight.w400, color: AppColors.muted)),
               ]),
               style: const TextStyle(
                   fontSize: 13, height: 1.35, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          PhotoGrid(
-              key: ValueKey('$name-photos'),
-              photos: device.photos,
-              addLabel: tr('Add {name} photos', {'name': name}),
-              onAdd: () => _addPhotos(device.photos),
-              onRemove: (i) => setState(() => device.photos.removeAt(i))),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (var piece = 0; piece < row.count; piece++)
+              PiecePhotoSlot(
+                  key: ValueKey('$name-$i-photo-$piece'),
+                  size: 72,
+                  label:
+                      row.count > 1 ? tr('Piece {n}', {'n': piece + 1}) : null,
+                  addLabel: row.count > 1
+                      ? tr('Add photo of piece {n}', {'n': piece + 1})
+                      : tr('Add photo'),
+                  image: switch (row.photos[piece]) {
+                    final photo? => Image.memory(photo.bytes,
+                        fit: BoxFit.cover,
+                        cacheWidth: 216,
+                        gaplessPlayback: true),
+                    null => null,
+                  },
+                  onTap: () => _addPiecePhoto(row, piece),
+                  onRemove: row.photos.containsKey(piece)
+                      ? () => setState(() => row.photos.remove(piece))
+                      : null),
+          ]),
         ]));
+  }
+
+  /// "Ordered by": the order's customer until another one is chosen.
+  Widget _orderedBy(String name, _ModelRow row, int i) {
+    final order = _selectedCustomer;
+    final chosen = _customerByCode(row.customer);
+    final own = row.customer == null;
+    final who = chosen?.name ?? row.customer ?? order?.name;
+    final meta = own
+        ? order == null
+            ? tr('Choose the order customer first, or pick one here')
+            : tr("{code} · the order's customer", {'code': order.code})
+        : chosen == null
+            ? row.customer!
+            : '${chosen.code} · ${chosen.phone}';
+    return Material(
+        color: AppColors.card,
+        shape: RoundedRectangleBorder(
+            side: const BorderSide(color: AppColors.field),
+            borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+            key: ValueKey('$name-owner-$i'),
+            onTap: () => _pickOwner(name, row),
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                child: Row(children: [
+                  if (who != null)
+                    LetterAvatar(who,
+                        size: 34,
+                        color: own ? AppColors.primary : AppColors.primarySoft,
+                        foreground: own ? Colors.white : AppColors.primaryInk)
+                  else
+                    const Icon(Icons.person_outline_rounded,
+                        size: 28, color: AppColors.muted),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(tr('Ordered by'),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                height: 1.3,
+                                color: AppColors.muted)),
+                        Row(children: [
+                          Flexible(
+                              child: Text(who ?? tr("The order's customer"),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      height: 1.3,
+                                      fontWeight: FontWeight.w600))),
+                          if (own && order != null) ...[
+                            const SizedBox(width: 6),
+                            StatusPill(
+                                label: tr('This order'),
+                                tone: ChipTone.neutral),
+                          ],
+                        ]),
+                        Text(meta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                color: AppColors.muted)),
+                      ])),
+                  const Icon(Icons.expand_more_rounded, color: AppColors.muted),
+                ]))));
   }
 
   Widget _chargeCard() {
@@ -1139,77 +1364,5 @@ class _FlyerChoices extends StatelessWidget {
                       : const SizedBox.shrink()),
             ])),
     ]);
-  }
-}
-
-class _PickerSheet extends StatefulWidget {
-  const _PickerSheet(
-      {required this.title, required this.options, this.selected});
-  final String title;
-  final List<({String value, String title, String subtitle})> options;
-  final String? selected;
-  @override
-  State<_PickerSheet> createState() => _PickerSheetState();
-}
-
-class _PickerSheetState extends State<_PickerSheet> {
-  var _query = '';
-  @override
-  Widget build(BuildContext context) {
-    final options = widget.options.where((item) =>
-        '${item.title} ${item.subtitle}'.toLowerCase().contains(_query));
-    return Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: SizedBox(
-            height: MediaQuery.sizeOf(context).height * .72,
-            child: Column(children: [
-              Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
-                  child: Row(children: [
-                    Expanded(
-                        child: Text(widget.title,
-                            style: const TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.w600))),
-                    TextButton.icon(
-                        key: const Key('picker-new-customer'),
-                        onPressed: () => Navigator.pop(context, _newCustomer),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text(tr('New customer'))),
-                    IconButton(
-                        tooltip: tr('Close'),
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded)),
-                  ])),
-              Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: TextField(
-                      decoration: InputDecoration(
-                          hintText: tr('Search'),
-                          prefixIcon: const Icon(Icons.search_rounded)),
-                      onChanged: (value) =>
-                          setState(() => _query = value.trim().toLowerCase()))),
-              Expanded(
-                  child: options.isEmpty
-                      ? EmptyNote(
-                          title: tr('No results found'),
-                          body: tr('Try another name or code.'))
-                      : ListView(children: [
-                          for (final item in options)
-                            ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 4),
-                                leading:
-                                    LetterAvatar.customer(item.title, size: 40),
-                                title: Text(item.title),
-                                subtitle: Text(item.subtitle),
-                                trailing: item.value == widget.selected
-                                    ? const Icon(Icons.check_rounded,
-                                        color: AppColors.primary)
-                                    : null,
-                                onTap: () =>
-                                    Navigator.pop(context, item.value)),
-                        ])),
-            ])));
   }
 }

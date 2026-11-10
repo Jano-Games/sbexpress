@@ -29,6 +29,8 @@ import { statementAdminRoutes,publicStatementRoutes } from '../modules/statement
 import { customerAccountRoutes, invoiceHistoryRoutes } from '../modules/customerAccounts'
 import { mediaRoutes, publicMediaRoutes } from '../modules/media'
 import { trackRoutes } from '../modules/track'
+import { photoRoutes } from '../modules/photos'
+import { photoRef } from '../shared/personPhotos'
 
 export function createApp(): Hono {
   const app = new Hono()
@@ -99,7 +101,11 @@ export function createApp(): Hono {
   const authed = new Hono<AppEnv>()
   authed.use('*', requireAuth)
   authed.use('*', writes)
-  authed.get('/me', (c) => c.json({ user: c.get('user') }))
+  authed.get('/me', async (c) => {
+    const user = c.get('user')
+    return c.json({ user: { ...user, photoRef: await photoRef('user', user.id) } })
+  })
+  authed.route('/photos', photoRoutes)
   authed.route('/dashboard', dashboardRoutes)
   authed.route('/shipments',costCorrectionRoutes)
   authed.route('/shipments', invoiceHistoryRoutes)

@@ -93,10 +93,18 @@ class HubFlightDetail extends HubFlight {
     required super.receivedCount,
     required this.flyerDetails,
     required this.shipments,
+    this.readyToReceive,
+    this.receivedBy = const [],
   });
 
   final List<FlyerOnFlight> flyerDetails;
   final List<OperationalShipment> shipments;
+
+  /// Orders through customs that one tap receives; null on an older server.
+  final int? readyToReceive;
+
+  /// Who received the flight's orders, latest first.
+  final List<ReceivedGroup> receivedBy;
 
   factory HubFlightDetail.fromJson(Map<String, Object?> json) {
     final base = HubFlight.fromJson(json);
@@ -123,6 +131,9 @@ class HubFlightDetail extends HubFlight {
         for (final row in requiredMapList(json, 'shipments'))
           OperationalShipment.fromJson(row)
       ],
+      readyToReceive:
+          json['readyToReceive'] is int ? json['readyToReceive'] as int : null,
+      receivedBy: ReceivedGroup.listOf(json),
     );
   }
 }
@@ -156,7 +167,15 @@ class HubFlightSchedule {
 }
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const _weekdayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const _weekdayNames = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday'
+];
 const _months = [
   'Jan',
   'Feb',

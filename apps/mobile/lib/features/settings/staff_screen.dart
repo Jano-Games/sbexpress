@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/workspace.dart';
+import '../../data/repositories/photo_repository.dart';
+import '../../data/uploads/signed_photos.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/money_confirm.dart';
+import '../../widgets/people_parts.dart' show PersonAvatar, changeFacePhoto;
 import '../../widgets/team_parts.dart';
 import '../../widgets/ui.dart';
 
@@ -20,6 +23,21 @@ class _StaffScreenState extends State<StaffScreen> {
   List<StaffAccount> _staff = const [];
   String? _error;
   var _loading = true;
+
+  /// Staff face photos.
+  SignedPhotoLoader? _faces;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _faces ??= AppScope.of(context).photos.loader();
+  }
+
+  @override
+  void dispose() {
+    _faces?.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -50,9 +68,10 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 
   Future<void> _edit(StaffAccount person, String? self) async {
-    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
+    await Navigator.of(context).push<bool>(MaterialPageRoute(
         builder: (_) => StaffEditScreen(person: person, selfId: self)));
-    if (changed == true && mounted) await _load();
+    // A photo can change there without saving the profile.
+    if (mounted) await _load();
   }
 
   @override
@@ -75,6 +94,7 @@ class _StaffScreenState extends State<StaffScreen> {
               _PersonRow(
                   person: person,
                   self: person.id == self,
+                  loader: _faces,
                   onTap: () => _edit(person, self)),
           ]),
           const SizedBox(height: 20),
@@ -158,9 +178,13 @@ class _RoleCards extends StatelessWidget {
 
 class _PersonRow extends StatelessWidget {
   const _PersonRow(
-      {required this.person, required this.self, required this.onTap});
+      {required this.person,
+      required this.self,
+      required this.loader,
+      required this.onTap});
   final StaffAccount person;
   final bool self;
+  final SignedPhotoLoader? loader;
   final VoidCallback onTap;
 
   @override
@@ -169,13 +193,17 @@ class _PersonRow extends StatelessWidget {
       child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(children: [
-            InitialsAvatar(person.name,
-                letters: 1,
-                tone: self
-                    ? AvatarTone.filled
-                    : person.active
-                        ? AvatarTone.soft
-                        : AvatarTone.muted),
+            if (person.photoRef != null)
+              PersonAvatar(person.name,
+                  photoRef: person.photoRef, loader: loader, size: 44)
+            else
+              InitialsAvatar(person.name,
+                  letters: 1,
+                  tone: self
+                      ? AvatarTone.filled
+                      : person.active
+                          ? AvatarTone.soft
+                          : AvatarTone.muted),
             const SizedBox(width: 12),
             Expanded(
                 child: Column(
@@ -353,13 +381,45 @@ class _StaffEditScreenState extends State<StaffEditScreen> {
   final _current = TextEditingController();
   late var _role = widget.person.role;
   late var _active = widget.person.active;
+  late String? _photoRef = widget.person.photoRef;
   String? _error;
   var _busy = false;
+
+  /// This person's face photo.
+  SignedPhotoLoader? _faces;
 
   bool get _self => widget.person.id == widget.selfId;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _faces ??= AppScope.of(context).photos.loader();
+  }
+
+  /// Add, change or remove the photo, then read it back.
+  Future<void> _photo() async {
+    final scope = AppScope.of(context);
+    final changed = await changeFacePhoto(context,
+        photos: scope.photos,
+        type: PhotoOwner.user,
+        owner: widget.person.id,
+        name: widget.person.name,
+        photoRef: _photoRef,
+        loader: _faces!);
+    if (!changed || !mounted) return;
+    try {
+      final staff = await scope.settings.staff();
+      if (!mounted) return;
+      final fresh = staff.where((person) => person.id == widget.person.id);
+      if (fresh.isNotEmpty) setState(() => _photoRef = fresh.first.photoRef);
+    } on ApiException catch (_) {
+      // The list shows the new photo on the way back.
+    }
+  }
+
+  @override
   void dispose() {
+    _faces?.dispose();
     _name.dispose();
     _email.dispose();
     _password.dispose();
@@ -465,13 +525,42 @@ class _StaffEditScreenState extends State<StaffEditScreen> {
           PaperCard(
               padding: const EdgeInsets.all(14),
               child: Row(children: [
-                InitialsAvatar(person.name,
-                    letters: 1,
-                    tone: _self
-                        ? AvatarTone.filled
-                        : person.active
-                            ? AvatarTone.soft
-                            : AvatarTone.muted),
+                Semantics(
+                    button: true,
+                    label: _photoRef == null
+                        ? tr('Add photo')
+                        : tr('Change photo of {name}', {'name': person.name}),
+                    child: InkWell(
+                        key: const Key('staff-photo'),
+                        customBorder: const CircleBorder(),
+                        onTap: _photo,
+                        child: Stack(clipBehavior: Clip.none, children: [
+                          if (_photoRef != null)
+                            PersonAvatar(person.name,
+                                photoRef: _photoRef, loader: _faces, size: 56)
+                          else
+                            InitialsAvatar(person.name,
+                                size: 56,
+                                letters: 1,
+                                tone: _self
+                                    ? AvatarTone.filled
+                                    : person.active
+                                        ? AvatarTone.soft
+                                        : AvatarTone.muted),
+                          PositionedDirectional(
+                              end: -4,
+                              bottom: -4,
+                              child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                      color: AppColors.card,
+                                      shape: BoxShape.circle,
+                                      border:
+                                          Border.all(color: AppColors.line)),
+                                  child: const Icon(Icons.photo_camera_outlined,
+                                      size: 14, color: AppColors.inkSoft))),
+                        ]))),
                 const SizedBox(width: 12),
                 Expanded(
                     child: Column(

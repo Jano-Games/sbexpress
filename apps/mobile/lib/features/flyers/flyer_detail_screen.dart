@@ -5,6 +5,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/flight.dart';
 import '../../data/models/flyer.dart';
 import '../../data/models/hub_flight.dart';
+import '../../data/repositories/photo_repository.dart';
 import '../../data/share_bytes.dart';
 import '../../data/uploads/flutter_heic.dart';
 import '../../data/uploads/photo_tray.dart';
@@ -14,6 +15,7 @@ import '../../data/uploads/signed_photos.dart';
 import '../../data/uploads/upload_queue.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/people_parts.dart' show PersonAvatar, changeFacePhoto;
 import '../../widgets/photo_parts.dart';
 import '../../widgets/quick_parts.dart' show QueuedFilesCard;
 import '../../widgets/remove_parts.dart';
@@ -98,6 +100,7 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
     super.didChangeDependencies();
     final flyers = AppScope.of(context).flyers;
     _photos ??= flyers.documentLoader(widget.name);
+    _faces ??= AppScope.of(context).photos.loader();
     _tray ??= PhotoTrayController(
         decodeHeic: flutterDecodeHeic,
         upload: (image, progress) => flyers.uploadDocument(
@@ -109,11 +112,27 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
       });
   }
 
+  /// The flyer's face photo.
+  SignedPhotoLoader? _faces;
+
+  Future<void> _facePhoto(FlyerDetail flyer) async {
+    final changed = await changeFacePhoto(context,
+        photos: AppScope.of(context).photos,
+        type: PhotoOwner.flyer,
+        owner: flyer.name,
+        name: flyer.name,
+        photoRef: flyer.photoRef,
+        loader: _faces!,
+        pick: widget.pickFiles);
+    if (changed && mounted) await _load();
+  }
+
   @override
   void dispose() {
     widget.uploads?.removeListener(_onUploads);
     _tray?.dispose();
     _photos?.dispose();
+    _faces?.dispose();
     super.dispose();
   }
 
@@ -365,7 +384,10 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
                     onRestore: () => _setArchived(false)),
                 const SizedBox(height: 14),
               ],
-              _ProfileCard(flyer: flyer),
+              _ProfileCard(
+                  flyer: flyer,
+                  loader: _faces,
+                  onPhoto: () => _facePhoto(flyer)),
               const SizedBox(height: 22),
               SectionTitle(title: tr('Contact')),
               _ContactGrid(flyer: flyer),
@@ -536,8 +558,11 @@ class _FlyerDetailScreenState extends State<FlyerDetailScreen> {
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.flyer});
+  const _ProfileCard(
+      {required this.flyer, required this.loader, required this.onPhoto});
   final FlyerDetail flyer;
+  final SignedPhotoLoader? loader;
+  final VoidCallback onPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -565,9 +590,46 @@ class _ProfileCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            InitialsAvatar(flyer.name,
-                size: 56,
-                tone: flyer.archived ? AvatarTone.muted : AvatarTone.filled),
+            Semantics(
+                button: true,
+                label: flyer.photoRef == null
+                    ? tr('Add photo')
+                    : tr('Change photo of {name}', {'name': flyer.name}),
+                child: InkWell(
+                    key: const Key('flyer-face'),
+                    customBorder: const CircleBorder(),
+                    onTap: onPhoto,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      if (flyer.photoRef != null)
+                        PersonAvatar(flyer.name,
+                            photoRef: flyer.photoRef, loader: loader, size: 56)
+                      else
+                        InitialsAvatar(flyer.name,
+                            size: 56,
+                            tone: flyer.archived
+                                ? AvatarTone.muted
+                                : AvatarTone.filled),
+                      PositionedDirectional(
+                          end: -4,
+                          bottom: -4,
+                          child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                  color: flyer.photoRef == null
+                                      ? AppColors.accentSoft
+                                      : AppColors.card,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: flyer.photoRef == null
+                                          ? AppColors.accentLine
+                                          : AppColors.line)),
+                              child: Icon(Icons.photo_camera_outlined,
+                                  size: 14,
+                                  color: flyer.photoRef == null
+                                      ? AppColors.accentInk
+                                      : AppColors.inkSoft))),
+                    ]))),
             const SizedBox(width: 14),
             Expanded(
                 child: Column(

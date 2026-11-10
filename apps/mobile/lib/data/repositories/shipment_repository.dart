@@ -61,6 +61,13 @@ class ShipmentRepository {
 
   Future<void> advance(String code) => api.postJson('${_path(code)}/advance');
 
+  /// Who ordered one device piece; null puts it back on the order's
+  /// customer.
+  Future<void> setDeviceOwner(String code,
+          {required int item, required int unit, String? customerCode}) =>
+      api.patchJson('${_path(code)}/devices/$item/$unit',
+          body: {'customerCode': customerCode});
+
   Future<void> weigh(String code, double kg) =>
       api.postJson('${_path(code)}/weigh', body: {'kg': kg});
 

@@ -323,6 +323,9 @@ void main() {
             .map((field) => field.controller?.text),
         contains('1800'));
 
+    // The device block is tall now (owner and piece photos), so the rate
+    // field is further down.
+    await _scrollTo(t, rate);
     await _type(t, rate, '1400');
     expect(find.text(tr("{flight}'s rate", {'flight': 'BG305'})), findsNothing);
     final flight = find.byKey(const ValueKey('intake-flight-$flowFlightCode'));

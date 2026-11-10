@@ -43,6 +43,7 @@ import 'package:sbexpress/data/repositories/finance_repository.dart';
 import 'package:sbexpress/data/repositories/flight_repository.dart';
 import 'package:sbexpress/data/repositories/flyer_repository.dart';
 import 'package:sbexpress/data/repositories/media_repository.dart';
+import 'package:sbexpress/data/repositories/photo_repository.dart';
 import 'package:sbexpress/data/repositories/review_repository.dart';
 import 'package:sbexpress/data/repositories/settings_repository.dart';
 import 'package:sbexpress/data/repositories/shipment_repository.dart';
@@ -118,6 +119,7 @@ void main() {
       tasks: TaskRepository(api),
       review: ReviewRepository(api),
       media: MediaRepository(api),
+      photos: PhotoRepository(api),
       flights: FlightRepository(api),
       flyers: FlyerRepository(api),
       customers: CustomerRepository(api),
@@ -331,6 +333,7 @@ void main() {
     await _round7aShots(tester, scope);
     await _round8Shots(tester, scope);
     await _round9Shots(tester, scope);
+    await _round10Shots(tester, scope);
     await _scanShots(tester, scope);
     await _shot(
         tester,
@@ -441,6 +444,7 @@ void main() {
     await _round7aShots(tester, scope, compact: true);
     await _round8Shots(tester, scope, compact: true);
     await _round9Shots(tester, scope, compact: true);
+    await _round10Shots(tester, scope, compact: true);
     await _scanShots(tester, scope, compact: true);
     await _photoShots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
@@ -479,6 +483,7 @@ AppScope _interceptScope(AppScope source,
     tasks: TaskRepository(api),
     review: ReviewRepository(api),
     media: MediaRepository(api),
+    photos: PhotoRepository(api),
     flights: FlightRepository(api),
     flyers: FlyerRepository(api),
     customers: CustomerRepository(api),
@@ -1274,6 +1279,7 @@ AppScope _round6Scope(AppScope source, {bool outdated = false}) {
     tasks: TaskRepository(api),
     review: ReviewRepository(api),
     media: MediaRepository(api),
+    photos: PhotoRepository(api),
     flights: FlightRepository(api),
     flyers: FlyerRepository(api),
     customers: CustomerRepository(api),
@@ -1300,6 +1306,7 @@ AppScope _teamScope(AppScope source,
     tasks: TaskRepository(api),
     review: ReviewRepository(api),
     media: MediaRepository(api),
+    photos: PhotoRepository(api),
     flights: FlightRepository(api),
     flyers: FlyerRepository(api),
     customers: CustomerRepository(api),
@@ -1495,7 +1502,8 @@ AppScope _bookingScope(AppScope source) {
       return http.Response(jsonEncode({'code': 'SH-54'}), 200,
           headers: {'content-type': 'application/json'});
     }
-    if (request.method == 'POST' && path.endsWith('/media/upload')) {
+    if (request.method == 'POST' &&
+        (path.endsWith('/media/upload') || path.endsWith('/device-photo'))) {
       reservations++;
       return http.Response(
           jsonEncode({
@@ -1526,6 +1534,7 @@ AppScope _bookingScope(AppScope source) {
     tasks: TaskRepository(api),
     review: ReviewRepository(api),
     media: MediaRepository(api),
+    photos: PhotoRepository(api),
     flights: FlightRepository(api),
     flyers: FlyerRepository(api),
     customers: CustomerRepository(api),
@@ -1593,15 +1602,12 @@ Future<void> _fillBooking(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.enterText(
       find.byKey(const ValueKey('Mobile-model-1')), 'Redmi Note 12');
-  await _addPhoto(
-      tester, find.byTooltip(tr('Add {name} photos', {'name': 'Mobile'})));
-  await _addPhoto(
-      tester, find.byTooltip(tr('Add {name} photos', {'name': 'Mobile'})));
+  await _addPhoto(tester, find.byKey(const ValueKey('Mobile-0-photo-0')));
+  await _addPhoto(tester, find.byKey(const ValueKey('Mobile-1-photo-0')));
   await _reveal(tester, find.byKey(const ValueKey('Laptop-model-0')));
   await tester.enterText(
       find.byKey(const ValueKey('Laptop-model-0')), 'MacBook Air M2');
-  await _addPhoto(
-      tester, find.byTooltip(tr('Add {name} photos', {'name': 'Laptop'})));
+  await _addPhoto(tester, find.byKey(const ValueKey('Laptop-0-photo-0')));
   await _reveal(tester, find.byKey(const Key('intake-kg')));
   await tester.enterText(find.byKey(const Key('intake-kg')), '6');
   await tester.enterText(find.byKey(const Key('intake-rate')), '950');
@@ -1867,6 +1873,7 @@ Widget _scoped(AppScope source, Widget home, {int? tab, bool hub = false}) {
     tasks: source.tasks,
     review: source.review,
     media: source.media,
+    photos: source.photos,
     flights: source.flights,
     flyers: source.flyers,
     customers: source.customers,
@@ -2288,4 +2295,390 @@ Future<void> _photoShots(WidgetTester tester, AppScope scope,
   await reveal(find.byKey(const Key('photos-need-update')));
   await _saveShot(tester, '$prefix-h-old-server');
   links = true;
+}
+
+/// A head-and-shoulders stand-in for a face photo; no real person.
+Uint8List _shotFace(String seed) {
+  const tones = [
+    ((0xC9, 0xD6, 0xE8), (0x7E, 0x90, 0xAB)),
+    ((0xEC, 0xDD, 0xCB), (0xA8, 0x8C, 0x70)),
+    ((0xD5, 0xE5, 0xD2), (0x7F, 0x9B, 0x7B)),
+  ];
+  final (back, person) =
+      tones[seed.codeUnits.fold<int>(0, (a, b) => a + b) % tones.length];
+  final image = img.Image(width: 240, height: 240);
+  img.fill(image, color: img.ColorRgb8(back.$1, back.$2, back.$3));
+  final ink = img.ColorRgb8(person.$1, person.$2, person.$3);
+  img.fillCircle(image, x: 120, y: 98, radius: 46, color: ink);
+  img.fillRect(image, x1: 46, y1: 160, x2: 194, y2: 239, radius: 40, color: ink);
+  return Uint8List.fromList(img.encodeJpg(image, quality: 85));
+}
+
+Map<String, Object?> _r10Customer(String code, String name, String phone) => {
+      'code': code,
+      'name': name,
+      'phone': phone,
+      'address': '',
+      'terms': 'instant',
+      'orderCount': 2,
+      'deliveredCount': 1,
+      'shippedKg': 6,
+      'billed': 0,
+      'paid': 0,
+      'balance': 0,
+      'creditBalance': 0,
+      'pricingPending': 0,
+      'discountTotal': 0,
+    };
+
+/// SH-18 with two iPhones for the order's customer (one photo in) and a
+/// MacBook ordered by Rahman Traders, and the history with faces.
+Map<String, Object?> _r10Order() {
+  final shipment =
+      Map<String, Object?>.from(round7ShipmentBody()['shipment']! as Map);
+  Map<String, Object?> unit(String model,
+          {String? photoRef, String? customer}) =>
+      {
+        'model': model,
+        'serial': '',
+        'serialPhotoRef': null,
+        'photoRef': photoRef,
+        'customerCode': customer,
+        if (customer != null)
+          'customer': {
+            'code': customer,
+            'name': 'Rahman Traders',
+            'phone': '01900000000'
+          },
+      };
+  Map<String, Object?> log(String actor, String message, String at,
+          String role, String? photo) =>
+      {
+        'actor': actor,
+        'message': message,
+        'at': at,
+        'actorRole': role,
+        'actorPhotoRef': photo,
+      };
+  shipment['pcsItems'] = [
+    {
+      'category': 'Mobile',
+      'count': 2,
+      'rate': 500,
+      'currency': 'BDT',
+      'units': [
+        unit('iPhone 13', photoRef: 'piece-a'),
+        unit('iPhone 13'),
+      ],
+    },
+    {
+      'category': 'Laptop',
+      'count': 1,
+      'rate': 1500,
+      'currency': 'BDT',
+      'units': [unit('MacBook Air M2', photoRef: 'piece-b', customer: 'C-15')],
+    },
+  ];
+  shipment['log'] = [
+    log('Mina Akter', 'Status → Received at BD Hub', '2026-10-24T09:10:00.000Z',
+        'hub', 'face-mina'),
+    log('Rafiq', 'Status → In Transit', '2026-10-22T06:00:00.000Z', 'admin',
+        'face-rafiq'),
+    log('Rafiq', 'Device photo attached', '2026-10-21T11:30:00.000Z', 'admin',
+        'face-rafiq'),
+    log('Rafiq', 'Ordered by C-15 for MacBook Air M2',
+        '2026-10-21T11:20:00.000Z', 'admin', 'face-rafiq'),
+    log('Rafiq', 'Status → Ready for Shipment', '2026-10-21T11:00:00.000Z',
+        'admin', 'face-rafiq'),
+  ];
+  return {'shipment': shipment};
+}
+
+/// [flowFlightCode] with flyer photos (one missing) and who received it.
+Map<String, Object?> _r10Flight() {
+  final flight =
+      Map<String, Object?>.from(flowFlightDetailBody()['flight']! as Map);
+  flight['flyerDetails'] = [
+    {
+      'name': 'Arif Rahman',
+      'bdPhone': '01800000000',
+      'initial': 'A',
+      'photoRef': 'face-arif'
+    },
+    {
+      'name': 'Rakib Hasan',
+      'bdPhone': '01811000000',
+      'initial': 'R',
+      'photoRef': null
+    },
+  ];
+  flight['receivedBy'] = [
+    {
+      'userId': 'h1',
+      'name': 'Mina Akter',
+      'role': 'hub',
+      'photoRef': 'face-mina',
+      'count': 1,
+      'at': '2026-10-24T09:10:00.000Z',
+    },
+  ];
+  return {'flight': flight};
+}
+
+/// The hub's flight before and after Receive orders.
+Map<String, Object?> _r10HubFlight({required bool received}) {
+  final flight =
+      Map<String, Object?>.from(hubFlightDetailBody()['flight']! as Map);
+  flight.addAll({
+    'flyerDetails': [
+      {
+        'name': 'Arif Rahman',
+        'bdPhone': '01800000000',
+        'initial': 'A',
+        'photoRef': 'face-arif'
+      },
+      {
+        'name': 'Rakib Hasan',
+        'bdPhone': '01811000000',
+        'initial': 'R',
+        'photoRef': null
+      },
+    ],
+    'readyToReceive': received ? 0 : 2,
+    'receivedCount': received ? 2 : 0,
+    'receivedBy': [
+      if (received)
+        {
+          'userId': 'h1',
+          'name': 'Mina Akter',
+          'role': 'hub',
+          'photoRef': 'face-mina',
+          'count': 2,
+          'at': '2026-10-24T09:10:00.000Z',
+        },
+    ],
+  });
+  return {'flight': flight};
+}
+
+/// Round 10: "Ordered by" and a photo per piece on the booking, the order
+/// page's devices and history with faces, flyer photos and who received the
+/// orders on the flight page, the hub's "Who is coming" and Receive orders,
+/// and the staff photo. [compact] saves the 320 px versions; nothing may
+/// overflow.
+Future<void> _round10Shots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r10' : '97';
+  final session = scope.session;
+  final admin = session.user!;
+  final hubCode = (hubFlightDetailBody()['flight']! as Map)['code']! as String;
+  var received = false;
+  var reservations = 0;
+  http.Response json(Object body, [int status = 200]) =>
+      http.Response.bytes(utf8.encode(jsonEncode(body)), status,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+  final r10 = _interceptScope(scope, (request) async {
+    final path = Uri.decodeComponent(request.url.path);
+    final parts = path.split('/');
+    if (request.url.host == 'storage.test') {
+      if (request.method == 'PUT') return http.Response('', 200);
+      final ref = parts.last;
+      return http.Response.bytes(
+          ref.startsWith('face-')
+              ? _shotFace(ref)
+              : _shotPicture(ref, width: 300, height: 300),
+          200,
+          headers: {'content-type': 'image/jpeg'});
+    }
+    if (request.method == 'GET' && path.endsWith('/url')) {
+      return json(
+          {'url': 'https://storage.test/get/${parts[parts.length - 2]}'});
+    }
+    if (request.method == 'POST' &&
+        (path.endsWith('/device-photo') || path.endsWith('/upload'))) {
+      reservations++;
+      return json({
+        'reference': 'new-$reservations',
+        'uploadUrl': 'https://storage.test/put/$reservations',
+        'expiresAt': '2026-10-27T12:00:00.000Z'
+      }, 201);
+    }
+    if (request.method == 'POST' && path.endsWith('/complete')) {
+      return json({'ok': true});
+    }
+    if (request.method == 'POST' &&
+        path == '/api/flights/hub/$hubCode/receive') {
+      received = true;
+      return json({
+        'received': ['SH-51', 'SH-53']
+      });
+    }
+    if (request.method != 'GET') return null;
+    if (path == '/api/suppliers') {
+      return json({
+        'suppliers': [
+          _r10Customer('C-14', 'Nila Store', '01700000000'),
+          _r10Customer('C-15', 'Rahman Traders', '01900000000'),
+        ]
+      });
+    }
+    if (path == '/api/shipments/SH-18') return json(_r10Order());
+    if (path == '/api/shipments/SH-18/invoice') {
+      return json(round7InvoiceBody());
+    }
+    if (path == '/api/flights/$flowFlightCode') return json(_r10Flight());
+    if (path == '/api/flights/hub/$hubCode') {
+      return json(_r10HubFlight(received: received));
+    }
+    if (path == '/api/settings/users') {
+      return json({
+        'users': [
+          {
+            'id': 'h1',
+            'name': 'Mina Akter',
+            'email': 'mina@sbx.test',
+            'role': 'hub',
+            'active': true,
+            'photoRef': 'face-mina'
+          },
+        ]
+      });
+    }
+    return null;
+  });
+
+  /// Scrolls [finder] near the top of the page and decodes the photos.
+  Future<void> show(Finder finder, {double alignment = 0.1}) async {
+    await _reveal(tester, finder);
+    await tester.runAsync(() => Scrollable.ensureVisible(
+        tester.element(finder),
+        alignment: alignment));
+    await tester.pumpAndSettle();
+    await _decodeImages(tester);
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
+    await _decodeImages(tester);
+  }
+
+  // Booking: "Ordered by" and a photo square for each piece.
+  await _shot(
+      tester,
+      _scoped(r10, const IntakeScreen(pickPhotos: _samplePhotos)),
+      '$prefix-a-booking-device',
+      find.byType(IntakeScreen));
+  await tester.tap(find.text(tr('Choose a customer')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Nila Store').last);
+  await tester.pumpAndSettle();
+  await _reveal(tester, find.text('Mobile'));
+  await tester.tap(find.text('Mobile'));
+  await tester.tap(find.text('Laptop'));
+  await tester.pumpAndSettle();
+  await _reveal(tester, find.byKey(const ValueKey('Mobile-model-0')));
+  await tester.enterText(
+      find.byKey(const ValueKey('Mobile-model-0')), 'iPhone 13');
+  await tester.tap(find.byTooltip(tr('One more')).first);
+  await tester.pumpAndSettle();
+  await _addPhoto(tester, find.byKey(const ValueKey('Mobile-0-photo-0')));
+  await _reveal(tester, find.byKey(const ValueKey('Laptop-model-0')));
+  await tester.enterText(
+      find.byKey(const ValueKey('Laptop-model-0')), 'MacBook Air M2');
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await show(find.byKey(const ValueKey('Mobile-block-0')));
+  await _saveShot(tester, '$prefix-a-booking-device');
+
+  // Who ordered the laptop.
+  await _reveal(tester, find.byKey(const ValueKey('Laptop-owner-0')));
+  await tester.tap(find.byKey(const ValueKey('Laptop-owner-0')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-b-owner-picker');
+  await tester.tap(find.text('Rahman Traders'));
+  await tester.pumpAndSettle();
+  await show(find.byKey(const ValueKey('Laptop-block-0')));
+  await _saveShot(tester, '$prefix-c-booking-owner');
+
+  // The order page: devices with owner and photos, then the history.
+  await _shot(
+      tester,
+      _scoped(r10,
+          const AdminShipmentScreen(code: 'SH-18', pickPhotos: _samplePhotos)),
+      '$prefix-d-order-devices',
+      find.byType(AdminShipmentScreen));
+  await show(find.byKey(const Key('order-devices')));
+  await _saveShot(tester, '$prefix-d-order-devices');
+  await tester.tap(find.byKey(const ValueKey('order-device-owner-1-0')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-e-order-owner-picker');
+  await tester.tap(find.byTooltip(tr('Close')));
+  await tester.pumpAndSettle();
+  await show(find.byKey(const Key('order-history')));
+  await _saveShot(tester, '$prefix-f-order-history');
+
+  // The flight page: flyer photos and who received the orders.
+  await _shot(
+      tester,
+      _scoped(r10, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-g-flight-faces',
+      find.byType(FlightDetailScreen));
+  await show(find.byKey(const Key('flight-flyer-faces')));
+  await _saveShot(tester, '$prefix-g-flight-faces');
+  await tester.tap(find.byKey(const ValueKey('flyer-photo-Arif Rahman')));
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-h-face-sheet');
+  await tester.tapAt(const Offset(20, 20));
+  await tester.pumpAndSettle();
+
+  // The hub: who is coming, then Receive orders as this hub manager.
+  session.user = const SessionUser(
+      id: 'h1',
+      name: 'Mina Akter',
+      email: 'mina@sbx.test',
+      role: UserRole.hub,
+      roleLabel: 'Hub Manager · Dhaka',
+      photoRef: 'face-mina');
+  received = false;
+  await _shot(tester, _scoped(r10, HubFlightDetailScreen(code: hubCode)),
+      '$prefix-i-hub-coming', find.byType(HubFlightDetailScreen));
+  await show(find.byKey(const Key('hub-who-is-coming')), alignment: 0);
+  await _saveShot(tester, '$prefix-i-hub-coming');
+  await show(find.byKey(const Key('hub-receive-card')), alignment: 0.2);
+  await _saveShot(tester, '$prefix-j-hub-receive');
+  await tester.tap(find.byKey(const Key('hub-receive')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-k-hub-receive-confirm');
+  await tester.tap(find.byKey(const Key('hub-receive-confirm')));
+  await tester.pumpAndSettle();
+  await show(find.byKey(const Key('flight-received-by')), alignment: 0.2);
+  await _saveShot(tester, '$prefix-l-hub-received');
+  session.user = admin;
+
+  // Team: the staff photo on the person's page.
+  await _shot(
+      tester,
+      _scoped(
+          r10,
+          const StaffEditScreen(
+              person: StaffAccount(
+                  id: 'h1',
+                  name: 'Mina Akter',
+                  email: 'mina@sbx.test',
+                  role: 'hub',
+                  active: true,
+                  photoRef: 'face-mina'),
+              selfId: 'u1')),
+      '$prefix-m-staff-photo',
+      find.byType(StaffEditScreen));
+  await _decodeImages(tester);
+  await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)));
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-m-staff-photo');
+  await tester.tap(find.byKey(const Key('staff-photo')));
+  await tester.pumpAndSettle();
+  await _decodeImages(tester);
+  await _saveShot(tester, '$prefix-n-staff-photo-sheet');
 }

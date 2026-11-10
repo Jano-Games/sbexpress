@@ -19,6 +19,9 @@ import { FLIGHT_COST_CATEGORIES, FLIGHT_COST_LABEL, flightCostRow, flightCostRow
 import { flightProfitBreakdown } from '../shared/profit'
 import { shipmentLateDays, utcToday } from '../shared/latePayments'
 import { reverseExpenseOffset } from './corrections'
+import { photoRefs } from '../shared/personPhotos'
+import { RECEIVED_MESSAGE, receivedBy } from '../shared/receivedBy'
+import { writeShipmentLog } from '../shared/actor'
 import { applyRatesToOrders, effectiveRates, flightRateFields, followsRates } from '../shared/flightRates'
 
 const INCLUDE = {
@@ -271,7 +274,38 @@ export const flightRoutes = new Hono<AppEnv>()
       getSettings(),
     ])
     if (!flight) throw notFound('Flight not found')
-    return c.json({ flight: hubFlightDetail(flight, settings.threshold) })
+    const [flyerPhotos, received] = await Promise.all([
+      photoRefs('flyer', flight.flyers.map((x) => x.flyer.id)),
+      receivedBy(flight.shipments),
+    ])
+    return c.json({ flight: hubFlightDetail(flight, settings.threshold, new Date(), { flyerPhotos, receivedBy: received }) })
+  })
+
+  /** Receives this flight's orders at the BD hub: every order through customs, or the ones named. */
+  .post('/hub/:code/receive', requireRole('admin', 'hub'), async (c) => {
+    const { codes } = z
+      .object({ codes: z.array(z.string().min(1)).max(500).optional() })
+      .strict()
+      .parse(await c.req.json().catch(() => ({})))
+    const flight = await prisma.flight.findUnique({
+      where: { code: c.req.param('code') },
+      select: { id: true, shipments: { select: { id: true, code: true, status: true, exception: true } } },
+    })
+    if (!flight) throw notFound('Flight not found')
+    const wanted = codes ? new Set(codes) : null
+    if (wanted) {
+      const unknown = [...wanted].filter((code) => !flight.shipments.some((s) => s.code === code))
+      if (unknown.length) throw badRequest(`Not on this flight: ${unknown.join(', ')}`)
+    }
+    const ready = flight.shipments.filter((s) => s.status === 'customs_cleared' && !s.exception && (!wanted || wanted.has(s.code)))
+    if (!ready.length) throw badRequest('No orders are waiting to be received on this flight')
+    for (const s of ready) {
+      await prisma.shipment.update({ where: { id: s.id }, data: { status: 'received_bd_hub' } })
+      await writeShipmentLog(s.id, RECEIVED_MESSAGE)
+    }
+    await cacheInvalidate('dashboard')
+    await cacheInvalidate('track')
+    return c.json({ received: ready.map((s) => s.code) })
   })
 
   .post('/', requireRole('admin'), async (c) => {
@@ -345,10 +379,15 @@ export const flightRoutes = new Hono<AppEnv>()
       getSettings(),
     ])
     if (!flight) throw notFound('Flight not found')
+    const [flyerPhotos, received] = await Promise.all([
+      photoRefs('flyer', flight.flyers.map((x) => x.flyer.id)),
+      receivedBy(flight.shipments),
+    ])
     const flyers = flight.flyers.map((x) => ({
       name: x.flyer.name,
       bdPhone: x.flyer.bdPhone,
       initial: x.flyer.name.charAt(0),
+      photoRef: flyerPhotos.get(x.flyer.id) ?? null,
     }))
     const today = utcToday()
     const rates = effectiveRates(flight, settings)
@@ -358,6 +397,7 @@ export const flightRoutes = new Hono<AppEnv>()
         rateFollowers: flight.shipments.filter((s) => followsRates(s, rates)).length,
         flightCosts: flightCostRows(flight.expenses),
         flyerDetails: flyers,
+        receivedBy: received,
         bookings: flight.shipments.map((s) => ({ ...shipmentRow(s, 'admin', settings.threshold), lateDays: shipmentLateDays(s, today) })),
       },
     })

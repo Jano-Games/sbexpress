@@ -18,6 +18,7 @@ class FlyerSummary {
     required this.documentCount,
     required this.verifiedDocumentCount,
     required this.archivedAt,
+    this.photoRef,
   });
 
   final String name;
@@ -35,6 +36,9 @@ class FlyerSummary {
   final int documentCount;
   final int verifiedDocumentCount;
   final String? archivedAt;
+
+  /// Face photo, so the hub knows who is arriving.
+  final String? photoRef;
 
   bool get archived => archivedAt != null;
 
@@ -55,6 +59,7 @@ class FlyerSummary {
       documentCount: requiredInt(json, 'documentCount'),
       verifiedDocumentCount: requiredInt(json, 'verifiedDocumentCount'),
       archivedAt: requiredNullableString(json, 'archivedAt'),
+      photoRef: json['photoRef'] is String ? json['photoRef'] as String : null,
     );
   }
 }
@@ -111,6 +116,7 @@ class FlyerDetail extends FlyerSummary {
     required super.documentCount,
     required super.verifiedDocumentCount,
     required super.archivedAt,
+    super.photoRef,
     required this.cnAddress,
     required this.homeAddress,
     required this.emergencyContact,
@@ -145,6 +151,7 @@ class FlyerDetail extends FlyerSummary {
       documentCount: base.documentCount,
       verifiedDocumentCount: base.verifiedDocumentCount,
       archivedAt: base.archivedAt,
+      photoRef: base.photoRef,
       cnAddress: requiredString(json, 'cnAddress'),
       homeAddress: requiredString(json, 'homeAddress'),
       emergencyContact: requiredString(json, 'emergencyContact'),
