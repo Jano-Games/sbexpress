@@ -773,3 +773,26 @@ model FlyerDocument {
   createdAt DateTime @default(now())
   @@index([flyerId, status])
 }
+
+/// A face photo of a flyer or a staff member, so the hub can recognise who is
+/// coming and everyone can see who received an order. Kept apart from flyer
+/// documents (passport, visa …), which stay admin-only. Only the newest ready
+/// photo of an owner is in use; replaced or removed ones are marked deleted
+/// and their stored files are cleaned up later.
+model PersonPhoto {
+  id           String   @id @default(cuid())
+  reference    String   @unique @default(uuid())
+  /// "flyer" or "user".
+  ownerType    String
+  ownerId      String
+  contentType  String
+  size         Int
+  stagingKey   String   @unique
+  objectKey    String   @unique
+  status       String   @default("pending")
+  uploadedById String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([ownerType, ownerId, status])
+}

@@ -57,6 +57,15 @@ class FlightRepository {
     return HubFlightDetail.fromJson(asJsonMap(json['flight'], 'flight'));
   }
 
+  /// Receives the flight's orders at the BD hub: every order through
+  /// customs, or only [codes]. Returns the codes received.
+  Future<List<String>> receiveAtHub(String code, {List<String>? codes}) async {
+    final json = await api.postJson(
+        '/api/flights/hub/${Uri.encodeComponent(code)}/receive',
+        body: {if (codes != null) 'codes': codes});
+    return requiredStringList(json, 'received');
+  }
+
   Future<String> create(FlightDraft draft) async {
     final json = await api.postJson('/api/flights', body: draft.toJson());
     return requiredString(json, 'code');

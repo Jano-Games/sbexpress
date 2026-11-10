@@ -186,3 +186,35 @@ describe('shipment role DTOs', () => {
     expect(detail.costs.profit).toEqual(expect.any(Number))
   })
 })
+
+describe('round 10: who ordered each piece, piece photos and history photos', () => {
+  const ref = '33333333-3333-4333-8333-333333333333'
+  const withOwner = {
+    ...shipment,
+    pcsItems: [{
+      category: 'Mobile', count: 1, rate: 500, currency: 'BDT',
+      units: [{ model: 'Pixel', serial: 'IMEI1', photoRef: ref, customerCode: 'SUP-7' }],
+    }],
+    logs: [{ actor: 'Hub', actorId: 'hub-1', message: 'Device photo attached', at: now }],
+  } as unknown as Parameters<typeof shipmentDetail>[0]
+  const people = {
+    customers: new Map([['SUP-7', { code: 'SUP-7', name: 'Nadia Store', phone: '01700000000' }]]),
+    staff: new Map([['hub-1', { name: 'Rafi Hasan', role: 'hub' as const, photoRef: ref }]]),
+  }
+
+  it('admin sees the customer behind a piece and the photo of who wrote each history line', () => {
+    const detail = shipmentDetail(withOwner, 'admin', 0.5, null, people)
+    expect(detail.pcsItems[0]!.units[0]).toEqual({
+      model: 'Pixel', serial: 'IMEI1', serialPhotoRef: null, photoRef: ref,
+      customerCode: 'SUP-7', customer: { code: 'SUP-7', name: 'Nadia Store', phone: '01700000000' },
+    })
+    expect(detail.log[0]).toEqual({ actor: 'Hub', message: 'Device photo attached', at: now.toISOString(), actorRole: 'hub', actorPhotoRef: ref })
+  })
+
+  it('the hub sees the customer code and piece photo, never the name', () => {
+    const detail = shipmentDetail(withOwner, 'hub', 0.5, null, people)
+    expect(detail.pcsItems[0]!.units[0]).toEqual({ model: 'Pixel', serial: 'IMEI1', photoRef: ref, customerCode: 'SUP-7' })
+    expect(JSON.stringify(detail)).not.toContain('Nadia Store')
+    expect(detail.log[0]!.actorPhotoRef).toBe(ref)
+  })
+})

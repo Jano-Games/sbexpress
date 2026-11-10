@@ -9,12 +9,15 @@ import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
 import '../../data/models/workspace.dart';
 import '../../data/rates.dart';
+import '../../data/repositories/photo_repository.dart';
+import '../../data/uploads/signed_photos.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/finance_parts.dart' show showAccountSheet;
 import '../../widgets/flight_parts.dart';
 import '../../widgets/flow_parts.dart';
 import '../../widgets/money_confirm.dart';
+import '../../widgets/people_parts.dart' show changeFacePhoto;
 import '../../widgets/quick_parts.dart' show plainKg, wholeMoney;
 import '../../widgets/remove_parts.dart';
 import '../../widgets/round7_parts.dart';
@@ -25,6 +28,7 @@ import '../intake/intake_screen.dart';
 import 'add_flight_cost_sheet.dart';
 import 'capacity_sheet.dart';
 import 'flight_edit_screen.dart';
+import 'flight_people_cards.dart';
 import 'flight_rates_sheet.dart';
 import 'hub_flights_screen.dart' show banglaPlace;
 import 'itinerary_parts.dart' show flightNumberOf;
@@ -52,12 +56,42 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
   var _loading = true;
   var _deleting = false;
 
+  /// Face photos of the flyers and of whoever received the orders.
+  SignedPhotoLoader? _faces;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _faces ??= AppScope.of(context).photos.loader();
+  }
+
+  @override
+  void dispose() {
+    _faces?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _facePhoto(
+      {required PhotoOwner type,
+      required String owner,
+      required String name,
+      required String? photoRef}) async {
+    final changed = await changeFacePhoto(context,
+        photos: AppScope.of(context).photos,
+        type: type,
+        owner: owner,
+        name: name,
+        photoRef: photoRef,
+        loader: _faces!);
+    if (changed && mounted) await _load();
   }
 
   Future<void> _load() async {
@@ -281,6 +315,29 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                         : summary.flyers.join(', '),
                   ],
                   onTap: () => _push(TicketFlyersScreen(code: _code))),
+              if (detail.flyerDetails.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                FlyerFacesCard(
+                    flyers: detail.flyerDetails,
+                    loader: _faces!,
+                    onPhoto: (flyer) => _facePhoto(
+                        type: PhotoOwner.flyer,
+                        owner: flyer.name,
+                        name: flyer.name,
+                        photoRef: flyer.photoRef)),
+              ],
+              if (detail.receivedBy.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                ReceivedByCard(
+                    groups: detail.receivedBy,
+                    total: bookings.length,
+                    loader: _faces!,
+                    onAddPhoto: (group) => _facePhoto(
+                        type: PhotoOwner.user,
+                        owner: group.userId!,
+                        name: group.name,
+                        photoRef: group.photoRef)),
+              ],
               const SizedBox(height: 20),
               _ShipmentsHeading(bookings: bookings),
               if (bookings.isEmpty)

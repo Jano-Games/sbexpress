@@ -65,7 +65,9 @@ Uint8List _jpeg() =>
 /// remembers each reserve body.
 Future<http.Response?> _storage(
     http.Request r, List<Map<String, Object?>> reserved) async {
-  if (r.method == 'POST' && r.url.path.endsWith('/upload')) {
+  if (r.method == 'POST' &&
+      (r.url.path.endsWith('/upload') ||
+          r.url.path.endsWith('/device-photo'))) {
     reserved.add(jsonDecode(r.body) as Map<String, Object?>);
     return _ok({
       'reference': 'ref-${reserved.length}',
@@ -211,9 +213,8 @@ void main() {
     await t.enterText(
         find.byKey(const ValueKey('Mobile-model-1')), 'Redmi Note 12');
     await t.pumpAndSettle();
-    // A photo of the phones.
-    final addMobile =
-        find.byTooltip(tr('Add {name} photos', {'name': 'Mobile'}));
+    // A photo of the Redmi, the third phone.
+    final addMobile = find.byKey(const ValueKey('Mobile-1-photo-0'));
     await _reveal(t, addMobile);
     await t.tap(addMobile);
     await t.pumpAndSettle();
@@ -256,9 +257,12 @@ void main() {
     expect(find.byType(BookingDoneScreen), findsOneWidget);
     expect(
         find.text(tr('{code} is booked', {'code': 'SH-54'})), findsOneWidget);
-    // The phone photo is marked with its category; the parcel photo is not.
+    // The phone photo goes on its own piece; the parcel photo does not.
     expect(reserved, hasLength(2));
-    expect(reserved[0]['deviceCategory'], 'Mobile');
+    expect(reserved[0], containsPair('kind', 'device'));
+    expect(reserved[0], containsPair('itemIndex', 0));
+    expect(reserved[0], containsPair('unitIndex', 2));
+    expect(reserved[1].containsKey('unitIndex'), isFalse);
     expect(reserved[1].containsKey('deviceCategory'), isFalse);
     expect(find.text(tr('Photos uploaded')), findsOneWidget);
     expect(t.takeException(), isNull);

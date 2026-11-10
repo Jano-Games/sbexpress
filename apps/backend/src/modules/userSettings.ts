@@ -6,6 +6,7 @@ import { prisma } from '../core/db'
 import { badRequest, notFound, HttpError } from '../core/errors'
 import { rateLimit } from '../core/redis'
 import { requireRole, type AppEnv } from './auth'
+import { photoRefs } from '../shared/personPhotos'
 
 // Explicit selection keeps password hashes out of every account response.
 const userFields = { id: true, name: true, email: true, role: true, active:true, createdAt: true } as const
@@ -31,7 +32,11 @@ function accountError(error: unknown): never {
 
 export const userSettingsRoutes = new Hono<AppEnv>()
   .use('*', requireRole('admin'))
-  .get('/', async c => c.json({ users: await prisma.user.findMany({ select: userFields, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }) }))
+  .get('/', async c => {
+    const users = await prisma.user.findMany({ select: userFields, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
+    const photos = await photoRefs('user', users.map((u) => u.id))
+    return c.json({ users: users.map((u) => ({ ...u, photoRef: photos.get(u.id) ?? null })) })
+  })
   .post('/', async c => {
     const body = profile.extend({ password }).strict().parse(await c.req.json())
     await availableEmail(body.email)

@@ -7,7 +7,7 @@ export async function cleanupMedia(execute = false) {
   // Each record is re-read inside the same mutation lock as upload completion.
   // Ready files and accepted payment evidence are never deleted.
   // These delegates share precisely the fields read below. Do not use model-specific fields here.
-  for (const kind of ['shipmentMedia', 'receiptUpload', 'flyerDocument'] as const) {
+  for (const kind of ['shipmentMedia', 'receiptUpload', 'flyerDocument', 'personPhoto'] as const) {
     const store = prisma[kind] as typeof prisma.shipmentMedia
     let cursor: string | undefined
     while (true) {

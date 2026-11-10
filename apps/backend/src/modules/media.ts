@@ -7,12 +7,15 @@ import { prisma } from '../core/db'
 import { rateLimit } from '../core/redis'
 import { badRequest, notFound, HttpError } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
-import { attachSerialPhoto } from '../shared/devicePhotos'
+import { attachUnitPhoto } from '../shared/devicePhotos'
 import { mediaLimit, mediaTypes } from '../shared/mediaValidation'
 import { r2Configured, signUpload, finalizeUpload, signDownload } from '../shared/r2'
 import { resolvePublicLink, tokenHash } from '../shared/publicLinks'
 import { assertStaffUploadBudget, reservationSeconds } from '../shared/uploadPolicy'
 const ref = z.string().uuid()
+/** Photos of single device pieces (IMEI label, the piece itself) stay with staff. */
+const PIECE_PHOTOS = ['device_serial', 'device_photo']
+const isPiecePhoto = (purpose: string) => PIECE_PHOTOS.includes(purpose)
 async function syncCounts(shipmentId:string){
  const rows=await prisma.shipmentMedia.findMany({where:{shipmentId,status:'ready'},select:{contentType:true}})
  await prisma.shipment.update({where:{id:shipmentId},data:{photosCount:rows.filter(r=>r.contentType.startsWith('image/')).length,hasVideo:rows.some(r=>r.contentType.startsWith('video/'))}})
@@ -34,7 +37,7 @@ const row=(m:{reference:string;name:string;contentType:string;size:number;shared
 export const mediaRoutes=new Hono<AppEnv>()
  .get('/:code/media',requireRole('admin','hub'),async c=>{
   const s=await shipment(c.req.param('code')!)
-  const rows=await prisma.shipmentMedia.findMany({where:{shipmentId:s.id,status:'ready',purpose:{not:'device_serial'}},orderBy:{createdAt:'asc'}})
+  const rows=await prisma.shipmentMedia.findMany({where:{shipmentId:s.id,status:'ready',purpose:{notIn:PIECE_PHOTOS}},orderBy:{createdAt:'asc'}})
   return c.json({configured:r2Configured(),media:rows.map(row)})
  })
  .post('/:code/media/upload',requireRole('admin','hub'),async c=>{
@@ -51,7 +54,7 @@ export const mediaRoutes=new Hono<AppEnv>()
  })
  .post('/:code/media/:reference/complete',requireRole('admin','hub'),async c=>{
   const m=await media(c.req.param('code')!,c.req.param('reference')!)
-  if(m.purpose==='device_serial') throw badRequest('Finish this IMEI photo from the device photo action')
+  if(isPiecePhoto(m.purpose)) throw badRequest('Finish this device photo from the device photo action')
   if(m.status==='ready') return c.json({ok:true})
   if(m.expiresAt<=new Date()) throw badRequest('Upload reservation expired; start a new upload')
   const stored=await finalizeUpload(m)
@@ -68,7 +71,7 @@ export const mediaRoutes=new Hono<AppEnv>()
  .patch('/:code/media/:reference',requireRole('admin'),async c=>{
   const m=await media(c.req.param('code')!,c.req.param('reference')!)
   const {shared}=z.object({shared:z.boolean()}).parse(await c.req.json())
-  if(m.purpose==='device_serial') throw badRequest('IMEI photos stay private to staff')
+  if(isPiecePhoto(m.purpose)) throw badRequest('Device photos stay private to staff')
   await prisma.shipmentMedia.update({where:{id:m.id},data:{shared}})
   return c.json({ok:true})
  })
@@ -78,6 +81,8 @@ export const mediaRoutes=new Hono<AppEnv>()
   const b=z.object({
     itemIndex:z.number().int().min(0),
     unitIndex:z.number().int().min(0),
+    /** "serial": the IMEI or serial label. "device": a photo of the piece. */
+    kind:z.enum(['serial','device']).default('serial'),
     name:z.string().trim().min(1).max(180),
     contentType:z.enum(['image/jpeg','image/png','image/webp']),
     size:z.number().int().positive().max(10*1024*1024),
@@ -90,7 +95,7 @@ export const mediaRoutes=new Hono<AppEnv>()
   const uploadUrl=await signUpload(stagingKey,b.contentType,b.size,seconds)
   const created=await prisma.shipmentMedia.create({data:{
     name:b.name,contentType:b.contentType,size:b.size,shipmentId:s.id,stagingKey,objectKey,
-    purpose:'device_serial',deviceKey:`${b.itemIndex}:${b.unitIndex}`,shared:false,
+    purpose:b.kind==='device'?'device_photo':'device_serial',deviceKey:`${b.itemIndex}:${b.unitIndex}`,shared:false,
     expiresAt:new Date(Date.now()+seconds*1000),
   }})
   return c.json({reference:created.reference,uploadUrl,expiresAt:created.expiresAt.toISOString()},201)
@@ -99,8 +104,9 @@ export const mediaRoutes=new Hono<AppEnv>()
   const s=await shipment(c.req.param('code')!)
   const m=await prisma.shipmentMedia.findFirst({where:{shipmentId:s.id,reference:ref.parse(c.req.param('reference')!),status:{not:'deleted'}}})
   if(!m) throw notFound('Attachment not found')
-  if(m.purpose!=='device_serial'||!m.deviceKey) throw badRequest('This upload is not an IMEI photo')
-  if(!m.contentType.startsWith('image/')) throw badRequest('IMEI photos must be images')
+  if(!isPiecePhoto(m.purpose)||!m.deviceKey) throw badRequest('This upload is not a device photo')
+  if(!m.contentType.startsWith('image/')) throw badRequest('Device photos must be images')
+  const piece=m.purpose==='device_photo'
   if(m.status!=='ready'){
     if(m.expiresAt<=new Date()) throw badRequest('Upload reservation expired; start a new upload')
     const stored=await finalizeUpload(m)
@@ -110,13 +116,13 @@ export const mediaRoutes=new Hono<AppEnv>()
   }
   const [itemIndex,unitIndex]=m.deviceKey.split(':').map((part)=>Number(part))
   if(itemIndex===undefined||unitIndex===undefined||Number.isNaN(itemIndex)||Number.isNaN(unitIndex)) throw badRequest('Device unit not found')
-  const attached=attachSerialPhoto(s.pcsItems,itemIndex,unitIndex,m.reference)
+  const attached=attachUnitPhoto(s.pcsItems,itemIndex,unitIndex,m.reference,piece?'photoRef':'serialPhotoRef')
   await prisma.shipment.update({where:{id:s.id},data:{pcsItems:attached.items as Prisma.InputJsonValue}})
   if(attached.previous&&attached.previous!==m.reference){
-    await prisma.shipmentMedia.updateMany({where:{shipmentId:s.id,reference:attached.previous,purpose:'device_serial'},data:{status:'deleted',shared:false,expiresAt:new Date(Date.now()+120000)}})
+    await prisma.shipmentMedia.updateMany({where:{shipmentId:s.id,reference:attached.previous,purpose:m.purpose},data:{status:'deleted',shared:false,expiresAt:new Date(Date.now()+120000)}})
   }
   await syncCounts(s.id)
-  await writeShipmentLog(s.id,`Device IMEI photo attached`)
+  await writeShipmentLog(s.id,piece?'Device photo attached':'Device IMEI photo attached')
   return c.json({ok:true,reference:m.reference})
  })
  .delete('/:code/media/:reference',requireRole('admin'),async c=>{
@@ -129,12 +135,12 @@ export const publicMediaRoutes=new Hono()
  .use('*',async(c,next)=>{if(!await rateLimit(`public-media:${tokenHash(c.req.path.split('/')[3] ?? '')}`,120))throw new HttpError(429,'Too many requests');await next()})
  .get('/:token/media',async c=>{
   const link=await resolvePublicLink(c.req.param('token'))
-  const rows=await prisma.shipmentMedia.findMany({where:{shipmentId:link.shipmentId,status:'ready',shared:true,purpose:{not:'device_serial'}},orderBy:{createdAt:'asc'}})
+  const rows=await prisma.shipmentMedia.findMany({where:{shipmentId:link.shipmentId,status:'ready',shared:true,purpose:{notIn:PIECE_PHOTOS}},orderBy:{createdAt:'asc'}})
   return c.json({media:rows.map(row)})
  })
  .get('/:token/media/:reference/url',async c=>{
   const link=await resolvePublicLink(c.req.param('token'))
-  const m=await prisma.shipmentMedia.findFirst({where:{shipmentId:link.shipmentId,reference:ref.parse(c.req.param('reference')!),status:'ready',shared:true,purpose:{not:'device_serial'}}})
+  const m=await prisma.shipmentMedia.findFirst({where:{shipmentId:link.shipmentId,reference:ref.parse(c.req.param('reference')!),status:'ready',shared:true,purpose:{notIn:PIECE_PHOTOS}}})
   if(!m) throw notFound('Attachment not found')
   return c.json({url:await signDownload(m.objectKey,Math.floor((link.expiresAt.getTime()-Date.now())/1000))})
  })

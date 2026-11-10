@@ -7,6 +7,7 @@ import 'data/repositories/finance_repository.dart';
 import 'data/repositories/flight_repository.dart';
 import 'data/repositories/flyer_repository.dart';
 import 'data/repositories/media_repository.dart';
+import 'data/repositories/photo_repository.dart';
 import 'data/repositories/review_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/repositories/shipment_repository.dart';
@@ -23,6 +24,7 @@ class AppScope extends InheritedWidget {
     required this.tasks,
     required this.review,
     required this.media,
+    required this.photos,
     required this.flights,
     required this.flyers,
     required this.customers,
@@ -38,6 +40,9 @@ class AppScope extends InheritedWidget {
   final TaskRepository tasks;
   final ReviewRepository review;
   final MediaRepository media;
+
+  /// Face photos of flyers and staff.
+  final PhotoRepository photos;
   final FlightRepository flights;
   final FlyerRepository flyers;
   final CustomerRepository customers;
@@ -68,6 +73,7 @@ class AppScope extends InheritedWidget {
       tasks: TaskRepository(api),
       review: ReviewRepository(api),
       media: MediaRepository(api),
+      photos: PhotoRepository(api),
       flights: FlightRepository(api),
       flyers: FlyerRepository(api),
       customers: CustomerRepository(api),

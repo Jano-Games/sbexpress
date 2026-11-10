@@ -25,6 +25,8 @@ import { getSettings } from '../shared/settings'
 import { creditPayment, debitCash } from '../shared/ledger'
 import { config } from '../core/config'
 import { newPublicToken, tokenHash } from '../shared/publicLinks'
+import { setUnitCustomer } from '../shared/devicePhotos'
+import { staffPeople } from '../shared/personPhotos'
 
 const INCLUDE = { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } as const
 const INCLUDE_FULL = {
@@ -128,10 +130,79 @@ const pcsItemsSchema = z
         model: z.string().max(120).default(''),
         serial: z.string().max(120).default(''),
         serialPhotoRef: z.string().uuid().nullable().optional(),
+        /** A photo of the piece itself. */
+        photoRef: z.string().uuid().nullable().optional(),
+        /** Who ordered this piece; unset means the order's customer. */
+        customerCode: z.string().trim().min(1).max(40).nullable().optional(),
       })).max(20).default([]),
     }),
   )
   .max(20)
+type PcsInput = z.infer<typeof pcsItemsSchema>
+type StoredUnit = { photoRef?: string | null; serialPhotoRef?: string | null; customerCode?: string | null }
+
+const unitCustomerCodes = (items: unknown): string[] =>
+  (Array.isArray(items) ? items as { units?: StoredUnit[] }[] : [])
+    .flatMap((item) => (item?.units ?? []).map((unit) => unit?.customerCode))
+    .filter((code): code is string => typeof code === 'string' && code.length > 0)
+
+/**
+ * The customers named as "ordered by" on device pieces must exist. A new
+ * name must also be active; one already on the order may stay after it is archived.
+ */
+async function assertDeviceCustomers(items: PcsInput, alreadyThere: readonly string[] = []) {
+  const codes = [...new Set(unitCustomerCodes(items))]
+  if (!codes.length) return
+  const found = await prisma.supplier.findMany({ where: { code: { in: codes } }, select: { code: true, archivedAt: true } })
+  for (const code of codes) {
+    const row = found.find((f) => f.code === code)
+    if (!row) throw badRequest(`Unknown customer ${code}`)
+    if (row.archivedAt && !alreadyThere.includes(code)) throw badRequest(`${code} is archived. Restore the customer first.`)
+  }
+}
+
+/** The order's own customer is the default, so it is not stored on a piece. */
+function dropDefaultCustomer(items: PcsInput, orderCustomer: string): PcsInput {
+  return items.map((item) => ({
+    ...item,
+    units: item.units.map(({ customerCode, ...unit }) => (customerCode && customerCode !== orderCustomer ? { ...unit, customerCode } : unit)),
+  }))
+}
+
+/**
+ * An edit that leaves out a piece's photo or customer (an older app) keeps
+ * what is stored for the same piece. Sending null clears it.
+ */
+function keepPieceDetails(items: PcsInput, stored: unknown): PcsInput {
+  const before = Array.isArray(stored) ? stored as { category?: string; units?: StoredUnit[] }[] : []
+  return items.map((item, i) => {
+    const old = before[i]?.category === item.category ? before[i]?.units ?? [] : []
+    return {
+      ...item,
+      units: item.units.map((unit, j) => {
+        const was = old[j]
+        if (!was) return unit
+        const kept = { ...unit }
+        for (const field of ['photoRef', 'serialPhotoRef', 'customerCode'] as const) {
+          if (kept[field] === undefined && typeof was[field] === 'string') kept[field] = was[field]
+        }
+        return kept
+      }),
+    }
+  })
+}
+
+/** Customer names for the pieces' "ordered by", and staff photos for the history. */
+async function detailPeople(shipment: { pcsItems: unknown; logs: { actorId: string | null }[] }, role: SessionUser['role']) {
+  const codes = role === 'admin' ? [...new Set(unitCustomerCodes(shipment.pcsItems))] : []
+  const [customers, staff] = await Promise.all([
+    codes.length
+      ? prisma.supplier.findMany({ where: { code: { in: codes } }, select: { code: true, name: true, phone: true } })
+      : Promise.resolve([]),
+    staffPeople(shipment.logs.map((l) => l.actorId)),
+  ])
+  return { customers: new Map(customers.map((c) => [c.code, c])), staff }
+}
 
 export const shipmentRoutes = new Hono<AppEnv>()
   .get('/', async (c) => {
@@ -173,6 +244,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
     const supplier = await prisma.supplier.findUnique({ where: { code: body.supplierCode } })
     if (!supplier) throw badRequest(`Unknown customer ${body.supplierCode}`)
     if (supplier.archivedAt) throw badRequest(`${supplier.code} is archived — restore the customer first`)
+    body.pcsItems = dropDefaultCustomer(body.pcsItems, supplier.code)
+    await assertDeviceCustomers(body.pcsItems)
     const flight = body.flightCode ? await prisma.flight.findUnique({ where: { code: body.flightCode }, include: {flyers:{include:{flyer:true}}} }) : null
     if (body.flightCode && !flight) throw badRequest(`Unknown flight ${body.flightCode}`)
     if(flight && flight.status!=='upcoming')throw badRequest('Choose an upcoming flight')
@@ -230,7 +303,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
     if (user.role === 'admin' && await issueOnOpen(shipment)) shipment = await findByCode(shipment.code)
     const settings = await getSettings()
     const flightCosts = user.role === 'admin' ? await flightCostsFor(shipment.flightId) : null
-    return c.json({ shipment: shipmentDetail(shipment, user.role, settings.threshold, flightCosts) })
+    const people = await detailPeople(shipment, user.role)
+    return c.json({ shipment: shipmentDetail(shipment, user.role, settings.threshold, flightCosts, people) })
   })
 
   .patch('/:code', requireRole('admin'), async (c) => {
@@ -258,6 +332,11 @@ export const shipmentRoutes = new Hono<AppEnv>()
     if (body.payStatus && num(shipment.paidAmount) > 0 && body.payStatus !== shipment.payStatus) throw badRequest('Payment status is derived from the ledger')
     // An automatic bill follows the shipment to its new customer; a hand-edited or paid one cannot move.
     if (body.supplierCode && body.supplierCode !== shipment.supplier.code && (shipment.invoice?.pricingMode === 'manual' || num(shipment.paidAmount) > 0 || shipment.payments.length > 0)) throw badRequest('Cannot reassign an invoiced or paid shipment')
+    if (body.pcsItems) {
+      body.pcsItems = keepPieceDetails(body.pcsItems, shipment.pcsItems)
+      body.pcsItems = dropDefaultCustomer(body.pcsItems, body.supplierCode ?? shipment.supplier.code)
+      await assertDeviceCustomers(body.pcsItems, unitCustomerCodes(shipment.pcsItems))
+    }
     const data: Prisma.ShipmentUncheckedUpdateInput = {}
     const changed: string[] = []
     if(body.paymentTerms !== undefined && body.paymentTerms !== shipment.paymentTerms){data.paymentTerms=body.paymentTerms;changed.push(`payment terms → ${body.paymentTerms}`)}
@@ -353,6 +432,32 @@ export const shipmentRoutes = new Hono<AppEnv>()
       await prisma.invoice.delete({ where: { id: shipment.invoice.id } })
     }
     await prisma.shipment.delete({ where: { id: shipment.id } })
+    await invalidateReads()
+    return c.json({ ok: true })
+  })
+
+  /** Who ordered one device piece. null puts it back on the order's customer. */
+  .patch('/:code/devices/:item/:unit', requireRole('admin'), async (c) => {
+    const user = c.get('user')
+    const shipment = await findByCode(c.req.param('code')!)
+    const itemIndex = z.coerce.number().int().min(0).parse(c.req.param('item'))
+    const unitIndex = z.coerce.number().int().min(0).parse(c.req.param('unit'))
+    const { customerCode } = z
+      .object({ customerCode: z.string().trim().min(1).max(40).nullable() })
+      .strict()
+      .parse(await c.req.json())
+    const owner = customerCode && customerCode !== shipment.supplier.code ? customerCode : null
+    if (owner) {
+      const customer = await prisma.supplier.findUnique({ where: { code: owner }, select: { archivedAt: true } })
+      if (!customer) throw badRequest(`Unknown customer ${owner}`)
+      if (customer.archivedAt) throw badRequest(`${owner} is archived. Restore the customer first.`)
+    }
+    const set = setUnitCustomer(shipment.pcsItems, itemIndex, unitIndex, owner)
+    if (set.previous === owner) return c.json({ ok: true })
+    await prisma.shipment.update({ where: { id: shipment.id }, data: { pcsItems: set.items as Prisma.InputJsonValue } })
+    const category = (shipment.pcsItems as { category?: string }[])[itemIndex]?.category ?? 'Device'
+    const piece = set.unit.model?.trim() || `${category} ${unitIndex + 1}`
+    await log(shipment.id, actorOf(user), `Ordered by ${owner ?? shipment.supplier.code} for ${piece}`)
     await invalidateReads()
     return c.json({ ok: true })
   })

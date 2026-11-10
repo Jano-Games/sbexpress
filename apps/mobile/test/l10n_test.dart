@@ -13,6 +13,7 @@ import 'package:sbexpress/l10n/bn_flow.dart';
 import 'package:sbexpress/l10n/bn_hub.dart';
 import 'package:sbexpress/l10n/bn_photos.dart';
 import 'package:sbexpress/l10n/bn_quick.dart';
+import 'package:sbexpress/l10n/bn_round10.dart';
 import 'package:sbexpress/l10n/bn_round5.dart';
 import 'package:sbexpress/l10n/bn_round6.dart';
 import 'package:sbexpress/l10n/bn_round7a.dart';
@@ -115,6 +116,7 @@ void main() {
       'round5': bnRound5,
       'round6': bnRound6,
       'scan': bnScan,
+      'round10': bnRound10,
       'round7b': bnRound7b,
       'round8': bnRound8,
       'round7a': bnRound7a,

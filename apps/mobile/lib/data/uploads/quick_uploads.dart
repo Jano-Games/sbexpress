@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../l10n/l10n.dart';
 import '../repositories/flyer_repository.dart';
 import '../repositories/media_repository.dart';
+import '../repositories/photo_repository.dart';
 import 'flutter_heic.dart';
 import 'image_prepare.dart';
 import 'photo_upload.dart';
@@ -84,6 +85,41 @@ UploadJob shipmentPhotoJob(
             name: photo.name, mime: photo.mime, decodeHeic: flutterDecodeHeic);
         await media.uploadPhoto(code, prepared!, progress,
             deviceCategory: deviceCategory);
+      });
+}
+
+/// A photo of one device piece: unit [unitIndex] of device line
+/// [itemIndex] on order [code]. [group] names the line ("Mobile").
+UploadJob piecePhotoJob(MediaRepository media, String code, PickedPhoto photo,
+    {required int itemIndex, required int unitIndex, String? group}) {
+  PreparedImage? prepared;
+  return UploadJob(
+      label: photo.name,
+      group: group,
+      run: (progress) async {
+        prepared ??= await prepareForUpload(photo.bytes,
+            name: photo.name, mime: photo.mime, decodeHeic: flutterDecodeHeic);
+        await media.uploadDevicePhoto(
+            code: code,
+            itemIndex: itemIndex,
+            unitIndex: unitIndex,
+            image: prepared!,
+            onProgress: progress,
+            piece: true);
+      });
+}
+
+/// A face photo of a flyer or staff member; it replaces the one before.
+UploadJob facePhotoJob(
+    PhotoRepository photos, PhotoOwner type, String owner, PickedPhoto photo) {
+  PreparedImage? prepared;
+  return UploadJob(
+      label: photo.name,
+      run: (progress) async {
+        prepared ??= await prepareForUpload(photo.bytes,
+            name: photo.name, mime: photo.mime, decodeHeic: flutterDecodeHeic);
+        await photos.upload(
+            type: type, owner: owner, image: prepared!, onProgress: progress);
       });
 }
 

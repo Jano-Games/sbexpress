@@ -78,32 +78,82 @@ class LastMileBooking {
 
 class ShipmentLogEntry {
   const ShipmentLogEntry(
-      {required this.actor, required this.message, required this.at});
+      {required this.actor,
+      required this.message,
+      required this.at,
+      this.actorRole,
+      this.actorPhotoRef});
 
   final String actor;
   final String message;
   final String at;
+
+  /// `admin` or `hub` when a staff member wrote it; null for the system or
+  /// an older server.
+  final String? actorRole;
+
+  /// The face photo of whoever wrote it.
+  final String? actorPhotoRef;
 
   factory ShipmentLogEntry.fromJson(Map<String, Object?> json) {
     return ShipmentLogEntry(
       actor: requiredString(json, 'actor'),
       message: requiredString(json, 'message'),
       at: requiredString(json, 'at'),
+      actorRole:
+          json['actorRole'] is String ? json['actorRole'] as String : null,
+      actorPhotoRef: json['actorPhotoRef'] is String
+          ? json['actorPhotoRef'] as String
+          : null,
     );
   }
+}
+
+/// The customer who ordered one device piece.
+class DeviceOwner {
+  const DeviceOwner(
+      {required this.code, required this.name, required this.phone});
+
+  final String code;
+  final String name;
+  final String phone;
+
+  factory DeviceOwner.fromJson(Map<String, Object?> json) => DeviceOwner(
+        code: requiredString(json, 'code'),
+        name: requiredString(json, 'name'),
+        phone: json['phone'] is String ? json['phone'] as String : '',
+      );
 }
 
 class DeviceUnit {
   const DeviceUnit(
       {required this.model,
       required this.serial,
-      required this.serialPhotoRef});
+      required this.serialPhotoRef,
+      this.photoRef,
+      this.customerCode,
+      this.customer});
 
   final String model;
   final String serial;
+
+  /// The IMEI or serial label photo.
   final String? serialPhotoRef;
 
+  /// A photo of the piece itself.
+  final String? photoRef;
+
+  /// Who ordered this piece; null means the order's customer.
+  final String? customerCode;
+
+  /// The name and phone behind [customerCode]; admin only.
+  final DeviceOwner? customer;
+
+  /// Whether the IMEI or serial photo is there.
   bool get hasPhoto => serialPhotoRef != null && serialPhotoRef!.isNotEmpty;
+
+  /// Whether the photo of the piece is there.
+  bool get hasPiecePhoto => photoRef != null && photoRef!.isNotEmpty;
 
   factory DeviceUnit.fromJson(Map<String, Object?> json) {
     return DeviceUnit(
@@ -112,6 +162,13 @@ class DeviceUnit {
           json.containsKey('serial') ? asString(json['serial'], 'serial') : '',
       serialPhotoRef: json.containsKey('serialPhotoRef')
           ? asNullableString(json['serialPhotoRef'], 'serialPhotoRef')
+          : null,
+      photoRef: json['photoRef'] is String ? json['photoRef'] as String : null,
+      customerCode: json['customerCode'] is String
+          ? json['customerCode'] as String
+          : null,
+      customer: json['customer'] is Map
+          ? DeviceOwner.fromJson(asJsonMap(json['customer'], 'customer'))
           : null,
     );
   }

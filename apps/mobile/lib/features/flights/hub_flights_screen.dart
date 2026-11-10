@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
+import '../../data/uploads/signed_photos.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/people_parts.dart' show PersonAvatar;
 import '../../widgets/ui.dart';
 import '../shipments/shipment_process_screen.dart';
+import 'flight_people_cards.dart';
 
 /// Upcoming and recent flights into Dhaka, as the hub sees them: schedule,
 /// flyer and weight on board. No fare or booking money.
@@ -318,6 +320,10 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
   HubFlightDetail? _flight;
   String? _error;
   var _loading = true;
+  var _receiving = false;
+
+  /// Flyer and staff face photos.
+  SignedPhotoLoader? _faces;
 
   @override
   void initState() {
@@ -325,6 +331,55 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _faces ??= AppScope.of(context).photos.loader();
+  }
+
+  @override
+  void dispose() {
+    _faces?.dispose();
+    super.dispose();
+  }
+
+  /// Receives every order through customs on this flight, as this user.
+  Future<void> _receive(int count) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final yes = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+                title: Text(
+                    trn(count, 'Receive {n} order?', 'Receive {n} orders?')),
+                content: Text(tr(
+                    'They move to Received at BD Hub with your name and photo. Weighing comes next.')),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: Text(tr('Cancel'))),
+                  FilledButton(
+                      key: const Key('hub-receive-confirm'),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: Text(tr('Receive'))),
+                ]));
+    if (yes != true || !mounted) return;
+    setState(() => _receiving = true);
+    try {
+      final received =
+          await AppScope.of(context).flights.receiveAtHub(widget.code);
+      messenger.showSnackBar(SnackBar(
+          content: Text(trn(
+              received.length, '{n} order received', '{n} orders received'))));
+      if (mounted) await _load();
+    } on ApiException catch (error) {
+      if (error.status != 401) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _receiving = false);
+    }
   }
 
   Future<void> _load() async {
@@ -377,22 +432,39 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                 if (flight != null) ...[
                   _RouteCard(flight: flight),
                   const SizedBox(height: 12),
-                  Row(children: [
-                    Expanded(
-                        child: MetricTile(
-                            label: tr('Orders'),
-                            value: tr('{n}', {'n': flight.shipmentCount}))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: MetricTile(
-                            label: tr('Total weight'), value: _kg(flight.kg))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: MetricTile(
-                            label: tr('Reached hub'),
-                            value:
-                                '${flight.receivedCount}/${flight.shipmentCount}')),
-                  ]),
+                  WhoIsComingCard(flyers: flight.flyerDetails, loader: _faces!),
+                  const SizedBox(height: 12),
+                  if (flight.readyToReceive == null)
+                    Row(children: [
+                      Expanded(
+                          child: MetricTile(
+                              label: tr('Orders'),
+                              value: tr('{n}', {'n': flight.shipmentCount}))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: MetricTile(
+                              label: tr('Total weight'),
+                              value: _kg(flight.kg))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: MetricTile(
+                              label: tr('Reached hub'),
+                              value:
+                                  '${flight.receivedCount}/${flight.shipmentCount}')),
+                    ])
+                  else
+                    _ReceiveCard(
+                        flight: flight,
+                        loader: _faces!,
+                        busy: _receiving,
+                        onReceive: () => _receive(flight.readyToReceive!)),
+                  if (flight.receivedBy.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ReceivedByCard(
+                        groups: flight.receivedBy,
+                        total: flight.shipmentCount,
+                        loader: _faces!),
+                  ],
                   const SizedBox(height: 22),
                   SectionTitle(
                       title: tr('On this flight'),
@@ -409,7 +481,8 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                       for (final row in flight.shipments)
                         _ManifestRow(row: row, onTap: () => _openShipment(row)),
                     ]),
-                  if (flight.status != 'completed') ...[
+                  if (flight.status != 'completed' &&
+                      flight.readyToReceive == null) ...[
                     const SizedBox(height: 14),
                     HintNote(
                         text: tr(
@@ -466,56 +539,106 @@ class _RouteCard extends StatelessWidget {
               label: tr('Date has passed — not updated by admin'),
               tone: ChipTone.amber),
         ],
-        const Divider(height: 28),
-        if (flight.flyerDetails.isEmpty)
-          Text(tr('No flyer assigned to this flight yet'),
-              style: const TextStyle(color: AppColors.muted))
-        else
-          for (final flyer in flight.flyerDetails)
-            Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+      ]));
+}
+
+/// Orders on the flight, how many reached the hub, who is receiving and
+/// the one-tap Receive orders.
+class _ReceiveCard extends StatelessWidget {
+  const _ReceiveCard(
+      {required this.flight,
+      required this.loader,
+      required this.busy,
+      required this.onReceive});
+
+  final HubFlightDetail flight;
+  final SignedPhotoLoader loader;
+  final bool busy;
+  final VoidCallback onReceive;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = AppScope.of(context).session.user;
+    final ready = flight.readyToReceive ?? 0;
+    final total = flight.shipmentCount;
+    return PaperCard(
+        key: const Key('hub-receive-card'),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(tr('Orders on this flight'),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.muted)),
+                  Text(
+                      '${trn(total, '{n} order', '{n} orders')} · ${_kg(flight.kg)}',
+                      style: const TextStyle(
+                          fontSize: 22,
+                          height: 1.25,
+                          fontWeight: FontWeight.w700)),
+                ])),
+            Text(tr('{n} received', {'n': flight.receivedCount}),
+                style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+          ]),
+          const SizedBox(height: 10),
+          ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                  value: total == 0 ? 0 : flight.receivedCount / total,
+                  minHeight: 8,
+                  color: AppColors.ok,
+                  backgroundColor: AppColors.neutralSoft)),
+          if (user != null) ...[
+            const SizedBox(height: 12),
+            Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                    color: AppColors.paper,
+                    borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
-                  CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      child: Text(flyer.initial,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700))),
-                  const SizedBox(width: 12),
+                  PersonAvatar(user.name,
+                      photoRef: user.photoRef, loader: loader, size: 36),
+                  const SizedBox(width: 10),
                   Expanded(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                        Text(flyer.name,
+                        Text(tr('Receiving as {name}', {'name': user.name}),
                             style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w600)),
-                        Text(
-                            _hasPhone(flyer.bdPhone)
-                                ? tr(
-                                    'Flyer · {phone}', {'phone': flyer.bdPhone})
-                                : tr('Flyer · carrying in luggage'),
+                                fontSize: 14,
+                                height: 1.35,
+                                fontWeight: FontWeight.w600)),
+                        Text(tr('Your name and photo go on each order you receive'),
                             style: const TextStyle(
-                                fontSize: 13, color: AppColors.muted)),
+                                fontSize: 12,
+                                height: 1.4,
+                                color: AppColors.muted)),
                       ])),
-                  if (_hasPhone(flyer.bdPhone))
-                    IconButton.filledTonal(
-                        tooltip:
-                            tr("Copy {name}'s number", {'name': flyer.name}),
-                        style: IconButton.styleFrom(
-                            backgroundColor: AppColors.primarySoft,
-                            foregroundColor: AppColors.primary),
-                        onPressed: () async {
-                          await Clipboard.setData(
-                              ClipboardData(text: flyer.bdPhone));
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(tr('Number copied'))));
-                          }
-                        },
-                        icon: const Icon(Icons.call_outlined, size: 20)),
                 ])),
-      ]));
+          ],
+          const SizedBox(height: 12),
+          AppButton(
+              key: const Key('hub-receive'),
+              label: ready == 0
+                  ? tr('Nothing to receive yet')
+                  : trn(ready, 'Receive {n} order', 'Receive {n} orders'),
+              icon: Icons.inventory_2_outlined,
+              kind: AppButtonKind.current,
+              busy: busy,
+              onPressed: ready == 0 ? null : onReceive),
+          if (ready == 0 && flight.receivedCount < total) ...[
+            const SizedBox(height: 8),
+            Text(tr('Orders can be received once customs clears them.'),
+                style: const TextStyle(
+                    fontSize: 12, height: 1.4, color: AppColors.muted)),
+          ],
+        ]));
+  }
 }
 
 class _Endpoint extends StatelessWidget {
@@ -757,7 +880,5 @@ String banglaPlace(String? place, {required String fallback}) {
 }
 
 bool _isClock(String value) => RegExp(r'^\d{1,2}:\d{2}').hasMatch(value.trim());
-
-bool _hasPhone(String value) => RegExp(r'\d{5,}').hasMatch(value);
 
 String _kg(double kg) => '${kg.toStringAsFixed(1)} kg';
