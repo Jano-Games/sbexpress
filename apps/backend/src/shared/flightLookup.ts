@@ -41,7 +41,7 @@ function retryPause(response: Response): number {
 }
 
 /** One AeroDataBox call, spaced from the others and retried when refused. */
-async function providerFetch(path: string, key: string): Promise<Response> {
+export async function providerFetch(path: string, key: string): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     await waitForTurn()
     const response = await fetch(`${BASE_URL}${path}`, {
@@ -55,6 +55,9 @@ async function providerFetch(path: string, key: string): Promise<Response> {
     nextCallAt = Math.max(nextCallAt, Date.now() + retryPause(response))
   }
 }
+
+/** The flight data key, or '' when the server has none. */
+export const flightDataKey = (): string => config.aerodataboxKey ?? ''
 
 export const normalizeFlightNumber = (input: string): string => input.toUpperCase().replace(/\s+/g, '')
 

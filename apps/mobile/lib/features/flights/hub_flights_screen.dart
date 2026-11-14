@@ -6,11 +6,18 @@ import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
 import '../../data/uploads/signed_photos.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/places.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/people_parts.dart' show PersonAvatar;
+import '../../widgets/flight_status_parts.dart';
 import '../../widgets/ui.dart';
 import '../shipments/shipment_process_screen.dart';
 import 'flight_people_cards.dart';
+import 'track_screen.dart';
+import '../sorting/sort_flight_screen.dart';
+import '../sorting/sort_parts.dart' show CustomerMark, SortPhotoStrip;
+
+export '../../l10n/places.dart' show banglaPlace;
 
 /// Upcoming and recent flights into Dhaka, as the hub sees them: schedule,
 /// flyer and weight on board. No fare or booking money.
@@ -184,6 +191,10 @@ class HubFlightCard extends StatelessWidget {
                   FlightRouteLine(flight: flight),
                 ])),
           ]),
+          if (hubFlightNote(flight) case final note?) ...[
+            const SizedBox(height: 8),
+            StatusNote(text: note.$1, tone: note.$2),
+          ],
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: [
             InfoChip(
@@ -239,8 +250,8 @@ class HubFlightStripCard extends StatelessWidget {
     final day = FlightDay.parse(flight.date);
     final when = [
       if (day != null) '${day.day} ${day.month}',
-      if (_isClock(flight.arrTime))
-        tr('Lands {time}', {'time': flight.arrTime}),
+      if (_landsAt(flight) case final lands?)
+        tr('Lands {time}', {'time': lands}),
     ].join(' · ');
     return SizedBox(
         width: 236,
@@ -325,6 +336,9 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
   /// Flyer and staff face photos.
   SignedPhotoLoader? _faces;
 
+  /// Device photos from China, one loader for every order on the flight.
+  SignedPhotoLoader? _devices;
+
   @override
   void initState() {
     super.initState();
@@ -337,11 +351,13 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _faces ??= AppScope.of(context).photos.loader();
+    _devices ??= AppScope.of(context).media.ordersLoader(_orderOfPhoto);
   }
 
   @override
   void dispose() {
     _faces?.dispose();
+    _devices?.dispose();
     super.dispose();
   }
 
@@ -354,7 +370,7 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                 title: Text(
                     trn(count, 'Receive {n} order?', 'Receive {n} orders?')),
                 content: Text(tr(
-                    'They move to Received at BD Hub with your name and photo. Weighing comes next.')),
+                    'They move to Received at BD Hub with your name and photo. Sorting comes next.')),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -430,7 +446,16 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                 if (_loading && flight == null) const LinearProgressIndicator(),
                 if (_error != null) ErrorNote(message: _error!, onRetry: _load),
                 if (flight != null) ...[
-                  _RouteCard(flight: flight),
+                  if (flight.tracking case final t? when t.left || t.landed)
+                    HubLandingCard(
+                        flight: flight,
+                        onTrack: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                                builder: (_) => TrackScreen(
+                                    code: flight.code,
+                                    title: flight.displayCode))))
+                  else
+                    _RouteCard(flight: flight),
                   const SizedBox(height: 12),
                   WhoIsComingCard(flyers: flight.flyerDetails, loader: _faces!),
                   const SizedBox(height: 12),
@@ -465,10 +490,19 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                         total: flight.shipmentCount,
                         loader: _faces!),
                   ],
+                  if (flight.receivedCount > 0) ...[
+                    const SizedBox(height: 12),
+                    AppButton(
+                        key: const Key('hub-open-sort'),
+                        label: tr('Sort by customer'),
+                        icon: Icons.checklist_rounded,
+                        onPressed: () => _openSort(flight)),
+                  ],
                   const SizedBox(height: 22),
                   SectionTitle(
-                      title: tr('On this flight'),
-                      action: Text(tr('{n}', {'n': flight.shipments.length}),
+                      title: tr('Coming on this flight'),
+                      action: Text(
+                          '${trn(flight.shipments.length, '{n} order', '{n} orders')} · ${_kg(flight.kg)}',
                           style: const TextStyle(
                               fontSize: 13, color: AppColors.muted))),
                   if (flight.shipments.isEmpty)
@@ -478,19 +512,40 @@ class _HubFlightDetailScreenState extends State<HubFlightDetailScreen> {
                         body: tr('Orders appear here once booked.'))
                   else
                     SurfaceGroup(children: [
-                      for (final row in flight.shipments)
-                        _ManifestRow(row: row, onTap: () => _openShipment(row)),
+                      for (final (code, rows) in _byCustomer(flight.shipments))
+                        _CustomerManifest(
+                            customer: code,
+                            rows: rows,
+                            extras: flight.orderExtras,
+                            loader: _devices!,
+                            onOpen: _openShipment),
                     ]),
                   if (flight.status != 'completed' &&
                       flight.readyToReceive == null) ...[
                     const SizedBox(height: 14),
                     HintNote(
                         text: tr(
-                            'Once customs clears, open each order and tap "Receive at hub" — the weighing step starts next.')),
+                            'Once customs clears them, receive the orders here. Sorting comes next.')),
                   ],
                 ],
               ])),
     );
+  }
+
+  String? _orderOfPhoto(String reference) {
+    for (final e in _flight?.orderExtras.entries ??
+        const <MapEntry<String, HubOrderExtras>>[]) {
+      if (e.value.devicePhotos.any((d) => d.reference == reference)) {
+        return e.key;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openSort(HubFlightDetail flight) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => SortFlightScreen(flightCode: flight.code)));
+    if (mounted) await _load();
   }
 
   Future<void> _openShipment(OperationalShipment row) async {
@@ -672,52 +727,144 @@ class _Endpoint extends StatelessWidget {
   }
 }
 
-class _ManifestRow extends StatelessWidget {
-  const _ManifestRow({required this.row, required this.onTap});
+/// Orders grouped by customer code, in manifest order.
+List<(String, List<OperationalShipment>)> _byCustomer(
+    List<OperationalShipment> rows) {
+  final groups = <String, List<OperationalShipment>>{};
+  for (final row in rows) {
+    groups.putIfAbsent(row.supplierCode, () => []).add(row);
+  }
+  return [for (final e in groups.entries) (e.key, e.value)];
+}
+
+/// One customer on the flight: its orders, who carries them and the device
+/// photos taken in China. The hub sees the customer code only.
+class _CustomerManifest extends StatelessWidget {
+  const _CustomerManifest(
+      {required this.customer,
+      required this.rows,
+      required this.extras,
+      required this.loader,
+      required this.onOpen});
+
+  final String customer;
+  final List<OperationalShipment> rows;
+  final Map<String, HubOrderExtras> extras;
+  final SignedPhotoLoader loader;
+  final ValueChanged<OperationalShipment> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final kg = rows.fold<double>(0, (n, r) => n + r.effectiveKg);
+    return Padding(
+      key: Key('hub-customer-$customer'),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          CustomerMark(name: customer, size: 42),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(customer,
+                  style: const TextStyle(
+                      fontSize: 15.5, fontWeight: FontWeight.w700)),
+              Text(
+                  '${trn(rows.length, '{n} order', '{n} orders')} · ${_kg(kg)}',
+                  style:
+                      const TextStyle(fontSize: 12.5, color: AppColors.muted)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Container(
+          margin: const EdgeInsets.only(left: 20),
+          padding: const EdgeInsets.only(left: 14),
+          decoration: const BoxDecoration(
+              border:
+                  Border(left: BorderSide(color: AppColors.line, width: 2))),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            for (final row in rows)
+              _ManifestOrder(
+                  row: row,
+                  extras: extras[row.code],
+                  loader: loader,
+                  onTap: () => onOpen(row)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ManifestOrder extends StatelessWidget {
+  const _ManifestOrder(
+      {required this.row,
+      required this.extras,
+      required this.loader,
+      required this.onTap});
+
   final OperationalShipment row;
+  final HubOrderExtras? extras;
+  final SignedPhotoLoader loader;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final details = [
-      row.supplierCode,
-      if (row.description.isNotEmpty) row.description,
-      formatKg(row.effectiveKg),
-    ].join(' · ');
+    final photos = extras?.devicePhotos ?? const <DevicePhoto>[];
+    final flyer = extras?.flyerName;
     return InkWell(
-        onTap: onTap,
-        child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(children: [
-              const IconBadge(Icons.inventory_2_outlined,
-                  tone: ChipTone.neutral),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+      key: Key('hub-order-${row.code}'),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        row.description.isEmpty || row.description == '—'
+                            ? row.code
+                            : '${row.code} · ${row.description}',
+                        style: const TextStyle(
+                            fontSize: 14.5, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 3),
                     Wrap(
                         spacing: 8,
                         runSpacing: 4,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Text(row.code,
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700)),
+                          if (flyer != null && flyer.isNotEmpty)
+                            Text(tr('Carried by {name}', {'name': flyer}),
+                                style: const TextStyle(
+                                    fontSize: 12.5, color: AppColors.muted)),
                           StatusPill(
                               label: banglaStatus(row.status, row.statusLabel),
                               tone: shipmentStatusTone(row.statusIndex)),
                         ]),
-                    const SizedBox(height: 2),
-                    Text(details,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.muted)),
-                  ])),
-              const Icon(Icons.chevron_right_rounded,
-                  size: 20, color: AppColors.faint),
-            ])));
+                  ]),
+            ),
+            const SizedBox(width: 8),
+            Text(formatKg(row.effectiveKg),
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          ]),
+          if (photos.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SortPhotoStrip(
+                stored: [for (final d in photos) d.reference],
+                labels: {for (final d in photos) d.reference: d.label},
+                loader: loader,
+                group: tr('Device photos'),
+                size: 58),
+          ],
+        ]),
+      ),
+    );
   }
 }
 
@@ -844,6 +991,9 @@ class FlightDateBlock extends StatelessWidget {
     {bool next = false}) {
   if (flight.status == 'completed') return (tr('Arrived'), ChipTone.green);
   if (flight.status == 'departed') return (tr('On the way'), ChipTone.amber);
+  if (flightCancelled(flight.status, flight.tracking)) {
+    return (tr('Cancelled by airline'), ChipTone.red);
+  }
   if (flight.scheduleNeedsConfirmation) {
     return (tr('Date not updated'), ChipTone.amber);
   }
@@ -858,27 +1008,30 @@ class FlightDateBlock extends StatelessWidget {
   return (when ?? flight.statusLabel, ChipTone.neutral);
 }
 
-const _placeNames = {
-  'chengdu': 'Chengdu',
-  'ctu': 'Chengdu',
-  'tfu': 'Chengdu',
-  'dhaka': 'Dhaka',
-  'dac': 'Dhaka',
-  'kunming': 'Kunming',
-  'kmg': 'Kunming',
-  'guangzhou': 'Guangzhou',
-  'can': 'Guangzhou',
-  'chittagong': 'Chattogram',
-  'cgp': 'Chattogram',
-};
-
-/// Bangla name for common airports; other places stay as the server sent them.
-String banglaPlace(String? place, {required String fallback}) {
-  if (place == null || place.trim().isEmpty) return fallback;
-  final name = _placeNames[place.trim().toLowerCase()];
-  return name == null ? place.trim() : tr(name);
-}
-
 bool _isClock(String value) => RegExp(r'^\d{1,2}:\d{2}').hasMatch(value.trim());
 
 String _kg(double kg) => '${kg.toStringAsFixed(1)} kg';
+
+/// The airline's landing time once it left, else the planned one.
+String? _landsAt(HubFlight flight) {
+  final t = flight.tracking;
+  if (t != null && (t.left || t.landed) && t.landsAt != null) return t.landsAt;
+  return _isClock(flight.arrTime) ? flight.arrTime : null;
+}
+
+/// A line from the airline under a hub flight row, if it said something.
+(String, ChipTone)? hubFlightNote(HubFlight flight) {
+  if (flightCancelled(flight.status, flight.tracking)) {
+    return (
+      tr('The airline cancelled it. The admin sets the new date.'),
+      ChipTone.red
+    );
+  }
+  if (flight.status == 'upcoming') return null;
+  final look = flightLook(
+      status: flight.status,
+      dateOver: false,
+      tracking: flight.tracking,
+      plain: (flight.statusLabel, ChipTone.neutral));
+  return look.note == null ? null : (look.note!, look.noteTone);
+}

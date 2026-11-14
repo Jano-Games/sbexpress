@@ -22,6 +22,8 @@ import { supplierRoutes } from '../modules/suppliers'
 import { financeRoutes } from '../modules/finance'
 import { reviewRoutes } from '../modules/review'
 import { todoRoutes } from '../modules/todos'
+import { notificationRoutes } from '../modules/notifications'
+import { sortingRoutes } from '../modules/sorting'
 import { settingsRoutes } from '../modules/settings'
 import { categoryRoutes } from '../modules/categories'
 import { reconciliationRoutes } from '../modules/reconciliation'
@@ -46,6 +48,8 @@ export function createApp(): Hono {
   })
   const writes: MiddlewareHandler = async (c, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) return next()
+    // Marking notifications read is not business activity: no transaction, no audit row.
+    if (c.req.path.startsWith('/api/notifications/')) return next()
     const financial = !c.req.path.startsWith('/api/track/') && /\/(payments|incomes|expenses|transfers|refunds|apply-credit|mark-paid|after-sales|receipt\/approve|statement-receipts\/[^/]+\/approve|settlements|reverse|void|costs|pay)$/.test(c.req.path)
     const key = financial ? c.req.header('Idempotency-Key') : undefined
     if (key && !/^[0-9a-f-]{36}$/i.test(key)) throw new HttpError(400, 'Invalid request key')
@@ -123,6 +127,8 @@ export function createApp(): Hono {
   authed.route('/finance', financeRoutes)
   authed.route('/review', reviewRoutes)
   authed.route('/todos', todoRoutes)
+  authed.route('/notifications', notificationRoutes)
+  authed.route('/sorting', sortingRoutes)
   authed.get('/settings/activity',requireRole('admin'),async c=>{const page=Math.max(1,Math.floor(Number(c.req.query('page'))||1));const [events,total]=await Promise.all([prisma.auditEvent.findMany({orderBy:[{createdAt:'desc'},{id:'desc'}],skip:(page-1)*25,take:25}),prisma.auditEvent.count()]);return c.json({events,total,page,limit:25})})
   authed.route('/settings', settingsRoutes)
   authed.route('/categories', categoryRoutes)

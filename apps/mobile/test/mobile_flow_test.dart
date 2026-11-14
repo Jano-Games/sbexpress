@@ -79,7 +79,14 @@ void main() {
       });
     }, role: UserRole.hub));
     await tester.pumpAndSettle();
-    expect(paths, ['/api/dashboard/hub']);
+    // Home loads its own data and the bell; other tabs wait for a visit.
+    expect(
+        paths,
+        unorderedEquals([
+          '/api/dashboard/hub',
+          '/api/sorting/hub-summary',
+          '/api/notifications/unread'
+        ]));
     await tester.tap(find.byKey(const Key('nav-3')));
     await tester.pumpAndSettle();
     expect(paths.where((path) => path == '/api/todos').length, 1);

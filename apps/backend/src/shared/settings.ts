@@ -17,13 +17,32 @@ export interface AppSettings {
   defaultSpaceKg: number
   /** Usual amount of each everyday shipment cost, BDT; 0 = no suggestion. */
   costDefaults: CostDefaults
+  /** Couriers the hub picks from when it sorts a customer. Hub pickup is always offered on top. */
+  deliveryPartners: string[]
+}
+
+export const HUB_PICKUP = 'Hub pickup'
+export const DEFAULT_PARTNERS = ['Steadfast', 'Pathao', 'RedX', 'Sundarban Courier', 'SA Paribahan']
+
+/** Trimmed, without blanks, repeats or Hub pickup (which is always there). */
+export function cleanPartners(names: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of names) {
+    const name = raw.trim().replace(/\s+/g, ' ')
+    const lower = name.toLowerCase()
+    if (!name || lower === HUB_PICKUP.toLowerCase() || seen.has(lower)) continue
+    seen.add(lower)
+    out.push(name)
+  }
+  return out
 }
 
 export const USUAL_COST_KEYS = ['packaging', 'courier', 'customs', 'transport'] as const
 export type CostDefaults = Record<(typeof USUAL_COST_KEYS)[number], number>
 const NO_COST_DEFAULTS: CostDefaults = { packaging: 0, courier: 0, customs: 0, transport: 0 }
 
-const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {}, kgRate: 0, kgRateCurrency: 'BDT', defaultSpaceKg: 44, costDefaults: NO_COST_DEFAULTS }
+const DEFAULTS: AppSettings = { exchangeRates: {BDT:1,CNY:17.05}, rate: 17.05, threshold: 1, investBdt: 0, investCny: 0, pcsRates: {}, kgRate: 0, kgRateCurrency: 'BDT', defaultSpaceKg: 44, costDefaults: NO_COST_DEFAULTS, deliveryPartners: DEFAULT_PARTNERS }
 
 type NumberSetting = 'rate' | 'threshold' | 'investBdt' | 'investCny' | 'kgRate' | 'defaultSpaceKg'
 
@@ -58,7 +77,15 @@ export async function getSettings(): Promise<AppSettings> {
   } catch {
     // Malformed JSON — no suggestions rather than a failed read.
   }
+  let deliveryPartners = DEFAULTS.deliveryPartners
+  try {
+    const parsed: unknown = JSON.parse(map.get('deliveryPartners') ?? 'null')
+    if (Array.isArray(parsed)) deliveryPartners = cleanPartners(parsed.filter((v): v is string => typeof v === 'string'))
+  } catch {
+    // Malformed JSON — the usual list rather than a failed read.
+  }
   return {
+    deliveryPartners,
     rate: numFrom('rate'),
     exchangeRates: {BDT:1,CNY:numFrom('rate')},
     threshold: numFrom('threshold'),

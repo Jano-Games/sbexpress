@@ -97,7 +97,7 @@ const operational = (s: ShipmentWithRelations, threshold: number) => ({
   categories: s.categories,
   status: s.status,
   statusIndex: statusIndex(s.status),
-  statusLabel: s.exception ? s.exception.replaceAll('_',' ') : s.deliveryMode==='pickup' && s.status==='ready_for_last_mile' && s.lastMileRef ? 'Ready for collection' : STATUS_LABEL[s.status],
+  statusLabel: s.exception ? s.exception.replaceAll('_',' ') : s.status==='ready_for_last_mile' && s.sortedAt && !s.approvedAt ? 'Waiting for admin' : s.deliveryMode==='pickup' && s.status==='ready_for_last_mile' && (s.sortedAt ? s.approvedAt : s.lastMileRef) ? 'Ready for collection' : STATUS_LABEL[s.status],
   exception:s.exception,exceptionReason:s.exceptionReason,
   date: isoDate(s.createdAt),
 })

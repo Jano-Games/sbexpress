@@ -102,6 +102,7 @@ class AdminOverview {
     required this.reviewCount,
     required this.openTodoCount,
     required this.nextFlight,
+    this.approvalCount = 0,
     required this.notices,
     required this.flights,
     required this.activeShipmentCount,
@@ -129,6 +130,9 @@ class AdminOverview {
   final double unpaid;
   final int reviewCount;
   final int openTodoCount;
+
+  /// Customers the hub sorted that wait for the admin.
+  final int approvalCount;
   final NextFlightCard? nextFlight;
   final List<OverviewNotice> notices;
   final List<OverviewFlight> flights;
@@ -175,6 +179,7 @@ class AdminOverview {
       unpaid: requiredDouble(json, 'unpaid'),
       reviewCount: requiredInt(json, 'reviewCount'),
       openTodoCount: requiredInt(json, 'openTodoCount'),
+      approvalCount: optionalInt(json, 'approvalCount') ?? 0,
       nextFlight: next == null
           ? null
           : NextFlightCard.fromJson(asJsonMap(next, 'nextFlight')),

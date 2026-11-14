@@ -13,7 +13,10 @@ import { effectiveBill, num, isoDate, shipmentRow, shipmentOperatingCosts } from
 import { getSettings } from '../shared/settings'
 import { creditPayment, debitCash } from '../shared/ledger'
 import { lookupFlight, lookupRoute } from '../shared/flightLookup'
-import { HUB_FLIGHT_DETAIL_INCLUDE, HUB_FLIGHT_INCLUDE, hubFlightDetail, hubFlightRow } from '../shared/hubFlights'
+import { HUB_FLIGHT_DETAIL_INCLUDE, HUB_FLIGHT_INCLUDE, devicePhotoMap, hubFlightDetail, hubFlightRow } from '../shared/hubFlights'
+import { noticeFlightPlan } from '../shared/flightNotices'
+import { notify, ordersReceivedNote } from '../shared/notifications'
+import { flightPosition } from '../shared/flightPosition'
 import { matchFlyers, parseTicketText, ticketText } from '../shared/ticketImport'
 import { FLIGHT_COST_CATEGORIES, FLIGHT_COST_LABEL, flightCostRow, flightCostRows, flightCostTotal } from '../shared/flightCosts'
 import { flightProfitBreakdown } from '../shared/profit'
@@ -23,6 +26,8 @@ import { photoRefs } from '../shared/personPhotos'
 import { RECEIVED_MESSAGE, receivedBy } from '../shared/receivedBy'
 import { writeShipmentLog } from '../shared/actor'
 import { applyRatesToOrders, effectiveRates, flightRateFields, followsRates } from '../shared/flightRates'
+import { setFlightStatus } from '../shared/flightTracking'
+import { notMovedOrders, readMovedOrders, trackingView } from '../shared/flightTrackingView'
 
 const INCLUDE = {
   expenses: true,
@@ -52,7 +57,7 @@ const SUMMARY_INCLUDE = {
   },
   legs: {
     orderBy: { order: 'asc' as const },
-    select: { source:true, code: true, date: true, fromIata: true, fromCity: true, toIata: true, toCity: true, depTime: true, arrTime: true },
+    select: { source:true, code: true, date: true, fromIata: true, fromCity: true, toIata: true, toCity: true, depTime: true, arrTime: true, tracking: true },
   },
 } as const
 
@@ -152,6 +157,11 @@ function summary(f: FlightSummarySource) {
     scheduleNeedsConfirmation:f.status==='upcoming'&&f.date<new Date(new Date().toISOString().slice(0,10)),
     status: f.status,
     statusLabel: FLIGHT_LABEL[f.status],
+    /** Who last set the status: "airline" or a staff member's name; null on older flights. */
+    statusSetBy: f.statusSetBy,
+    statusSetAt: f.statusSetAt?.toISOString() ?? null,
+    /** The airline's word and times; null until the airline was asked. */
+    tracking: trackingView(f),
     flyers: f.flyers.map((x) => x.flyer.name),
     shipmentCount: f.shipments.length,
     revenue,
@@ -274,11 +284,33 @@ export const flightRoutes = new Hono<AppEnv>()
       getSettings(),
     ])
     if (!flight) throw notFound('Flight not found')
-    const [flyerPhotos, received] = await Promise.all([
+    const [flyerPhotos, received, deviceRows] = await Promise.all([
       photoRefs('flyer', flight.flyers.map((x) => x.flyer.id)),
       receivedBy(flight.shipments),
+      prisma.shipmentMedia.findMany({
+        where: { shipmentId: { in: flight.shipments.map((s) => s.id) }, status: 'ready', purpose: { in: ['device_photo', 'device_category'] } },
+        select: { shipmentId: true, reference: true, purpose: true, deviceKey: true },
+        orderBy: { createdAt: 'asc' },
+      }),
     ])
-    return c.json({ flight: hubFlightDetail(flight, settings.threshold, new Date(), { flyerPhotos, receivedBy: received }) })
+    const devicePhotos = devicePhotoMap(deviceRows, new Map(flight.shipments.map((s) => [s.id, s.pcsItems])))
+    return c.json({ flight: hubFlightDetail(flight, settings.threshold, new Date(), { flyerPhotos, receivedBy: received, devicePhotos }) })
+  })
+
+  /** Track: where the flight is now. `?refresh=1` asks again when allowed (every 15 min, 6 a day). */
+  .get('/hub/:code/position', requireRole('admin', 'hub'), async (c) => {
+    const flight = await prisma.flight.findUnique({
+      where: { code: c.req.param('code') },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        airlineStatus: true,
+        legs: { orderBy: { order: 'asc' }, select: { code: true, date: true, fromIata: true, fromCity: true, toIata: true, toCity: true, tracking: true } },
+      },
+    })
+    if (!flight) throw notFound('Flight not found')
+    return c.json(await flightPosition(flight, c.req.query('refresh') === '1'))
   })
 
   /** Receives this flight's orders at the BD hub: every order through customs, or the ones named. */
@@ -303,6 +335,7 @@ export const flightRoutes = new Hono<AppEnv>()
       await prisma.shipment.update({ where: { id: s.id }, data: { status: 'received_bd_hub' } })
       await writeShipmentLog(s.id, RECEIVED_MESSAGE)
     }
+    await notify(ordersReceivedNote(c.req.param('code')!, ready.length, c.get('user').name))
     await cacheInvalidate('dashboard')
     await cacheInvalidate('track')
     return c.json({ received: ready.map((s) => s.code) })
@@ -369,6 +402,7 @@ export const flightRoutes = new Hono<AppEnv>()
       const posted=await debitCash(body.actualCost, body.accountName)
       await prisma.expense.create({data:{...sourceFields(body.actualCost),date:new Date(),category:'ticket',amount:body.actualCost,reason:`${code} ticket — ${names.join(', ')}`,flightId:flight.id,...posted}})
     }
+    await noticeFlightPlan(flight.id, 'new')
     await cacheInvalidate('dashboard')
     return c.json({ code }, 201)
   })
@@ -398,6 +432,9 @@ export const flightRoutes = new Hono<AppEnv>()
         flightCosts: flightCostRows(flight.expenses),
         flyerDetails: flyers,
         receivedBy: received,
+        /** Orders moved to In transit when the flight left, and the ones that did not move. */
+        movedOrders: readMovedOrders(flight.movedOrders),
+        notMoved: notMovedOrders({ status: flight.status, flyerCount: flight.flyers.length }, flight.shipments),
         bookings: flight.shipments.map((s) => ({ ...shipmentRow(s, 'admin', settings.threshold), lateDays: shipmentLateDays(s, today) })),
       },
     })
@@ -542,9 +579,29 @@ export const flightRoutes = new Hono<AppEnv>()
     if (agencyShare > actualCost || actualCost - agencyShare < num(flight.flyerPaidAmount)) throw badRequest('Ticket split cannot be less than flyer payments already received')
     if(members.length>1 && (actualCost!==num(flight.actualCost)||agencyShare!==num(flight.agencyShare)))for(const m of members)await prisma.flightFlyer.update({where:{flightId_flyerId:{flightId:flight.id,flyerId:m.flyerId}},data:{contribution:m.paidAmount}})
     if(members.length===1)await prisma.flightFlyer.update({where:{flightId_flyerId:{flightId:flight.id,flyerId:members[0]!.flyerId}},data:{contribution:actualCost-agencyShare}})
+    // A new date or flight number is a different flight for the airline: ask afresh.
+    // The app sends the legs back on every save, so the same numbers on the same days keep what was learnt.
+    const currentLegs = await prisma.flightLeg.findMany({ where: { flightId: flight.id }, orderBy: { order: 'asc' }, select: { code: true, date: true, tracking: true } })
+    const legKey = (code: string, date: string | null | undefined) => `${code.toUpperCase()}@${date ?? ''}`
+    const sameLegs =
+      body.legs === undefined ||
+      (body.legs.length === currentLegs.length &&
+        body.legs.every((l, i) => legKey(l.code, l.date) === legKey(currentLegs[i]!.code, currentLegs[i]!.date ? isoDate(currentLegs[i]!.date!) : null)))
+    const retrack = newCode !== flight.code || !sameLegs
+    if (body.date && body.date !== isoDate(flight.date) && body.legs === undefined) {
+      // The legs move with the flight, so each is looked up on its new day.
+      const shift = Date.parse(`${body.date}T00:00:00Z`) - flight.date.getTime()
+      const legs = await prisma.flightLeg.findMany({ where: { flightId: flight.id }, select: { id: true, date: true } })
+      for (const leg of legs) {
+        await prisma.flightLeg.update({ where: { id: leg.id }, data: { date: leg.date ? new Date(leg.date.getTime() + shift) : null, tracking: Prisma.DbNull } })
+      }
+    } else if (retrack && body.legs === undefined) {
+      await prisma.flightLeg.updateMany({ where: { flightId: flight.id }, data: { tracking: Prisma.DbNull } })
+    }
     const updated = await prisma.flight.update({
       where: { id: flight.id },
       data: {
+        ...(retrack ? { airlineStatus: null, trackedAt: null, trackChecks: 0 } : {}),
         code: newCode,
         date: body.date ? new Date(body.date) : undefined,
         depTime: derived?.depTime ?? body.depTime,
@@ -557,13 +614,18 @@ export const flightRoutes = new Hono<AppEnv>()
         spaceKg: body.spaceKg,
         mobiles: body.mobiles,
         laptops: body.laptops,
-        status: body.status as FlightStatus | undefined,
         legs:
           body.legs === undefined
             ? undefined
             : {
                 deleteMany: {},
-                create: body.legs.map((l, order) => ({ ...l, code: l.code.toUpperCase(), date: l.date ? new Date(l.date) : null, order })),
+                create: body.legs.map((l, order) => ({
+                  ...l,
+                  code: l.code.toUpperCase(),
+                  date: l.date ? new Date(l.date) : null,
+                  order,
+                  ...(!retrack && currentLegs[order]?.tracking ? { tracking: currentLegs[order]!.tracking as Prisma.InputJsonValue } : {}),
+                })),
               },
       },
     })
@@ -577,8 +639,14 @@ export const flightRoutes = new Hono<AppEnv>()
         await prisma.expense.create({data:{...sourceFields(delta),date:new Date(),category:'ticket',amount:delta,reason:`${flight.code} ticket ${delta>0?'payment':'refund'}`,flightId:flight.id,...posted}})
       }
     }
+    // Leaving "upcoming" moves the orders ready for shipment to In transit.
+    const moved = body.status ? await setFlightStatus(updated, body.status as FlightStatus, c.get('user').name) : []
+    // A new day or landing time for a flight that has not left: the hub plans again.
+    const replanned = (body.date !== undefined && body.date !== isoDate(flight.date)) || (updated.arrTime !== undefined && updated.arrTime !== flight.arrTime)
+    if ((body.status ?? flight.status) === 'upcoming' && replanned) await noticeFlightPlan(flight.id, 'changed')
     await cacheInvalidate('dashboard')
-    return c.json({ code: updated.code })
+    await cacheInvalidate('track')
+    return c.json({ code: updated.code, moved })
   })
 
   .delete('/:code', requireRole('admin'), async (c) => {

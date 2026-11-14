@@ -7,10 +7,12 @@ import 'data/repositories/finance_repository.dart';
 import 'data/repositories/flight_repository.dart';
 import 'data/repositories/flyer_repository.dart';
 import 'data/repositories/media_repository.dart';
+import 'data/repositories/notification_repository.dart';
 import 'data/repositories/photo_repository.dart';
 import 'data/repositories/review_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/repositories/shipment_repository.dart';
+import 'data/repositories/sorting_repository.dart';
 import 'data/repositories/task_repository.dart';
 import 'data/session/session_controller.dart';
 import 'l10n/l10n.dart';
@@ -48,6 +50,12 @@ class AppScope extends InheritedWidget {
   final CustomerRepository customers;
   final FinanceRepository finance;
   final SettingsRepository settings;
+
+  /// Built on the same client, so tests that construct AppScope by hand get
+  /// them too.
+  NotificationRepository get notifications =>
+      NotificationRepository(flights.api);
+  SortingRepository get sorting => SortingRepository(flights.api);
 
   /// Saves the language choice; absent in tests, where it only changes for
   /// the running app.

@@ -88,6 +88,16 @@ List<MoreDestination> moreDestinations(UserRole role) {
           body: tr('Booked vs weighed difference'),
         ),
         MoreDestination(
+          id: 'partners',
+          title: tr('Delivery partners'),
+          body: tr('Couriers the hub picks from when it sorts'),
+        ),
+        MoreDestination(
+          id: 'approvals',
+          title: tr('Waiting for approval'),
+          body: tr('Customers the hub sorted'),
+        ),
+        MoreDestination(
           id: 'tasks',
           title: tr('Tasks and notes'),
           body: tr('Team tasks and daily notes'),
@@ -128,8 +138,8 @@ List<MoreGroup> moreGroups(UserRole role) {
         MoreGroup(
             tr('Money'), const ['review', 'pay-methods', 'prices', 'rate']),
         MoreGroup(tr('Order tools'),
-            const ['invoice-share', 'media', 'capacity', 'weight']),
-        MoreGroup(tr('Work'), const ['tasks']),
+            const ['invoice-share', 'media', 'capacity', 'weight', 'partners']),
+        MoreGroup(tr('Work'), const ['approvals', 'tasks']),
         MoreGroup(tr('Security'), const ['fingerprint', 'system']),
       ];
   }

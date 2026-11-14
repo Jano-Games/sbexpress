@@ -689,14 +689,18 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
     await call(`/shipments/${code}/advance`,'POST',{})
     await call(`/shipments/${code}/advance`,'POST',{})
     expect((await call(`/shipments/${code}/advance`,'POST',{},'hub')).status).toBe(200)
-    expect((await call(`/shipments/${code}/pack`,'POST',{count:2},'hub')).status).toBe(400)
-    expect((await call(`/shipments/${code}/weigh`,'POST',{kg:12},'hub')).status).toBe(200)
+    // The hub sorts per customer now; weigh, pack, courier and dispatch are admin corrections.
+    expect((await call(`/shipments/${code}/weigh`,'POST',{kg:12},'hub')).status).toBe(403)
+    expect((await call(`/shipments/${code}/advance`,'POST',{},'hub')).status).toBe(403)
+    expect((await call(`/shipments/${code}/pack`,'POST',{count:2})).status).toBe(400)
+    expect((await call(`/shipments/${code}/weigh`,'POST',{kg:12})).status).toBe(200)
     expect((await call(`/shipments/${code}`)).data.shipment.billAmount).toBe(1200)
-    expect((await call(`/shipments/${code}/pack`,'POST',{count:2},'hub')).status).toBe(200)
-    expect((await call(`/shipments/${code}/last-mile`,'POST',{courier:'Pathao',ref:''},'hub')).status).toBe(400)
-    expect((await call(`/shipments/${code}/last-mile`,'POST',{courier:'Pathao',ref:'REAL-123'},'hub')).status).toBe(200)
+    expect((await call(`/shipments/${code}/pack`,'POST',{count:2})).status).toBe(200)
+    expect((await call(`/shipments/${code}/last-mile`,'POST',{courier:'Pathao',ref:''})).status).toBe(400)
+    expect((await call(`/shipments/${code}/last-mile`,'POST',{courier:'Pathao',ref:'REAL-123'})).status).toBe(200)
     expect((await call(`/shipments/${code}`)).data.shipment.status).toBe('ready_for_last_mile')
-    expect((await call(`/shipments/${code}/dispatch`,'POST',{},'hub')).status).toBe(200)
+    expect((await call(`/shipments/${code}/dispatch`,'POST',{},'hub')).status).toBe(403)
+    expect((await call(`/shipments/${code}/dispatch`,'POST',{})).status).toBe(200)
     expect((await call(`/shipments/${code}/handover`,'POST',{recipient:'Recipient',confirmation:'Confirmed delivery'},'hub')).status).toBe(200)
     expect((await call(`/shipments/${code}`)).data.shipment.status).toBe('delivered')
   })
@@ -1281,13 +1285,13 @@ describe.skipIf(!enabled)('agency security and money integration', () => {
 
   it('separates pickup booking, courier correction, dispatch and actual handover',async()=>{
     await prisma.shipment.update({where:{id:shipment.id},data:{status:'ready_for_last_mile',packedAt:new Date(),packageCount:2}});
-    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Hub pickup',mode:'pickup',ref:'Collect tomorrow'},'hub')).status).toBe(200);
-    expect((await call('/shipments/SH-AUDIT')).data.shipment.status).toBe('ready_for_last_mile');expect((await call('/shipments/SH-AUDIT/dispatch','POST',{},'hub')).status).toBe(400);
-    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Custom courier',mode:'courier',ref:'TRK-123'},'hub')).status).toBe(400);
-    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Custom courier',mode:'courier',ref:'TRK-123',reason:'Customer requested courier'},'hub')).status).toBe(200);
-    expect((await call('/shipments/SH-AUDIT/advance','POST',{},'hub')).status).toBe(400);
-    expect((await call('/shipments/SH-AUDIT/dispatch','POST',{},'hub')).status).toBe(200);
-    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Custom courier',mode:'courier',ref:'TRK-124',reason:'Correct tracking typo'},'hub')).status).toBe(200);
+    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Hub pickup',mode:'pickup',ref:'Collect tomorrow'})).status).toBe(200);
+    expect((await call('/shipments/SH-AUDIT')).data.shipment.status).toBe('ready_for_last_mile');expect((await call('/shipments/SH-AUDIT/dispatch','POST',{})).status).toBe(400);
+    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Custom courier',mode:'courier',ref:'TRK-123'})).status).toBe(400);
+    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Custom courier',mode:'courier',ref:'TRK-123',reason:'Customer requested courier'})).status).toBe(200);
+    expect((await call('/shipments/SH-AUDIT/advance','POST',{},'hub')).status).toBe(403);
+    expect((await call('/shipments/SH-AUDIT/dispatch','POST',{})).status).toBe(200);
+    expect((await call('/shipments/SH-AUDIT/last-mile','POST',{courier:'Custom courier',mode:'courier',ref:'TRK-124',reason:'Correct tracking typo'})).status).toBe(200);
     expect((await call('/shipments/SH-AUDIT/handover','POST',{confirmation:'Delivered to named recipient'},'hub')).status).toBe(200);
     const sh=await prisma.shipment.findUnique({where:{id:shipment.id}});expect(sh.status).toBe('delivered');expect(sh.dispatchedAt).toBeTruthy();expect(sh.handedOverAt).toBeTruthy();
   });

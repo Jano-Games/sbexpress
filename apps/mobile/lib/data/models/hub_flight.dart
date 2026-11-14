@@ -22,6 +22,7 @@ class HubFlight {
     required this.shipmentCount,
     required this.kg,
     required this.receivedCount,
+    this.tracking,
   });
 
   final String code;
@@ -40,6 +41,9 @@ class HubFlight {
 
   /// Shipments from this flight already received at the Dhaka hub.
   final int receivedCount;
+
+  /// When it left and lands, from the airline; null until the server asked.
+  final FlightTracking? tracking;
 
   String get displayCode => displayFlightCode(code);
 
@@ -69,6 +73,7 @@ class HubFlight {
       shipmentCount: requiredInt(json, 'shipmentCount'),
       kg: requiredDouble(json, 'kg'),
       receivedCount: requiredInt(json, 'receivedCount'),
+      tracking: FlightTracking.fromJson(json['tracking']),
     );
   }
 }
@@ -91,14 +96,20 @@ class HubFlightDetail extends HubFlight {
     required super.shipmentCount,
     required super.kg,
     required super.receivedCount,
+    super.tracking,
     required this.flyerDetails,
     required this.shipments,
     this.readyToReceive,
     this.receivedBy = const [],
+    this.orderExtras = const {},
   });
 
   final List<FlyerOnFlight> flyerDetails;
   final List<OperationalShipment> shipments;
+
+  /// Who carries each order and photos of its phones and laptops, by order
+  /// code. Empty on an older server.
+  final Map<String, HubOrderExtras> orderExtras;
 
   /// Orders through customs that one tap receives; null on an older server.
   final int? readyToReceive;
@@ -123,6 +134,7 @@ class HubFlightDetail extends HubFlight {
       shipmentCount: base.shipmentCount,
       kg: base.kg,
       receivedCount: base.receivedCount,
+      tracking: base.tracking,
       flyerDetails: [
         for (final row in requiredMapList(json, 'flyerDetails'))
           FlyerOnFlight.fromJson(row)
@@ -134,8 +146,42 @@ class HubFlightDetail extends HubFlight {
       readyToReceive:
           json['readyToReceive'] is int ? json['readyToReceive'] as int : null,
       receivedBy: ReceivedGroup.listOf(json),
+      orderExtras: {
+        for (final row in requiredMapList(json, 'shipments'))
+          requiredString(row, 'code'): HubOrderExtras.fromJson(row)
+      },
     );
   }
+}
+
+/// A photo of one phone or laptop in an order.
+class DevicePhoto {
+  const DevicePhoto({required this.reference, required this.label});
+
+  final String reference;
+
+  /// "Mobile 1", "Laptop" …
+  final String label;
+
+  factory DevicePhoto.fromJson(Map<String, Object?> json) => DevicePhoto(
+      reference: requiredString(json, 'reference'),
+      label: optionalString(json, 'label') ?? 'Device');
+
+  static List<DevicePhoto> listOf(Map<String, Object?> json, String key) =>
+      json[key] is List
+          ? [for (final row in asMapList(json[key], key)) DevicePhoto.fromJson(row)]
+          : const [];
+}
+
+class HubOrderExtras {
+  const HubOrderExtras({this.flyerName, this.devicePhotos = const []});
+
+  final String? flyerName;
+  final List<DevicePhoto> devicePhotos;
+
+  factory HubOrderExtras.fromJson(Map<String, Object?> json) => HubOrderExtras(
+      flyerName: optionalString(json, 'flyerName'),
+      devicePhotos: DevicePhoto.listOf(json, 'devicePhotos'));
 }
 
 class HubFlightSchedule {

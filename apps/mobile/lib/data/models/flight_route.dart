@@ -107,6 +107,7 @@ class FlightEdit {
     required this.spaceKg,
     required this.mobiles,
     required this.laptops,
+    this.status,
   });
 
   final String date;
@@ -117,6 +118,9 @@ class FlightEdit {
   final int mobiles;
   final int laptops;
 
+  /// `upcoming`, `departed` or `completed`; null leaves it as it is.
+  final String? status;
+
   Map<String, Object?> toJson() => {
         'date': date,
         'depTime': depTime,
@@ -125,5 +129,21 @@ class FlightEdit {
         'spaceKg': spaceKg,
         'mobiles': mobiles,
         'laptops': laptops,
+        if (status != null) 'status': status,
       };
+}
+
+/// A saved flight: its reference (it follows the number and date) and the
+/// orders that moved to In transit because it left.
+class FlightSaved {
+  const FlightSaved({required this.code, this.moved = const []});
+  final String code;
+  final List<String> moved;
+
+  factory FlightSaved.fromJson(Map<String, Object?> json, String fallback) {
+    final moved = json['moved'];
+    return FlightSaved(
+        code: optionalString(json, 'code') ?? fallback,
+        moved: moved is List ? [for (final code in moved) '$code'] : const []);
+  }
 }

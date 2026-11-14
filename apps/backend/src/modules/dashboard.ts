@@ -14,6 +14,7 @@ import { STATUS_LABEL, STATUS_ORDER } from '../shared/status'
 import { flightProfitBreakdown } from '../shared/profit'
 import { daysSince, isLate, latePayments, utcToday } from '../shared/latePayments'
 import { issuePendingInvoices } from '../shared/shipmentBilling'
+import { orderSortState } from '../shared/hubSorting'
 
 const INCLUDE = { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } as const
 const FLIGHT_INCLUDE = {
@@ -237,6 +238,10 @@ export const dashboardRoutes = new Hono<AppEnv>()
     const now = new Date()
     const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)))
     const reviewCount = ships.filter((s) => s.receipts.some(r => r.status === 'pending')).length
+    // Customers the hub sorted that wait for the admin (one per flight and customer).
+    const approvalCount = new Set(
+      ships.filter((s) => s.flightId && orderSortState(s) === 'waiting_admin').map((s) => `${s.flightId}|${s.supplierId}`),
+    ).size
     const stageCounts: Record<string, number> = Object.fromEntries(STATUS_ORDER.map(status => [status, 0]))
     for (const shipment of ships) stageCounts[shipment.status] = (stageCounts[shipment.status] ?? 0) + 1
 
@@ -283,6 +288,7 @@ export const dashboardRoutes = new Hono<AppEnv>()
       flyerReceivables: money.flyerReceivables,
       payables: money.ticketPayables + money.costPayables,
       reviewCount,
+      approvalCount,
       openTodoCount: todos.length,
       nextFlight: upcoming
         ? {

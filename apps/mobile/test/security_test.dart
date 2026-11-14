@@ -58,53 +58,65 @@ void main() {
   test('release refuses non-https API origins, including localhost', () {
     expect(apiBaseUrl, 'http://localhost:3002');
     expect(
-      () => requireApiBaseUrl('http://localhost:3002', releaseMode: true, debugMode: false),
+      () => requireApiBaseUrl('http://localhost:3002',
+          releaseMode: true, debugMode: false),
       throwsFormatException,
     );
     expect(
-      () => requireApiBaseUrl('http://10.0.2.2:3002', releaseMode: true, debugMode: false),
+      () => requireApiBaseUrl('http://10.0.2.2:3002',
+          releaseMode: true, debugMode: false),
       throwsFormatException,
     );
     expect(
-      requireApiBaseUrl('https://api.sbx.example/', releaseMode: true, debugMode: false),
+      requireApiBaseUrl('https://api.sbx.example/',
+          releaseMode: true, debugMode: false),
       'https://api.sbx.example',
     );
   });
 
   test('debug allows http only for loopback hosts', () {
     expect(
-      requireApiBaseUrl('http://localhost:3002', releaseMode: false, debugMode: true),
+      requireApiBaseUrl('http://localhost:3002',
+          releaseMode: false, debugMode: true),
       'http://localhost:3002',
     );
     expect(
-      requireApiBaseUrl('http://10.0.2.2:3002', releaseMode: false, debugMode: true),
+      requireApiBaseUrl('http://10.0.2.2:3002',
+          releaseMode: false, debugMode: true),
       'http://10.0.2.2:3002',
     );
     expect(
-      () => requireApiBaseUrl('http://api.sbx.example', releaseMode: false, debugMode: true),
+      () => requireApiBaseUrl('http://api.sbx.example',
+          releaseMode: false, debugMode: true),
       throwsFormatException,
     );
     expect(
-      () => requireApiBaseUrl('http://localhost:3002', releaseMode: false, debugMode: false),
+      () => requireApiBaseUrl('http://localhost:3002',
+          releaseMode: false, debugMode: false),
       throwsFormatException,
     );
     expect(
-      () => requireApiBaseUrl('https://user:secret@api.sbx.example', releaseMode: true, debugMode: false),
+      () => requireApiBaseUrl('https://user:secret@api.sbx.example',
+          releaseMode: true, debugMode: false),
       throwsFormatException,
     );
   });
 
   test('presigned upload URLs must be https outside debug loopback', () {
     expect(
-      () => assertPresignedUploadUrl('http://uploads.example/obj', releaseMode: false, debugMode: true),
+      () => assertPresignedUploadUrl('http://uploads.example/obj',
+          releaseMode: false, debugMode: true),
       throwsFormatException,
     );
     expect(
-      () => assertPresignedUploadUrl('http://localhost:9000/obj', releaseMode: true, debugMode: false),
+      () => assertPresignedUploadUrl('http://localhost:9000/obj',
+          releaseMode: true, debugMode: false),
       throwsFormatException,
     );
-    assertPresignedUploadUrl('https://uploads.example/obj', releaseMode: true, debugMode: false);
-    assertPresignedUploadUrl('http://127.0.0.1:9000/obj', releaseMode: false, debugMode: true);
+    assertPresignedUploadUrl('https://uploads.example/obj',
+        releaseMode: true, debugMode: false);
+    assertPresignedUploadUrl('http://127.0.0.1:9000/obj',
+        releaseMode: false, debugMode: true);
   });
 
   test('a non-https presigned URL fails before the bytes are sent', () async {
@@ -119,9 +131,16 @@ void main() {
     );
     await expectLater(
       transferPreparedUpload(
-        file: PreparedImage(bytes: Uint8List.fromList([1]), filename: 'a.jpg', contentType: 'image/jpeg'),
-        reserve: (_) async => const UploadReservation(reference: 'r', uploadUrl: 'http://uploads.example/obj', expiresAt: 'later'),
-        put: (reservation, file, onProgress) => api.putBytes(reservation.uploadUrl, file.bytes, file.contentType, onProgress),
+        file: PreparedImage(
+            bytes: Uint8List.fromList([1]),
+            filename: 'a.jpg',
+            contentType: 'image/jpeg'),
+        reserve: (_) async => const UploadReservation(
+            reference: 'r',
+            uploadUrl: 'http://uploads.example/obj',
+            expiresAt: 'later'),
+        put: (reservation, file, onProgress) => api.putBytes(
+            reservation.uploadUrl, file.bytes, file.contentType, onProgress),
         complete: (_) async {},
       ),
       throwsFormatException,
@@ -130,7 +149,9 @@ void main() {
   });
 
   test('401 clears the stored session and does not call logout', () async {
-    final store = MemorySessionStore()..token = 'tok'..userJson = jsonEncode(_userJson());
+    final store = MemorySessionStore()
+      ..token = 'tok'
+      ..userJson = jsonEncode(_userJson());
     final paths = <String>[];
     late SessionController session;
     final api = ApiClient(
@@ -139,21 +160,26 @@ void main() {
       onUnauthorized: () => session.handleUnauthorized(),
       httpClient: MockClient((request) async {
         paths.add(request.url.path);
-        return _json({'error': 'unauthorized'}, request.url.path == '/api/health' ? 500 : 401);
+        return _json({'error': 'unauthorized'},
+            request.url.path == '/api/health' ? 500 : 401);
       }),
     );
     session = SessionController(store: store, auth: AuthRepository(api));
     session.user = SessionUser.fromJson(_userJson());
     await expectLater(
       api.getJson('/api/shipments'),
-      throwsA(isA<ApiException>().having((error) => error.status, 'status', 401)),
+      throwsA(
+          isA<ApiException>().having((error) => error.status, 'status', 401)),
     );
     expect(store.token, isNull);
     expect(store.userJson, isNull);
     expect(session.user, isNull);
     expect(paths, ['/api/shipments']);
 
-    await expectLater(api.getJson('/api/health'), throwsA(isA<ApiException>().having((error) => error.status, 'status', 500)));
+    await expectLater(
+        api.getJson('/api/health'),
+        throwsA(isA<ApiException>()
+            .having((error) => error.status, 'status', 500)));
     expect(paths, ['/api/shipments', '/api/health']);
   });
 
@@ -168,14 +194,16 @@ void main() {
           return Uint8List(0);
         },
       ),
-      throwsA(isA<FormatException>().having((error) => error.message, 'message', contains('25 MB'))),
+      throwsA(isA<FormatException>()
+          .having((error) => error.message, 'message', contains('25 MB'))),
     );
     expect(decoded, isFalse);
     expect(imageInputMaxBytes, 25 * 1024 * 1024);
   });
 
   test('the picker temp file is deleted after the caller finishes', () async {
-    final file = File('${Directory.systemTemp.path}/sbx-exif-${DateTime.now().microsecondsSinceEpoch}.jpg');
+    final file = File(
+        '${Directory.systemTemp.path}/sbx-exif-${DateTime.now().microsecondsSinceEpoch}.jpg');
     await file.writeAsBytes([0xff, 0xd8, 0xff, 0xe1]);
     expect(await file.exists(), isTrue);
     await deletePickedPhotoFile(file.path);
@@ -184,7 +212,8 @@ void main() {
     await deletePickedPhotoFile(null);
   });
 
-  testWidgets('a mid-session 401 drops the open screen and returns to login', (tester) async {
+  testWidgets('a mid-session 401 drops the open screen and returns to login',
+      (tester) async {
     tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -200,21 +229,55 @@ void main() {
       session: store,
       onUnauthorized: () => session.handleUnauthorized(),
       httpClient: MockClient((request) async {
-        if (arm401) return _json({'error': 'Account changed — sign in again'}, 401);
+        if (arm401) {
+          return _json({'error': 'Account changed — sign in again'}, 401);
+        }
         final path = request.url.path;
         if (path == '/api/me') return _json({'user': _userJson()}, 200);
         if (path == '/api/dashboard/hub') {
           return _json({
             'todayLabel': 'Sun 18 Oct 2026',
             'atHubCount': 1,
-            'incoming': {'kg': 1, 'count': 1, 'flightCode': 'BG-1', 'flightDate': '20 Oct'},
+            'incoming': {
+              'kg': 1,
+              'count': 1,
+              'flightCode': 'BG-1',
+              'flightDate': '20 Oct'
+            },
             'openTodoCount': 1,
             'notices': <Map<String, Object?>>[],
             'toProcess': [_shipment()],
           }, 200);
         }
-        if (path == '/api/shipments') return _json({'shipments': [_shipment()]}, 200);
-        if (path == '/api/todos') return _json({'todos': <Map<String, Object?>>[]}, 200);
+        if (path == '/api/shipments') {
+          return _json({
+            'shipments': [_shipment()]
+          }, 200);
+        }
+        if (path == '/api/todos') {
+          return _json({'todos': <Map<String, Object?>>[]}, 200);
+        }
+        if (path == '/api/notifications/unread') {
+          return _json({'unread': 0}, 200);
+        }
+        if (path == '/api/sorting/hub-summary') {
+          return _json({
+            'toSort': [
+              {
+                'flightCode': 'BG-1',
+                'number': 'BG1',
+                'date': '2026-10-20',
+                'customers': ['C-9'],
+                'orders': 1
+              }
+            ],
+            'sentBack': <Map<String, Object?>>[],
+            'waiting': <Map<String, Object?>>[],
+            'delivery': <Map<String, Object?>>[],
+            'waitingAdmin': 0,
+            'inDelivery': 0,
+          }, 200);
+        }
         return _json({'error': 'unexpected $path'}, 500);
       }),
     );
@@ -225,11 +288,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('আজকের কাজ'), findsOneWidget);
-    expect(find.text('SH-SEC'), findsWidgets);
+    expect(find.byKey(const Key('hub-todo-sort-BG-1')), findsOneWidget);
 
     arm401 = true;
     Navigator.of(tester.element(find.text('আজকের কাজ'))).push(
-      MaterialPageRoute<void>(builder: (_) => const ShipmentProcessScreen(code: 'SH-SEC')),
+      MaterialPageRoute<void>(
+          builder: (_) => const ShipmentProcessScreen(code: 'SH-SEC')),
     );
     await tester.pump();
     await tester.pump();
@@ -239,6 +303,7 @@ void main() {
     expect(find.text('আবার চেষ্টা'), findsNothing);
     expect(find.text('SH-SEC'), findsNothing);
     expect(find.text('আজকের কাজ'), findsNothing);
+    expect(find.byKey(const Key('hub-todo-sort-BG-1')), findsNothing);
     expect(find.byKey(const Key('login-email')), findsOneWidget);
     expect(store.token, isNull);
     expect(session.user, isNull);

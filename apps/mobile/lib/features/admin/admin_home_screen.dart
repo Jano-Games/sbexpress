@@ -30,6 +30,8 @@ import '../flyers/flyers_screen.dart';
 import '../intake/intake_screen.dart';
 import '../shipments/shipments_screen.dart';
 import '../tasks/tasks_screen.dart';
+import '../notifications/notifications_screen.dart';
+import '../sorting/approvals_screen.dart';
 import 'admin_shipment_screen.dart';
 import 'payment_review_screen.dart';
 
@@ -105,6 +107,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             : '${today.weekdayName} · ${today.day} ${today.month}',
         onRefresh: _load,
         actions: [
+          const NotificationBell(),
+          const SizedBox(width: 6),
           FilledButton.icon(
               key: const Key('home-add'),
               style: FilledButton.styleFrom(
@@ -131,6 +135,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   List<Widget> _overview(AdminOverview data) {
     final attention = _attention(data);
     return [
+      if (data.approvalCount > 0) ...[
+        _ApprovalsCard(
+            count: data.approvalCount,
+            onTap: () => _push(const ApprovalsScreen())),
+        const SizedBox(height: 14),
+      ],
       TileRow(children: [
         WorkTile(
             key: const Key('home-review'),
@@ -922,4 +932,40 @@ class _FlightRow extends StatelessWidget {
                   tone: ChipTone.blue)),
         ]));
   }
+}
+
+/// The hub sorted customers that wait for the admin.
+class _ApprovalsCard extends StatelessWidget {
+  const _ApprovalsCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => PaperCard(
+        key: const Key('home-approvals'),
+        onTap: onTap,
+        border: const BorderSide(color: AppColors.accentLine, width: 1.5),
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          const IconBadge(Icons.fact_check_outlined, tone: ChipTone.amber),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tr('Waiting for approval'),
+                  style: const TextStyle(
+                      fontSize: 15.5, fontWeight: FontWeight.w700)),
+              Text(
+                  trn(count, '{n} customer sorted by the hub',
+                      '{n} customers sorted by the hub'),
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+            ]),
+          ),
+          StatusPill(label: '$count', tone: ChipTone.amber),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right_rounded,
+              size: 20, color: AppColors.faint),
+        ]),
+      );
 }

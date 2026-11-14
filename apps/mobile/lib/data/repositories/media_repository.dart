@@ -19,11 +19,13 @@ class MediaRepository {
 
   /// [deviceCategory] ("Mobile", "Laptop" …) marks a photo of that
   /// category's devices; null is a parcel photo. Older servers ignore it.
+  /// [purpose] "goods" or "packing" marks a photo taken while sorting.
   Future<String> uploadPhoto(
     String code,
     PreparedImage image,
     void Function(double progress) onProgress, {
     String? deviceCategory,
+    String? purpose,
   }) {
     return transferPreparedUpload(
       file: image,
@@ -35,6 +37,7 @@ class MediaRepository {
           'size': file.size,
           if (deviceCategory != null && deviceCategory.trim().isNotEmpty)
             'deviceCategory': deviceCategory.trim(),
+          if (purpose != null) 'purpose': purpose,
         });
         return UploadReservation(
           reference: requiredString(json, 'reference'),
@@ -69,6 +72,21 @@ class MediaRepository {
       link: (reference) => photoUrl(code, reference),
       forget: (reference) => _links.forget(_linkKey(code, reference)),
       download: api.getSignedBytes);
+
+  /// Loads stored photos of several orders on one screen; [orderOf] names
+  /// the order each photo belongs to, which its link needs.
+  SignedPhotoLoader ordersLoader(String? Function(String reference) orderOf) =>
+      SignedPhotoLoader(
+          link: (reference) {
+            final code = orderOf(reference);
+            if (code == null) throw StateError('Unknown photo $reference');
+            return photoUrl(code, reference);
+          },
+          forget: (reference) {
+            final code = orderOf(reference);
+            if (code != null) _links.forget(_linkKey(code, reference));
+          },
+          download: api.getSignedBytes);
 
   Future<void> setShared(String code, String reference,
       {required bool shared}) {

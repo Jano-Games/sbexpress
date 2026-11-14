@@ -11,6 +11,7 @@ vi.hoisted(() => {
 const db = vi.hoisted(() => ({
   flight: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   flightFlyer: { findMany: vi.fn(), update: vi.fn() },
+  flightLeg: { findMany: vi.fn(async () => []), update: vi.fn(), updateMany: vi.fn() },
 }))
 
 vi.mock('../src/core/db', () => ({ prisma: db, atomicMutation: async (work: () => Promise<unknown>) => work() }))
@@ -195,7 +196,7 @@ describe('Editing a flight', () => {
   it('moves the reference to a new number and keeps its tail', async () => {
     const res = await patch(flight.code, { legs: manualLegs('PVG Shanghai'), date: '2026-11-20' })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ code: 'MU5842+MU2036-20261120-ab12cd' })
+    expect(await res.json()).toEqual({ code: 'MU5842+MU2036-20261120-ab12cd', moved: [] })
     expect(db.flight.update.mock.calls[0]![0].data).toMatchObject({
       code: 'MU5842+MU2036-20261120-ab12cd',
       depTime: '09:40',
@@ -206,12 +207,12 @@ describe('Editing a flight', () => {
 
   it('moves the reference to a new date', async () => {
     const res = await patch(flight.code, { date: '2026-11-21', depTime: '09:40', arrTime: '17:25' })
-    expect(await res.json()).toEqual({ code: 'MU5842-20261121-ab12cd' })
+    expect(await res.json()).toEqual({ code: 'MU5842-20261121-ab12cd', moved: [] })
   })
 
   it('keeps the reference when the full reference comes back as the number', async () => {
     const res = await patch(flight.code, { code: flight.code, date: '2026-11-20', mobiles: 3 })
-    expect(await res.json()).toEqual({ code: flight.code })
+    expect(await res.json()).toEqual({ code: flight.code, moved: [] })
     expect(db.flight.findFirst).not.toHaveBeenCalled()
   })
 
