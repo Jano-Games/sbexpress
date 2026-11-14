@@ -5,6 +5,7 @@ import type { AppEnv, Role } from '../src/modules/auth'
 const db = vi.hoisted(() => ({
   flight: { findMany: vi.fn(), findUnique: vi.fn() },
   personPhoto: { findMany: vi.fn(async () => []) },
+  shipmentMedia: { findMany: vi.fn(async () => []) },
   shipmentLog: { findMany: vi.fn(async () => []) },
   user: { findMany: vi.fn(async () => []) },
 }))
@@ -141,6 +142,7 @@ describe('hub flight schedule', () => {
         shipmentCount: 2,
         kg: 18.4,
         receivedCount: 1,
+        tracking: null,
       },
     ])
     expect(db.flight.findMany.mock.calls[0]![0]).toMatchObject({ where: { status: { in: ['upcoming', 'departed'] } }, orderBy: { date: 'asc' } })

@@ -72,7 +72,7 @@ void main() {
     expect(find.textContaining(tr('Next · {when}', {'when': ''}).trim()),
         findsOneWidget);
     expect(find.text(tr('No flyer assigned')), findsOneWidget);
-    await t.tap(find.text(tr('Completed')));
+    await t.tap(find.text(tr('Landed')));
     await t.pumpAndSettle();
     expect(find.text('BG139'), findsOneWidget);
     expect(find.text('BG305'), findsNothing);

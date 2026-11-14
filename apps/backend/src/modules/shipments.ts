@@ -27,6 +27,7 @@ import { config } from '../core/config'
 import { newPublicToken, tokenHash } from '../shared/publicLinks'
 import { setUnitCustomer } from '../shared/devicePhotos'
 import { staffPeople } from '../shared/personPhotos'
+import { notify, problemNote } from '../shared/notifications'
 
 const INCLUDE = { supplier: true, flight: true, receipts: true, expenses: true, costs: true, invoice: true } as const
 const INCLUDE_FULL = {
@@ -469,6 +470,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
     if (index >= STATUS_ORDER.length - 1) throw badRequest('Already delivered')
     // The hub team only handles the Dhaka side of the pipeline.
     if (user.role === 'hub' && index < 4) throw forbidden('Hub can advance only after customs clearance')
+    // After receiving, the hub sorts per customer from the flight page; the admin approves.
+    if (user.role === 'hub' && index > 4) throw forbidden('Sort this order from its flight page; the admin approves it')
     if(shipment.exception)throw badRequest('Resolve the shipment exception before continuing')
     const next = STATUS_ORDER[index + 1] as ShipmentStatus
     if(next==='out_for_delivery'||next==='delivered')throw badRequest('Use the dispatch or handover confirmation in Handling & delivery')
@@ -480,7 +483,8 @@ export const shipmentRoutes = new Hono<AppEnv>()
     return c.json({ status: next })
   })
 
-  .post('/:code/weigh', requireRole('admin', 'hub'), async (c) => {
+  // Weigh, pack, courier and dispatch are admin corrections now; the hub sorts instead.
+  .post('/:code/weigh', requireRole('admin'), async (c) => {
     const user = c.get('user')
     const { kg } = z.object({ kg: z.number().min(0) }).parse(await c.req.json())
     const shipment = await findByCode(c.req.param('code')!)
@@ -499,7 +503,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
     return c.json({ ok: true })
   })
 
-  .post('/:code/pack', requireRole('admin', 'hub'), async (c) => {
+  .post('/:code/pack', requireRole('admin'), async (c) => {
     const shipment = await findByCode(c.req.param('code')!)
     const { count } = z.object({ count:z.number().int().min(1).max(10000) }).parse(await c.req.json())
     if(shipment.exception)throw badRequest('Resolve the shipment exception before handling')
@@ -522,7 +526,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
     return c.json({ ok: true })
   })
 
-  .post('/:code/last-mile', requireRole('admin','hub'), async c=>{
+  .post('/:code/last-mile', requireRole('admin'), async c=>{
     const b=z.object({courier:z.string().trim().min(1).max(100),ref:z.string().trim().min(1).max(200),mode:z.enum(['courier','pickup']).optional(),reason:z.string().trim().min(3).max(300).optional()}).parse(await c.req.json())
     const s=await findByCode(c.req.param('code')!)
     if(s.exception)throw badRequest('Resolve the exception before booking delivery')
@@ -534,7 +538,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
     await log(s.id,c.get('user').name,`Delivery ${s.lastMileRef?'booking corrected':'booked'}: ${mode} ${b.courier} ${b.ref}${s.lastMileRef?` (previous: ${s.lastMileCourier} ${s.lastMileRef}; ${b.reason})`:''}`)
     return c.json({ok:true})
   })
-  .post('/:code/dispatch',requireRole('admin','hub'),async c=>{
+  .post('/:code/dispatch',requireRole('admin'),async c=>{
     const s=await findByCode(c.req.param('code')!)
     if(s.exception||s.status!=='ready_for_last_mile'||!s.packedAt||!s.lastMileRef||s.deliveryMode==='pickup')throw badRequest('A packed courier booking is required before dispatch')
     await prisma.shipment.update({where:{id:s.id},data:{status:'out_for_delivery',dispatchedAt:new Date()}})
@@ -544,7 +548,9 @@ export const shipmentRoutes = new Hono<AppEnv>()
   .post('/:code/handover',requireRole('admin','hub'),async c=>{
     const {confirmation}=z.object({confirmation:z.string().trim().min(3,'Enter the recipient or delivery confirmation').max(300)}).parse(await c.req.json())
     const s=await findByCode(c.req.param('code')!)
-    if(s.exception||!s.lastMileRef||!s.packedAt||!(s.status==='out_for_delivery'||s.status==='ready_for_last_mile'&&s.deliveryMode==='pickup'))throw badRequest('A dispatched courier delivery or booked pickup is required')
+    // Sorted orders need the admin's approval before a pickup; the courier ID can still be missing.
+    const pickupReady=s.status==='ready_for_last_mile'&&s.deliveryMode==='pickup'&&(s.sortedAt?Boolean(s.approvedAt):Boolean(s.lastMileRef))
+    if(s.exception||!(s.lastMileRef||s.lastMileCourier)||!s.packedAt||!(s.status==='out_for_delivery'||pickupReady))throw badRequest('A dispatched courier delivery or approved pickup is required')
     await prisma.shipment.update({where:{id:s.id},data:{status:'delivered',handedOverAt:new Date()}})
     await log(s.id,c.get('user').name,`Delivery confirmed${s.deliveryMode==='pickup'?' (hub collection)':''}: ${confirmation}`)
     return c.json({ok:true})
@@ -557,6 +563,7 @@ export const shipmentRoutes = new Hono<AppEnv>()
     if(b.type==='resume'&&!s.exception)throw badRequest('This shipment has no exception to resolve')
     await prisma.shipment.update({where:{id:s.id},data:{exception:b.type==='resume'?null:b.type,exceptionReason:b.type==='resume'?'':b.reason,exceptionAt:b.type==='resume'?null:new Date()}})
     await log(s.id,u.name,`${b.type==='resume'?'Shipment resumed':'Exception: '+b.type.replaceAll('_',' ')} — ${b.reason}`)
+    if(b.type!=='resume')await notify(problemNote(s.code,b.type,b.reason,u.name,u.role))
     return c.json({ok:true})
   })
   .post('/:code/correct-stage',requireRole('admin'),async c=>{

@@ -48,6 +48,24 @@ class SettingsRepository {
     return SettingsSnapshot.fromJson(asJsonMap(json['settings'], 'settings'));
   }
 
+  /// Couriers the hub picks from when it sorts; Hub pickup is always added.
+  Future<List<String>> deliveryPartners() async {
+    final json = await api.getJson('/api/settings');
+    final settings = asJsonMap(json['settings'], 'settings');
+    return settings['deliveryPartners'] is List
+        ? asStringList(settings['deliveryPartners'], 'deliveryPartners')
+        : const [];
+  }
+
+  Future<List<String>> saveDeliveryPartners(List<String> names) async {
+    final json =
+        await api.patchJson('/api/settings', body: {'deliveryPartners': names});
+    final settings = asJsonMap(json['settings'], 'settings');
+    return settings['deliveryPartners'] is List
+        ? asStringList(settings['deliveryPartners'], 'deliveryPartners')
+        : names;
+  }
+
   Future<List<String>> categories() async {
     final json = await api.getJson('/api/categories');
     return requiredStringList(json, 'categories');

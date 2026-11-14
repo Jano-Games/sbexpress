@@ -86,9 +86,14 @@ void main() {
     expect(paths.last, startsWith('/api/flights/hub/BG147-'));
     expect(find.byType(HubFlightDetailScreen), findsOneWidget);
     expect(find.text('এই ফ্লাইটে আসছে'), findsOneWidget);
-    expect(find.text('SH-51'), findsOneWidget);
-    expect(find.text('SH-53'), findsOneWidget);
     expect(find.text('Arif Rahman'), findsOneWidget);
+    // Orders come grouped under their customer's code.
+    final last = find.byKey(const Key('hub-order-SH-53'));
+    await tester.dragUntilVisible(
+        last, find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('hub-order-SH-51')), findsOneWidget);
+    expect(find.text('SH-53 · cosmetics'), findsOneWidget);
     expect(find.textContaining('৳'), findsNothing);
     await tester.tap(find.byTooltip('পিছনে'));
     await tester.pumpAndSettle();

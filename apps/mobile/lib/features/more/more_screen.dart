@@ -20,6 +20,8 @@ import '../settings/pay_methods_screen.dart';
 import '../settings/rates_screen.dart';
 import '../settings/staff_screen.dart';
 import '../shipments/shipment_picker_screen.dart';
+import '../settings/partners_screen.dart';
+import '../sorting/approvals_screen.dart';
 import '../tasks/tasks_screen.dart';
 import 'destinations.dart';
 import 'more_sheets.dart';
@@ -148,6 +150,8 @@ class _MoreScreenState extends State<MoreScreen> {
             const ShipmentPickerScreen(target: ShipmentPickTarget.photos),
           'imei' => const ShipmentPickerScreen(target: ShipmentPickTarget.imei),
           'tasks' => TasksScreen(role: widget.user.role, tasks: scope.tasks),
+          'partners' => const PartnersScreen(),
+          'approvals' => const ApprovalsScreen(),
           _ => null,
         };
         if (screen != null) await _push(screen);
@@ -366,6 +370,8 @@ IconData _icon(String id) => switch (id) {
       'weight' => Icons.balance_rounded,
       'capacity' => Icons.luggage_outlined,
       'tasks' => Icons.checklist_rounded,
+      'partners' => Icons.local_shipping_outlined,
+      'approvals' => Icons.fact_check_outlined,
       'fingerprint' => Icons.fingerprint_rounded,
       'system' => Icons.verified_user_outlined,
       _ => Icons.chevron_right_rounded,
@@ -375,7 +381,7 @@ ToneColors _tone(String id) => switch (id) {
       'customers' || 'rate' => MoreTone.blue,
       'flyers' || 'capacity' => MoreTone.teal,
       'team' => MoreTone.purple,
-      'review' => MoreTone.orange,
+      'review' || 'approvals' => MoreTone.orange,
       'pay-methods' || 'system' => MoreTone.green,
       'fingerprint' || 'prices' => MoreTone.primary,
       _ => MoreTone.grey,

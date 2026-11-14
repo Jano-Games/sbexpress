@@ -8,8 +8,11 @@ import '../../data/models/hub_flight.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/flight_parts.dart';
+import '../../widgets/flight_status_parts.dart';
 import '../../widgets/ui.dart';
+import 'confirm_status_sheet.dart';
 import 'flight_detail_screen.dart';
+import 'flight_edit_screen.dart';
 import 'flight_form_screen.dart';
 import 'hub_flights_screen.dart';
 import 'ticket_import_screen.dart';
@@ -76,6 +79,22 @@ class _FlightsScreenState extends State<FlightsScreen> {
     if (created == true && mounted) await _load();
   }
 
+  /// The date is over: asks what happened and saves it, or opens Edit
+  /// flight for a new date.
+  Future<void> _confirm(FlightSummary row) async {
+    final outcome = await showConfirmStatusSheet(context, flight: row);
+    if (!mounted || outcome == null) return;
+    switch (outcome) {
+      case StatusConfirmed():
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(confirmedMessage(row.displayCode, outcome))));
+      case FliesAnotherDay():
+        await Navigator.of(context).push(MaterialPageRoute<Object>(
+            builder: (_) => FlightEditScreen(flight: row)));
+    }
+    if (mounted) await _load();
+  }
+
   Future<void> _importTicket() async {
     final created = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => const TicketImportScreen()));
@@ -118,12 +137,7 @@ class _FlightsScreenState extends State<FlightsScreen> {
           if (!widget.root) const SizedBox(width: 12),
         ],
         toolbar: ScreenTabs(
-            labels: [
-              tr('Upcoming'),
-              tr('Departed'),
-              tr('Completed'),
-              tr('All')
-            ],
+            labels: [tr('Upcoming'), tr('On the way'), tr('Landed'), tr('All')],
             index: _filters.indexOf(_filter),
             onChanged: (i) => setState(() => _filter = _filters[i])),
         children: [
@@ -161,6 +175,7 @@ class _FlightsScreenState extends State<FlightsScreen> {
               AdminFlightCard(
                   row: row,
                   next: row.code == nextCode,
+                  onConfirm: () => _confirm(row),
                   onTap: () async {
                     await Navigator.of(context).push(MaterialPageRoute<void>(
                         builder: (_) => FlightDetailScreen(code: row.code)));
@@ -179,6 +194,7 @@ String? _nextFlightCode(List<FlightSummary> rows) {
     final day = FlightDay.parse(row.date);
     if (row.status == 'upcoming' &&
         !row.scheduleNeedsConfirmation &&
+        !flightCancelled(row.status, row.tracking) &&
         (day == null || day.daysAway >= 0)) {
       return row.code;
     }
@@ -189,15 +205,22 @@ String? _nextFlightCode(List<FlightSummary> rows) {
 /// One flight in the admin schedule; the next one is outlined in blue.
 class AdminFlightCard extends StatelessWidget {
   const AdminFlightCard(
-      {super.key, required this.row, required this.onTap, this.next = false});
+      {super.key,
+      required this.row,
+      required this.onTap,
+      this.onConfirm,
+      this.next = false});
   final FlightSummary row;
   final VoidCallback onTap;
+
+  /// Asks what happened to a flight whose date is over.
+  final VoidCallback? onConfirm;
   final bool next;
 
   @override
   Widget build(BuildContext context) {
     final day = FlightDay.parse(row.date);
-    final badge = adminFlightBadge(row, day, next: next);
+    final look = adminFlightLook(row, day, next: next);
     final noFlyer = row.flyers.isEmpty;
     final shipments = trn(row.shipmentCount, '{n} order', '{n} orders');
     return PaperCard(
@@ -227,8 +250,7 @@ class AdminFlightCard extends StatelessWidget {
                         flex: 5,
                         child: Align(
                             alignment: Alignment.centerRight,
-                            child:
-                                StatusPill(label: badge.$1, tone: badge.$2))),
+                            child: LookPill(look: look))),
                   ]),
                   const SizedBox(height: 6),
                   RouteLine(
@@ -247,11 +269,15 @@ class AdminFlightCard extends StatelessWidget {
               booked: row.bookedKg,
               space: row.spaceKg.toDouble(),
               extra: '· $shipments'),
-          if (row.scheduleNeedsConfirmation) ...[
-            const SizedBox(height: 4),
-            Text(tr('Date has passed · Confirm the status'),
-                style: const TextStyle(
-                    color: AppColors.danger, fontSize: 12, height: 1.4)),
+          if (look.note != null) ...[
+            const SizedBox(height: 6),
+            StatusNote(text: look.note!, tone: look.noteTone),
+          ],
+          if (look.confirm && onConfirm != null) ...[
+            const SizedBox(height: 10),
+            ConfirmStatusButton(
+                key: ValueKey('confirm-status-${row.code}'),
+                onPressed: onConfirm!),
           ],
           const Divider(height: 20),
           Row(children: [

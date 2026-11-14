@@ -74,7 +74,11 @@ void main() {
       return null;
     }));
     await t.pumpAndSettle();
-    expect(paths, ['/api/dashboard/overview']);
+    // Home loads its own data and the bell; other tabs wait for a visit.
+    expect(
+        paths,
+        unorderedEquals(
+            ['/api/dashboard/overview', '/api/notifications/unread']));
     expect(find.byKey(const Key('nav-4')), findsOneWidget);
     await t.tap(find.byKey(const Key('nav-2')));
     await t.pumpAndSettle();

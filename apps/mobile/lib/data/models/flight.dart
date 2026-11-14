@@ -1,5 +1,8 @@
 import '../json_read.dart';
+import 'flight_tracking.dart';
 import 'shipment.dart';
+
+export 'flight_tracking.dart';
 
 /// Airline number without the internal booking suffix (`BG305-20261020-ab12cd`).
 String displayFlightCode(String code) {
@@ -163,6 +166,8 @@ class FlightSummary {
     this.ownRates,
     this.ratesKnown = false,
     this.legs = const [],
+    this.tracking,
+    this.statusSetBy,
   });
 
   final String code;
@@ -213,6 +218,13 @@ class FlightSummary {
   /// The itinerary, first flight first.
   final List<FlightLeg> legs;
 
+  /// What the airline says; null until the server asked.
+  final FlightTracking? tracking;
+
+  /// Who last set the status: `airline` or a staff member's name; null on
+  /// older flights and servers.
+  final String? statusSetBy;
+
   /// The flyers' part of the ticket: what we do not pay.
   double get flyersShare => actualCost - agencyShare;
 
@@ -242,6 +254,8 @@ class FlightSummary {
       to: legs.isEmpty ? null : _legPlace(legs.last, 'toCity', 'toIata'),
       fromTicket: legs.any((leg) => leg['source'] == 'ticket'),
       legs: [for (final leg in legs) FlightLeg.fromJson(leg)],
+      tracking: FlightTracking.fromJson(json['tracking']),
+      statusSetBy: optionalString(json, 'statusSetBy'),
       ownRates: FlightRates.fromSummaryJson(json),
       ratesKnown: json.containsKey('ownRates'),
       totalShipmentCosts: optionalDouble(json, 'totalShipmentCosts'),
@@ -442,6 +456,8 @@ class FlightDetail {
       required this.flyerDetails,
       required this.bookings,
       this.receivedBy = const [],
+      this.movedOrders,
+      this.notMoved = const [],
       this.flightCosts,
       this.flightCostTotal,
       this.profitBreakdown,
@@ -453,6 +469,12 @@ class FlightDetail {
 
   /// Who received the flight's orders at the BD hub, latest first.
   final List<ReceivedGroup> receivedBy;
+
+  /// The orders moved to In transit when the flight left.
+  final MovedOrders? movedOrders;
+
+  /// Orders on a flight that left but are not on their way.
+  final List<NotMovedOrder> notMoved;
 
   /// Costs for the whole flight, newest first; null on an older server.
   final List<FlightCost>? flightCosts;
@@ -484,6 +506,8 @@ class FlightDetail {
           breakdown == null ? null : FlightProfitBreakdown.fromJson(breakdown),
       summary: FlightSummary.fromJson(json),
       receivedBy: ReceivedGroup.listOf(json),
+      movedOrders: MovedOrders.fromJson(json['movedOrders']),
+      notMoved: NotMovedOrder.listOf(json),
       flyerDetails: [
         for (final row in requiredMapList(json, 'flyerDetails'))
           FlyerOnFlight.fromJson(row)

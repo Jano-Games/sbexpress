@@ -6,6 +6,7 @@ import '../json_read.dart';
 import '../models/flight.dart';
 import '../models/flight_route.dart';
 import '../models/hub_flight.dart';
+import '../models/flight_position.dart';
 import '../models/ticket_import.dart';
 import '../money_payload.dart';
 
@@ -57,6 +58,14 @@ class FlightRepository {
     return HubFlightDetail.fromJson(asJsonMap(json['flight'], 'flight'));
   }
 
+  /// Where the flight is now. [refresh] asks the airline again when allowed
+  /// (every 15 minutes, 6 times a day per flight).
+  Future<PositionAnswer> position(String code, {bool refresh = false}) async {
+    final json = await api.getJson(
+        '/api/flights/hub/${Uri.encodeComponent(code)}/position${refresh ? '?refresh=1' : ''}');
+    return PositionAnswer.fromJson(json);
+  }
+
   /// Receives the flight's orders at the BD hub: every order through
   /// customs, or only [codes]. Returns the codes received.
   Future<List<String>> receiveAtHub(String code, {List<String>? codes}) async {
@@ -80,9 +89,16 @@ class FlightRepository {
 
   /// Saves a flight's number, date, times and space. Returns its reference,
   /// which changes with the number or the date.
-  Future<String> updateDetails(String code, FlightEdit edit) async {
+  Future<FlightSaved> updateDetails(String code, FlightEdit edit) async {
     final json = await api.patchJson(_path(code), body: edit.toJson());
-    return optionalString(json, 'code') ?? code;
+    return FlightSaved.fromJson(json, code);
+  }
+
+  /// Sets what happened to the flight. Leaving Upcoming moves the orders
+  /// ready for shipment to In transit; the answer names them.
+  Future<FlightSaved> setStatus(String code, String status) async {
+    final json = await api.patchJson(_path(code), body: {'status': status});
+    return FlightSaved.fromJson(json, code);
   }
 
   Future<void> assignFlyer(String code, String name) async {

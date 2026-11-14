@@ -17,6 +17,7 @@ const db = vi.hoisted(() => ({
   invoiceRevision: { count: vi.fn(), create: vi.fn() },
   creditNote: { create: vi.fn() },
   shipmentLog: { create: vi.fn() },
+  shipmentMedia: { findMany: vi.fn(async () => []) },
 }))
 
 vi.mock('../src/core/db', () => ({ prisma: db, atomicMutation: async (work: () => Promise<unknown>) => work() }))

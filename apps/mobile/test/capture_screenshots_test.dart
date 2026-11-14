@@ -16,6 +16,13 @@ import 'package:flutter/services.dart';
 import 'package:sbexpress/features/auth/login_screen.dart';
 import 'package:sbexpress/features/auth/splash_screen.dart';
 import 'package:sbexpress/features/hub/hub_home_screen.dart';
+import 'package:sbexpress/features/flights/track_screen.dart';
+import 'package:sbexpress/features/notifications/notifications_screen.dart';
+import 'package:sbexpress/features/settings/partners_screen.dart';
+import 'package:sbexpress/features/sorting/approvals_screen.dart';
+import 'package:sbexpress/features/sorting/approve_customer_screen.dart';
+import 'package:sbexpress/features/sorting/sort_customer_screen.dart';
+import 'package:sbexpress/features/sorting/sort_flight_screen.dart';
 import 'package:sbexpress/features/imei/imei_guide_screen.dart';
 import 'package:sbexpress/features/flights/hub_flights_screen.dart';
 import 'package:sbexpress/features/shipments/shipment_process_screen.dart';
@@ -134,6 +141,16 @@ void main() {
       tester.view.physicalSize = const Size(320, 700);
       _textScale = 1.3;
       await _photoShots(tester, scope, compact: true);
+      _textScale = 1;
+      return;
+    }
+
+    // CAPTURE_ONLY=r12 renders just round 12, normal and compact.
+    if (Platform.environment['CAPTURE_ONLY'] == 'r12') {
+      await _round12Shots(tester, scope);
+      tester.view.physicalSize = const Size(320, 700);
+      _textScale = 1.3;
+      await _round12Shots(tester, scope, compact: true);
       _textScale = 1;
       return;
     }
@@ -334,6 +351,8 @@ void main() {
     await _round8Shots(tester, scope);
     await _round9Shots(tester, scope);
     await _round10Shots(tester, scope);
+    await _round11Shots(tester, scope);
+    await _round12Shots(tester, scope);
     await _scanShots(tester, scope);
     await _shot(
         tester,
@@ -445,6 +464,8 @@ void main() {
     await _round8Shots(tester, scope, compact: true);
     await _round9Shots(tester, scope, compact: true);
     await _round10Shots(tester, scope, compact: true);
+    await _round11Shots(tester, scope, compact: true);
+    await _round12Shots(tester, scope, compact: true);
     await _scanShots(tester, scope, compact: true);
     await _photoShots(tester, scope, compact: true);
     await _teamCompactShots(tester, scope);
@@ -2681,4 +2702,884 @@ Future<void> _round10Shots(WidgetTester tester, AppScope scope,
   await tester.pumpAndSettle();
   await _decodeImages(tester);
   await _saveShot(tester, '$prefix-n-staff-photo-sheet');
+}
+
+/// Round 11: flight status from the airline. The list with Date has passed,
+/// Cancelled by airline and the airline's times, the Confirm status sheet,
+/// the flight page with the airline legs and the orders that moved, the
+/// cancelled and date-passed banners, Status in Edit flight, and the hub's
+/// landing card. [compact] saves the 320 px versions; nothing may overflow.
+Future<void> _round11Shots(WidgetTester tester, AppScope scope,
+    {bool compact = false}) async {
+  final prefix = compact ? 'compact-r11' : '98';
+  final hubBody = hubFlightDetailBody()['flight']! as Map<String, Object?>;
+  final hubCode = hubBody['code']! as String;
+  http.Response json(Object body) =>
+      http.Response.bytes(utf8.encode(jsonEncode(body)), 200,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+  final now = DateTime.now().toUtc().toIso8601String();
+  final landed = {
+    ...r11OnTheWay(),
+    'state': 'landed',
+    'landed': true,
+    'landsAt': '15:31',
+    'landsLateMin': 6,
+    'nextCheck': null,
+    'legs': [
+      r11Leg('BG139', 'landed',
+          depLocal: '10:44', arrLocal: '15:31', depLate: 4, arrLate: 6),
+    ],
+  };
+  final rows = [
+    r11FlightRow('BG305', -1, needsConfirmation: true),
+    r11FlightRow('BG147', 2, tracking: r11Cancelled()),
+    r11FlightRow('BG160', 6),
+    r11FlightRow('BG152', 0, status: 'departed', tracking: r11OnTheWay()),
+    r11FlightRow('BG139', -4, status: 'completed', tracking: landed),
+  ];
+  final base = Map<String, Object?>.from(round7FlightBody()['flight']! as Map);
+  var flight = base;
+  final schedule = hubScheduleBody();
+  final upcoming = [
+    for (final row in schedule['upcoming']! as List)
+      Map<String, Object?>.from(row as Map)
+  ];
+  upcoming[0].addAll({
+    'status': 'departed',
+    'statusLabel': 'Departed',
+    'tracking': r11OnTheWay(),
+  });
+  upcoming[1]['tracking'] = r11Cancelled();
+  final r11 = _interceptScope(scope, (request) async {
+    if (request.method != 'GET') return null;
+    final path = Uri.decodeComponent(request.url.path);
+    if (path == '/api/flights') return json({'flights': rows});
+    if (path == '/api/flights/$flowFlightCode') return json({'flight': flight});
+    if (path == '/api/flights/hub') {
+      return json({...schedule, 'upcoming': upcoming});
+    }
+    if (path == '/api/flights/hub/$hubCode') {
+      return json({
+        'flight': {
+          ...hubBody,
+          'status': 'departed',
+          'statusLabel': 'Departed',
+          'tracking': r11OnTheWay(),
+        }
+      });
+    }
+    return null;
+  });
+
+  /// Scrolls [finder] near the top of the page.
+  Future<void> show(Finder finder, {double alignment = 0.1}) async {
+    await _reveal(tester, finder);
+    await tester.runAsync(() => Scrollable.ensureVisible(
+        tester.element(finder),
+        alignment: alignment));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> closeSheet() async {
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+  }
+
+  // The list: Confirm status from the row, then each tab.
+  await _shot(tester, _scoped(r11, const FlightsScreen()),
+      '$prefix-a-flights', find.byType(FlightsScreen));
+  await tester
+      .tap(find.byKey(ValueKey('confirm-status-${rows.first['code']}')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-b-confirm-sheet');
+  await closeSheet();
+  await tester.tap(find.text(tr('On the way')).first);
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-c-flights-on-the-way');
+  await tester.tap(find.text(tr('Landed')).first);
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-d-flights-landed');
+
+  // A flight that left: the airline's times, its legs and the orders that
+  // moved.
+  flight = {
+    ...base,
+    'status': 'departed',
+    'statusLabel': 'Departed',
+    'tracking': r11OnTheWay(),
+    'movedOrders': {
+      'at': now,
+      'by': 'airline',
+      'codes': ['SH-51', 'SH-18'],
+    },
+    'notMoved': [
+      {
+        'code': 'SH-53',
+        'customer': 'Nila Store',
+        'status': 'ready_for_shipment',
+        'reason': 'no_flyer',
+      }
+    ],
+  };
+  await _shot(
+      tester,
+      _scoped(r11, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-e-flight-left',
+      find.byType(FlightDetailScreen));
+  await show(find.byKey(const Key('flight-tracking')));
+  await _saveShot(tester, '$prefix-f-flight-tracking');
+  await show(find.byKey(const Key('orders-moved')), alignment: 0.3);
+  await _saveShot(tester, '$prefix-g-orders-moved');
+
+  // Cancelled by the airline.
+  flight = {...base, 'tracking': r11Cancelled('BG305')};
+  await _shot(
+      tester,
+      _scoped(r11, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-h-flight-cancelled',
+      find.byType(FlightDetailScreen));
+
+  // The date is over with no word from the airline.
+  flight = {
+    ...base,
+    'date': r11Day(-1),
+    'scheduleNeedsConfirmation': true,
+  };
+  await _shot(
+      tester,
+      _scoped(r11, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-i-flight-date-passed',
+      find.byType(FlightDetailScreen));
+  await tester.tap(find.byKey(const Key('flight-confirm-status')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-j-confirm-sheet-ready');
+  await closeSheet();
+
+  // Status in Edit flight, after the airline had no data for that day.
+  flight = {
+    ...base,
+    'date': r11Day(-1),
+    'scheduleNeedsConfirmation': true,
+    'tracking': {
+      'state': 'none',
+      'checkedAt': now,
+      'left': false,
+      'landed': false,
+      'nextCheck': null,
+      'legs': [r11Leg('BG305', 'unknown')],
+    },
+  };
+  await _shot(
+      tester,
+      _scoped(r11, const FlightDetailScreen(code: flowFlightCode)),
+      '$prefix-k-flight-no-data',
+      find.byType(FlightDetailScreen));
+  await tester.tap(find.byKey(const Key('flight-edit')));
+  await tester.pumpAndSettle();
+  await show(find.byKey(const Key('flight-edit-status')), alignment: 0.2);
+  await _saveShot(tester, '$prefix-l-edit-status');
+
+  // The hub: the list and the landing card.
+  await _shot(
+      tester,
+      _scoped(r11, const HubFlightsScreen(root: true), tab: 2, hub: true),
+      '$prefix-m-hub-list',
+      find.byType(HubFlightsScreen));
+  await _shot(tester, _scoped(r11, HubFlightDetailScreen(code: hubCode)),
+      '$prefix-n-hub-landing', find.byType(HubFlightDetailScreen));
+}
+
+/// Round 12: the bell and notifications, Track on the map, the hub home's
+/// to-do, the hub flight page grouped by customer, sorting one customer
+/// (form, sent back, in delivery), the admin's approvals and send back,
+/// delivery partners, the admin home's approvals card and the hub order
+/// page. [compact] saves the 320 px versions; nothing may overflow.
+Future<void> _round12Shots(
+  WidgetTester tester,
+  AppScope scope, {
+  bool compact = false,
+}) async {
+  final prefix = compact ? 'compact-r12' : '99';
+  const code = 'BG305-20261021-ab12cd';
+  final hubBody = hubFlightDetailBody()['flight']! as Map<String, Object?>;
+  final hubCode = hubBody['code']! as String;
+  final now = DateTime.now().toUtc();
+  String ago(Duration d) => now.subtract(d).toIso8601String();
+  http.Response json(Object body) => http.Response.bytes(
+    utf8.encode(jsonEncode(body)),
+    200,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
+  final fixtures = screenFixtureApi();
+
+  Map<String, Object?> order(
+    String c,
+    String state, {
+    double booked = 4,
+    double? weighed,
+    String arrived = '',
+    List<String> what = const ['Mobile'],
+    List<String> goods = const [],
+    int devices = 0,
+  }) => {
+    'code': c,
+    'state': state,
+    'statusLabel': state,
+    'description': 'phones',
+    'categories': what,
+    'bookedKg': booked,
+    'weighedKg': weighed,
+    'weightDelta': weighed == null ? null : weighed - booked,
+    'arrivedNote': arrived,
+    'goodsPhotos': goods,
+    'devicePhotos': [
+      for (var i = 1; i <= devices; i++)
+        {'reference': 'dev-$c-$i', 'label': '${what.first} $i'},
+    ],
+    'flyerName': 'Arif Rahman',
+    'bill': (weighed ?? booked) * 1000,
+    'bookedBill': booked * 1000,
+  };
+
+  Map<String, Object?> group(
+    String customer,
+    String state,
+    List<Map<String, Object?>> orders, {
+    bool admin = false,
+    bool needsLook = false,
+    String? partner,
+    String? courierRef,
+    String note = '',
+    String sentBack = '',
+    List<String> packing = const [],
+  }) => {
+    'customerCode': customer,
+    if (admin) ...{
+      'customerName':
+          const {
+            'C-14': 'Nila Store',
+            'C-9': 'Karim Store',
+            'C-12': 'Rafi Traders',
+          }[customer] ??
+          'Shapla Fashion',
+      'customerPhone': '01700000000',
+      'customerAddress': 'House 12, Road 4, Mirpur 10, Dhaka',
+      'money': {'bill': 9100, 'paid': 2000, 'due': 7100, 'bookedBill': 8200},
+    },
+    'state': state,
+    'orders': orders,
+    'bookedKg': orders.fold<double>(
+      0,
+      (n, o) => n + (o['bookedKg']! as num).toDouble(),
+    ),
+    'measuredKg': orders.fold<double>(
+      0,
+      (n, o) => n + ((o['weighedKg'] ?? o['bookedKg'])! as num).toDouble(),
+    ),
+    'needsLook': needsLook,
+    'packages': partner == null ? 0 : orders.length,
+    'packingPhotos': [
+      for (final p in packing) {'reference': p, 'order': orders.first['code']},
+    ],
+    'hubNote': note,
+    'sentBackNote': sentBack,
+    if (partner != null) ...{
+      'partner': partner,
+      'sortedAt': ago(const Duration(hours: 2)),
+      'sortedBy': 'Hub desk',
+    },
+    if (courierRef != null) 'courierRef': courierRef,
+    if (state == 'in_delivery' || state == 'ready_pickup') ...{
+      'approvedAt': ago(const Duration(minutes: 40)),
+      'approvedBy': 'Rafiq',
+    },
+    if (sentBack.isNotEmpty) ...{
+      'sentBackAt': ago(const Duration(minutes: 25)),
+      'sentBackBy': 'Rafiq',
+    },
+  };
+
+  List<Map<String, Object?>> groups({bool admin = false}) => [
+    group(
+      'C-14',
+      admin ? 'waiting_admin' : 'to_sort',
+      [
+        order(
+          'SH-51',
+          admin ? 'waiting_admin' : 'to_sort',
+          weighed: admin ? 4.6 : null,
+          arrived: admin ? '2 cartons of phones' : '',
+          goods: admin ? ['goods-51'] : const [],
+          devices: 2,
+        ),
+        order(
+          'SH-53',
+          admin ? 'waiting_admin' : 'to_sort',
+          booked: 5,
+          weighed: admin ? 6.2 : null,
+          arrived: admin ? '1 carton of ladies kurtis' : '',
+          what: const ['Clothing'],
+        ),
+      ],
+      admin: admin,
+      needsLook: admin,
+      partner: admin ? 'Pathao' : null,
+      courierRef: admin ? 'PT-88913' : null,
+      note: admin ? 'Call before delivery' : '',
+      packing: admin ? ['pack-51'] : const [],
+    ),
+    group(
+      'C-9',
+      'sent_back',
+      [
+        order(
+          'SH-55',
+          'sent_back',
+          weighed: 4.1,
+          arrived: '1 carton of phones',
+          devices: 1,
+        ),
+      ],
+      admin: admin,
+      partner: 'Steadfast',
+      sentBack: 'Photo missing. SH-55 needs a photo with the carton open',
+    ),
+    group(
+      'C-12',
+      'waiting_admin',
+      [
+        order(
+          'SH-57',
+          'waiting_admin',
+          weighed: 3.9,
+          arrived: '2 laptops',
+          what: ['Laptop'],
+        ),
+      ],
+      admin: admin,
+      partner: 'Hub pickup',
+    ),
+    group(
+      'C-7',
+      'in_delivery',
+      [
+        order(
+          'SH-58',
+          'in_delivery',
+          weighed: 4,
+          arrived: '1 carton of phones',
+        ),
+        order(
+          'SH-59',
+          'in_delivery',
+          booked: 2.5,
+          weighed: 2.5,
+          arrived: 'Bag of cables',
+        ),
+      ],
+      admin: admin,
+      partner: 'Pathao',
+    ),
+    group(
+      'C-5',
+      'ready_pickup',
+      [order('SH-60', 'ready_pickup', weighed: 4, arrived: 'Phones')],
+      admin: admin,
+      partner: 'Hub pickup',
+    ),
+    group(
+      'C-3',
+      'delivered',
+      [order('SH-61', 'delivered', weighed: 4, arrived: 'Phones')],
+      admin: admin,
+      partner: 'RedX',
+      courierRef: 'RX-55210',
+    ),
+  ];
+
+  Map<String, Object?> board({bool admin = false}) => {
+    'flight': {
+      'code': code,
+      'number': 'BG305',
+      'date': '2026-10-21',
+      'arrTime': '15:25',
+      'status': 'landed',
+    },
+    'partners': [
+      'Steadfast',
+      'Pathao',
+      'RedX',
+      'Sundarban Courier',
+      'SA Paribahan',
+      'Hub pickup',
+    ],
+    'groups': groups(admin: admin),
+  };
+
+  final schedule = hubScheduleBody();
+  final upcoming = [
+    for (final row in schedule['upcoming']! as List)
+      Map<String, Object?>.from(row as Map),
+  ];
+  upcoming[0].addAll({
+    'status': 'departed',
+    'statusLabel': 'Departed',
+    'tracking': r11OnTheWay(),
+  });
+
+  Map<String, Object?> received(Map<String, Object?> row, int devices) => {
+    ...row,
+    'status': 'received_bd_hub',
+    'statusIndex': 5,
+    'statusLabel': 'Received at BD Hub',
+    'flyerName': 'Arif Rahman',
+    'devicePhotos': [
+      for (var i = 1; i <= devices; i++)
+        {'reference': 'dev-${row['code']}-$i', 'label': 'Mobile $i'},
+    ],
+  };
+
+  Map<String, Object?> note(
+    String id,
+    String event,
+    Map<String, Object?> params,
+    Duration age, {
+    bool read = false,
+    String? customer,
+  }) => {
+    'id': id,
+    'event': event,
+    'params': params,
+    'read': read,
+    'createdAt': ago(age),
+    'flightCode': code,
+    if (customer != null) 'customerCode': customer,
+  };
+
+  final track = {
+    'inAir': true,
+    'refreshesLeft': 4,
+    'nextRefreshAt': null,
+    'track': {
+      'legCode': 'BG306',
+      'from': {'iata': 'KMG', 'city': 'Kunming', 'lat': 24.99, 'lon': 102.74},
+      'to': {'iata': 'DAC', 'city': 'Dhaka', 'lat': 23.84, 'lon': 90.4},
+      'route': [
+        {'iata': 'CTU', 'city': 'Chengdu', 'lat': 30.58, 'lon': 103.95},
+        {'iata': 'KMG', 'city': 'Kunming', 'lat': 24.99, 'lon': 102.74},
+        {'iata': 'DAC', 'city': 'Dhaka', 'lat': 23.84, 'lon': 90.4},
+      ],
+      'position': {
+        'lat': 24.3,
+        'lon': 96.4,
+        'altitudeM': 10668,
+        'speedKmh': 812,
+        'headingDeg': 254,
+        'reportedAt': ago(const Duration(minutes: 3)),
+      },
+      'landsAt': '15:40',
+      'arrLateMin': 15,
+      'progress': 55,
+      'checkedAt': ago(const Duration(minutes: 3)),
+      'sample': false,
+    },
+  };
+
+  Future<http.Response?> handle(
+    http.Request request, {
+    bool admin = false,
+  }) async {
+    final path = Uri.decodeComponent(request.url.path);
+    final parts = path.split('/');
+    if (request.url.host == 'storage.test') {
+      return http.Response.bytes(
+        _shotPicture(parts.last, width: 300, height: 300),
+        200,
+        headers: {'content-type': 'image/jpeg'},
+      );
+    }
+    if (request.method != 'GET') return null;
+    if (path.endsWith('/url')) {
+      return json({
+        'url': 'https://storage.test/get/${parts[parts.length - 2]}',
+      });
+    }
+    switch (path) {
+      case '/api/notifications/unread':
+        return json({'unread': 3});
+      case '/api/notifications':
+        return json({
+          'unread': 3,
+          'notifications': [
+            note(
+              'n1',
+              'sort_waiting',
+              {
+                'flight': 'BG305',
+                'customer': 'C-14',
+                'by': 'Hub desk',
+                'orders': 2,
+                'kg': '10.8',
+              },
+              const Duration(minutes: 12),
+              customer: 'C-14',
+            ),
+            note('n2', 'flight_soon', {
+              'flight': 'BG152',
+              'arrTime': '15:40',
+            }, const Duration(minutes: 50)),
+            note('n3', 'flight_departed', {
+              'flight': 'BG152',
+              'from': 'Chengdu',
+              'depTime': '10:52',
+              'arrTime': '15:40',
+              'moved': 3,
+            }, const Duration(hours: 5)),
+            note(
+              'n4',
+              'orders_received',
+              {'flight': 'BG305', 'by': 'Hub desk', 'count': 7},
+              const Duration(hours: 26),
+              read: true,
+            ),
+            note(
+              'n5',
+              'flight_new',
+              {
+                'flight': 'BG160',
+                'date': '2026-10-27',
+                'arrTime': '15:25',
+                'days': 6,
+                'orders': 4,
+                'flyers': 'Arif Rahman',
+              },
+              const Duration(hours: 30),
+              read: true,
+            ),
+            note(
+              'n6',
+              'delivered',
+              {
+                'flight': 'BG139',
+                'customer': 'C-3',
+                'by': 'Hub desk',
+                'orders': 1,
+              },
+              const Duration(days: 3),
+              read: true,
+              customer: 'C-3',
+            ),
+          ],
+        });
+      case '/api/dashboard/hub':
+        return json({
+          'todayLabel': 'Wed 21 Oct 2026',
+          'atHubCount': 7,
+          'incoming': {
+            'kg': 18.4,
+            'count': 2,
+            'flightCode': hubCode,
+            'flightDate': '2026-10-21',
+          },
+          'openTodoCount': 2,
+          'notices': <Object>[],
+          'toProcess': <Object>[],
+          'upcomingFlights': upcoming,
+        });
+      case '/api/sorting/hub-summary':
+        return json({
+          'sentBack': [
+            {
+              'flightCode': code,
+              'number': 'BG305',
+              'date': '2026-10-21',
+              'customers': ['C-9'],
+              'orders': 1,
+            },
+          ],
+          'toSort': [
+            {
+              'flightCode': code,
+              'number': 'BG305',
+              'date': '2026-10-21',
+              'customers': ['C-14'],
+              'orders': 2,
+            },
+          ],
+          'waiting': [
+            {
+              'flightCode': code,
+              'number': 'BG305',
+              'date': '2026-10-21',
+              'customers': ['C-12'],
+              'orders': 1,
+            },
+          ],
+          'delivery': [
+            {
+              'flightCode': code,
+              'number': 'BG305',
+              'date': '2026-10-21',
+              'customers': ['C-7', 'C-5'],
+              'orders': 3,
+            },
+          ],
+          'waitingAdmin': 1,
+          'inDelivery': 2,
+        });
+      case '/api/sorting/approvals':
+        final all = groups(admin: true);
+        return json({
+          'count': 2,
+          'flights': [
+            {
+              'flight': board(admin: true)['flight'],
+              'groups': [
+                for (final g in all)
+                  if (g['state'] == 'waiting_admin') g,
+              ],
+            },
+          ],
+        });
+      case '/api/settings':
+        final settings = Map<String, Object?>.from(
+          (await fixtures.getJson('/api/settings'))['settings']! as Map,
+        );
+        return json({
+          'settings': {
+            ...settings,
+            'deliveryPartners': [
+              'Steadfast',
+              'Pathao',
+              'RedX',
+              'Sundarban Courier',
+              'SA Paribahan',
+            ],
+          },
+        });
+      case '/api/dashboard/overview':
+        return json({
+          ...await fixtures.getJson('/api/dashboard/overview'),
+          'approvalCount': 2,
+        });
+    }
+    if (path == '/api/sorting/flights/$code') return json(board(admin: admin));
+    if (path == '/api/flights/hub/$hubCode/position') return json(track);
+    if (path == '/api/flights/hub/$hubCode') {
+      final rows = [
+        for (final row in hubBody['shipments']! as List)
+          Map<String, Object?>.from(row as Map),
+      ];
+      return json({
+        'flight': {
+          ...hubBody,
+          'status': 'arrived',
+          'statusLabel': 'Arrived',
+          'readyToReceive': 0,
+          'receivedCount': rows.length,
+          'receivedBy': [
+            {
+              'userId': 'u2',
+              'name': 'Hub desk',
+              'role': 'hub',
+              'photoRef': null,
+              'count': rows.length,
+              'at': ago(const Duration(hours: 3)),
+            },
+          ],
+          'flyerDetails': [
+            {
+              'name': 'Arif Rahman',
+              'bdPhone': '01800000000',
+              'initial': 'A',
+              'photoRef': null,
+            },
+          ],
+          'shipments': [received(rows[0], 2), received(rows[1], 0)],
+        },
+      });
+    }
+    return null;
+  }
+
+  final hubSession =
+      SessionController(
+          store: MemorySessionStore()..token = 'tok',
+          auth: AuthRepository(fixtures),
+        )
+        ..user = const SessionUser(
+          id: 'u2',
+          name: 'Hub desk',
+          email: 'hub@sbx.test',
+          role: UserRole.hub,
+          roleLabel: 'Hub Manager',
+        )
+        ..ready = true;
+  final admin = _interceptScope(scope, (r) => handle(r, admin: true));
+  final hubApi = _interceptScope(scope, handle);
+  final hub = AppScope(
+    session: hubSession,
+    shipments: hubApi.shipments,
+    dashboard: hubApi.dashboard,
+    tasks: hubApi.tasks,
+    review: hubApi.review,
+    media: hubApi.media,
+    photos: hubApi.photos,
+    flights: hubApi.flights,
+    flyers: hubApi.flyers,
+    customers: hubApi.customers,
+    finance: hubApi.finance,
+    settings: hubApi.settings,
+    child: const SizedBox.shrink(),
+  );
+
+  /// Scrolls [finder] near the top of the page.
+  Future<void> show(Finder finder, {double alignment = 0.1}) async {
+    await _reveal(tester, finder);
+    await tester.runAsync(
+      () => Scrollable.ensureVisible(
+        tester.element(finder),
+        alignment: alignment,
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  // The hub: home with the flight in the air and the day's work.
+  await _shot(
+    tester,
+    _scoped(hub, HubHomeScreen(dashboard: hub.dashboard), tab: 0, hub: true),
+    '$prefix-a-hub-home',
+    find.byType(HubHomeScreen),
+  );
+  await _scrollShot(tester, '$prefix-b-hub-home-end', dy: -500);
+
+  // Notifications.
+  await _shot(
+    tester,
+    _scoped(admin, const NotificationsScreen()),
+    '$prefix-c-notifications',
+    find.byType(NotificationsScreen),
+  );
+
+  // Track.
+  await _shot(
+    tester,
+    _scoped(hub, TrackScreen(code: hubCode, title: 'BG305', tiles: false)),
+    '$prefix-d-track',
+    find.byType(TrackScreen),
+  );
+  await _scrollShot(tester, '$prefix-e-track-card', dy: -400);
+
+  // The hub flight page after receiving: Sort by customer and the orders
+  // grouped by customer with device photos.
+  await _shot(
+    tester,
+    _scoped(hub, HubFlightDetailScreen(code: hubCode)),
+    '$prefix-f-hub-flight',
+    find.byType(HubFlightDetailScreen),
+  );
+  await show(find.byKey(const Key('hub-open-sort')), alignment: 0.05);
+  await _saveShot(tester, '$prefix-g-hub-flight-customers');
+
+  // Sorting: the flight's customers, then one customer's form.
+  await _shot(
+    tester,
+    _scoped(hub, const SortFlightScreen(flightCode: code)),
+    '$prefix-h-sort-flight',
+    find.byType(SortFlightScreen),
+  );
+  await _scrollShot(tester, '$prefix-i-sort-flight-end', dy: -500);
+  await _shot(
+    tester,
+    _scoped(
+      hub,
+      const SortCustomerScreen(
+        flightCode: code,
+        customer: 'C-14',
+        pickPhotos: _samplePhotos,
+      ),
+    ),
+    '$prefix-j-sort-form',
+    find.byType(SortCustomerScreen),
+  );
+  await tester.enterText(find.byKey(const Key('sort-kg-SH-51')), '4.6');
+  await tester.enterText(
+    find.byKey(const Key('sort-arrived-SH-51')),
+    '2 cartons of phones',
+  );
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-k-sort-form-filled');
+  await show(find.byKey(const Key('sort-packages')), alignment: 0.05);
+  await _saveShot(tester, '$prefix-l-sort-form-delivery');
+  await _shot(
+    tester,
+    _scoped(hub, const SortCustomerScreen(flightCode: code, customer: 'C-9')),
+    '$prefix-m-sort-sent-back',
+    find.byType(SortCustomerScreen),
+  );
+  await _shot(
+    tester,
+    _scoped(hub, const SortCustomerScreen(flightCode: code, customer: 'C-7')),
+    '$prefix-n-sort-in-delivery',
+    find.byType(SortCustomerScreen),
+  );
+  await show(find.byKey(const Key('sort-delivered')), alignment: 0.5);
+  await tester.tap(find.byKey(const Key('sort-delivered')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-o-delivered-dialog');
+
+  // The admin: approvals, one customer, send back.
+  await _shot(
+    tester,
+    _scoped(admin, const ApprovalsScreen()),
+    '$prefix-p-approvals',
+    find.byType(ApprovalsScreen),
+  );
+  await _shot(
+    tester,
+    _scoped(
+      admin,
+      const ApproveCustomerScreen(flightCode: code, customer: 'C-14'),
+    ),
+    '$prefix-q-approve',
+    find.byType(ApproveCustomerScreen),
+  );
+  // Photos decode outside the fake clock; save again once they show.
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 300)),
+  );
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-q-approve');
+  await _scrollShot(tester, '$prefix-r-approve-orders', dy: -500);
+  await tester.tap(find.byKey(const Key('approve-send-back')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(tr('Photo missing')));
+  await tester.pumpAndSettle();
+  await _saveShot(tester, '$prefix-s-send-back');
+
+  // Delivery partners and the admin home.
+  await _shot(
+    tester,
+    _scoped(admin, const PartnersScreen()),
+    '$prefix-t-partners',
+    find.byType(PartnersScreen),
+  );
+  await _shot(
+    tester,
+    _scoped(admin, AdminHomeScreen(dashboard: admin.dashboard), tab: 0),
+    '$prefix-u-admin-home',
+    find.byType(AdminHomeScreen),
+  );
+
+  // A hub order on a flight points to sorting.
+  await _shot(
+    tester,
+    _scoped(hub, const ShipmentProcessScreen(code: 'SH-18')),
+    '$prefix-v-hub-order',
+    find.byType(ShipmentProcessScreen),
+  );
+  await show(find.byKey(const Key('process-open-sort')), alignment: 0.3);
+  await _saveShot(tester, '$prefix-w-hub-order-sort');
 }

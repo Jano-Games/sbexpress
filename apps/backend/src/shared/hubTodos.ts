@@ -10,6 +10,10 @@ export interface HubTodoShipment {
   lastMileRef: string | null
   deliveryMode: string | null
   exception: string | null
+  /** Round 12 sorting: sent to the admin, approved, or sent back. Absent on older callers. */
+  sortedAt?: Date | null
+  approvedAt?: Date | null
+  sentBackAt?: Date | null
 }
 
 export interface HubTodoStep {
@@ -21,9 +25,10 @@ export interface HubTodoStep {
 const CLOSED_EXCEPTIONS = new Set(['cancelled', 'lost', 'returned'])
 
 /**
- * The single current Dhaka-hub step for a shipment.
- * The weigh → pack → courier → dispatch → handover order is unchanged;
- * this only describes the step that is already required.
+ * The single current Dhaka-hub step for a shipment. Received orders are
+ * sorted per customer (weight, what arrived, photos, packing, partner) and
+ * wait for the admin; after approval the hub only confirms the handover.
+ * Orders booked the older way (no sorting) keep their courier → dispatch steps.
  */
 export function openHubTodo(shipment: HubTodoShipment): HubTodoStep | null {
   if (shipment.status === 'delivered') return null
@@ -39,10 +44,14 @@ export function openHubTodo(shipment: HubTodoShipment): HubTodoStep | null {
     case 'customs_cleared':
       return step('receive', `Receive ${shipment.code} at the Dhaka hub`)
     case 'received_bd_hub':
-      if (shipment.weighedKg === null) return step('weigh', `Weigh ${shipment.code}`)
-      if (!shipment.packedAt) return step('pack', `Pack ${shipment.code} and confirm the package count`)
-      return null
+      return shipment.sentBackAt
+        ? step('sort', `Fix and send ${shipment.code} to the admin again`)
+        : step('sort', `Sort ${shipment.code}`)
     case 'ready_for_last_mile':
+      if (shipment.sortedAt) {
+        if (!shipment.approvedAt) return null
+        return shipment.deliveryMode === 'pickup' ? step('handover', `Confirm handover for ${shipment.code}`) : null
+      }
       if (!shipment.packedAt || shipment.weighedKg === null) return step('pack', `Pack ${shipment.code} and confirm the package count`)
       if (!shipment.lastMileRef) return step('book', `Book courier or pickup for ${shipment.code}`)
       if (shipment.deliveryMode === 'pickup') return step('handover', `Confirm handover for ${shipment.code}`)
@@ -71,6 +80,9 @@ export async function syncHubTodos(): Promise<void> {
       lastMileRef: true,
       deliveryMode: true,
       exception: true,
+      sortedAt: true,
+      approvedAt: true,
+      sentBackAt: true,
     },
   })
   const desired = rows.flatMap((row) => {
@@ -82,6 +94,9 @@ export async function syncHubTodos(): Promise<void> {
       lastMileRef: row.lastMileRef,
       deliveryMode: row.deliveryMode,
       exception: row.exception,
+      sortedAt: row.sortedAt,
+      approvedAt: row.approvedAt,
+      sentBackAt: row.sentBackAt,
     })
     return step ? [step] : []
   })

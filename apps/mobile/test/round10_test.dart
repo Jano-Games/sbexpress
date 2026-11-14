@@ -501,7 +501,13 @@ void main() {
     await _reveal(t, by);
     expect(find.descendant(of: by, matching: find.text('Hub desk')),
         findsOneWidget);
-    expect(find.text(tr('Nothing to receive yet')), findsOneWidget);
+    // Received orders are sorted next.
+    final sort = find.byKey(const Key('hub-open-sort'));
+    await _reveal(t, sort);
+    expect(sort, findsOneWidget);
+    final none = find.text(tr('Nothing to receive yet'));
+    await _reveal(t, none);
+    expect(none, findsOneWidget);
     expect(t.takeException(), isNull);
   });
 

@@ -4,6 +4,7 @@ import '../../app_scope.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/finance_snapshot.dart';
 import '../../data/models/flight.dart';
+import '../../data/models/flight_route.dart' show FlightSaved;
 import '../../data/models/flow.dart';
 import '../../data/models/hub_flight.dart';
 import '../../data/models/shipment.dart';
@@ -15,6 +16,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/finance_parts.dart' show showAccountSheet;
 import '../../widgets/flight_parts.dart';
+import '../../widgets/flight_status_parts.dart';
 import '../../widgets/flow_parts.dart';
 import '../../widgets/money_confirm.dart';
 import '../../widgets/people_parts.dart' show changeFacePhoto;
@@ -27,6 +29,7 @@ import '../admin/money_format.dart';
 import '../intake/intake_screen.dart';
 import 'add_flight_cost_sheet.dart';
 import 'capacity_sheet.dart';
+import 'confirm_status_sheet.dart';
 import 'flight_edit_screen.dart';
 import 'flight_people_cards.dart';
 import 'flight_rates_sheet.dart';
@@ -129,13 +132,37 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
   }
 
   Future<void> _editFlight(FlightSummary summary) async {
-    final code = await Navigator.of(context).push<String>(
+    final saved = await Navigator.of(context).push<FlightSaved>(
         MaterialPageRoute(builder: (_) => FlightEditScreen(flight: summary)));
-    if (code == null || !mounted) return;
-    setState(() => _code = code);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(tr('Flight saved'))));
+    if (saved == null || !mounted) return;
+    setState(() => _code = saved.code);
+    final moved = saved.moved.length;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(moved == 0
+            ? tr('Flight saved')
+            : trn(moved, 'Flight saved · {n} order moved to In transit',
+                'Flight saved · {n} orders moved to In transit'))));
     await _load();
+  }
+
+  /// Asks what happened to the flight and saves it, or opens Edit flight
+  /// for a new date.
+  Future<void> _confirmStatus(FlightDetail detail) async {
+    final summary = detail.summary;
+    final ready = detail.bookings
+        .where((row) => row.status == 'ready_for_shipment')
+        .length;
+    final outcome = await showConfirmStatusSheet(context,
+        flight: summary, readyCount: ready);
+    if (!mounted || outcome == null) return;
+    switch (outcome) {
+      case StatusConfirmed():
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(confirmedMessage(summary.displayCode, outcome))));
+        await _load();
+      case FliesAnotherDay():
+        await _editFlight(summary);
+    }
   }
 
   Future<void> _editCapacity(FlightSummary summary) async {
@@ -281,7 +308,12 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                   summary: summary,
                   day: day,
                   onEdit: () => _editFlight(summary),
+                  onConfirm: () => _confirmStatus(detail),
                   onCapacity: () => _editCapacity(summary)),
+              if (summary.tracking != null) ...[
+                const SizedBox(height: 14),
+                FlightTrackingCard(tracking: summary.tracking!),
+              ],
               const SizedBox(height: 14),
               if (detail.profitBreakdown != null)
                 _FlightProfitCard(detail: detail)
@@ -340,6 +372,11 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
               ],
               const SizedBox(height: 20),
               _ShipmentsHeading(bookings: bookings),
+              if (summary.status != 'upcoming')
+                OrdersMovedNotes(
+                    moved: detail.movedOrders,
+                    notMoved: detail.notMoved,
+                    leftAt: summary.tracking?.leftAt),
               if (bookings.isEmpty)
                 EmptyNote(
                     icon: Icons.inventory_2_outlined,
@@ -490,6 +527,7 @@ class _RouteCard extends StatelessWidget {
       {required this.summary,
       required this.day,
       required this.onEdit,
+      required this.onConfirm,
       required this.onCapacity});
   final FlightSummary summary;
   final FlightDay? day;
@@ -497,17 +535,27 @@ class _RouteCard extends StatelessWidget {
   /// Opens Edit flight.
   final VoidCallback onEdit;
 
+  /// Asks what happened to the flight.
+  final VoidCallback onConfirm;
+
   /// Opens the capacity sheet.
   final VoidCallback onCapacity;
 
   @override
   Widget build(BuildContext context) {
-    final badge = adminFlightBadge(summary, day, detail: true);
+    final look = adminFlightLook(summary, day, detail: true);
     final numbers = flightNumberOf(summary.code).split('+');
+    final cancelled = flightCancelled(summary.status, summary.tracking);
     final plain = summary.status == 'upcoming' &&
         !summary.scheduleNeedsConfirmation &&
+        !cancelled &&
+        look.note == null &&
         (day == null || day!.daysAway >= 0);
-    Widget end(String time, String place, {bool right = false}) {
+    final t = summary.tracking;
+    final left = t != null && t.left && t.leftAt != null;
+    final lands = t != null && (t.left || t.landed) ? t.landsAt : null;
+    Widget end(String time, String place,
+        {bool right = false, String? note, bool late = false}) {
       final known = isClockTime(time);
       return Column(
           crossAxisAlignment:
@@ -524,8 +572,31 @@ class _RouteCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            if (note != null)
+              Text(note,
+                  maxLines: 2,
+                  textAlign: right ? TextAlign.right : TextAlign.left,
+                  style: TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: late ? AppColors.accentInk : AppColors.muted)),
           ]);
     }
+
+    final depNote = !left
+        ? null
+        : isOffPlan(t.leftLateMin)
+            ? tr('Left, planned {time}', {'time': t.plannedDep})
+            : tr('Left on time');
+    final arrLate = t?.landsLateMin;
+    final arrNote = lands == null || arrLate == null
+        ? null
+        : t!.landed
+            ? tr('Landed {late}', {'late': lateText(arrLate)})
+            : tr('Lands {late}', {'late': lateText(arrLate)});
+    final confirmButton = ConfirmStatusButton(
+        key: const Key('flight-confirm-status'), onPressed: onConfirm);
 
     return PaperCard(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -538,14 +609,7 @@ class _RouteCard extends StatelessWidget {
                     runSpacing: 6,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                  if (!plain)
-                    StatusPill(
-                        label: summary.scheduleNeedsConfirmation
-                            ? tr('Date has passed · Confirm the status')
-                            : badge.$1,
-                        tone: summary.scheduleNeedsConfirmation
-                            ? ChipTone.amber
-                            : badge.$2),
+                  if (!plain) LookPill(look: look),
                   if (numbers.length > 1)
                     for (final (i, number) in numbers.indexed) ...[
                       if (i > 0)
@@ -576,8 +640,9 @@ class _RouteCard extends StatelessWidget {
           Row(children: [
             Expanded(
                 flex: 3,
-                child: end(summary.depTime,
-                    banglaPlace(summary.from, fallback: tr('China')))),
+                child: end(left ? t.leftAt! : summary.depTime,
+                    banglaPlace(summary.from, fallback: tr('China')),
+                    note: depNote)),
             const SizedBox(width: 10),
             Expanded(
                 flex: 4,
@@ -592,10 +657,75 @@ class _RouteCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
                 flex: 3,
-                child: end(summary.arrTime,
+                child: end(lands ?? summary.arrTime,
                     banglaPlace(summary.to, fallback: tr('Bangladesh')),
-                    right: true)),
+                    right: true,
+                    note: arrNote,
+                    late: isOffPlan(arrLate) && arrLate! > 0)),
           ]),
+          if (cancelled) ...[
+            const SizedBox(height: 12),
+            FlightBanner(
+                key: const Key('flight-cancelled'),
+                tone: ChipTone.red,
+                icon: Icons.error_outline_rounded,
+                title: tr('The airline cancelled {code} on {date}', {
+                  'code': summary.displayCode,
+                  'date': day == null
+                      ? summary.date
+                      : '${day!.weekday} ${day!.day} ${day!.month}'
+                }),
+                body: tr(
+                    'Nothing was changed here. The orders and the flyer are still on this flight. Move it to the new date, or confirm it flew.'),
+                actions: [
+                  FilledButton.icon(
+                      key: const Key('flight-change-date'),
+                      onPressed: onEdit,
+                      style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          minimumSize: const Size(48, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(
+                              fontFamily: 'HindSiliguri',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
+                      icon: const Icon(Icons.event_outlined, size: 18),
+                      label: Text(tr('Change date'))),
+                  OutlinedButton(
+                      key: const Key('flight-confirm-status'),
+                      onPressed: onConfirm,
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.ink,
+                          minimumSize: const Size(48, 44),
+                          side: const BorderSide(color: AppColors.field),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(
+                              fontFamily: 'HindSiliguri',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600)),
+                      child: Text(tr('Confirm status'))),
+                ]),
+          ] else if (look.confirm) ...[
+            const SizedBox(height: 12),
+            FlightBanner(
+                key: const Key('flight-date-passed'),
+                tone: ChipTone.amber,
+                icon: Icons.error_outline_rounded,
+                title: tr('What happened to this flight?'),
+                body: t == null
+                    ? tr(
+                        'The date is over and the status was not updated. Tell us, so the orders and the hub stay right.')
+                    : t.noData
+                        ? tr('The date is over and the airline has no update for {code}. Tell us, so the orders and the hub stay right.', {'code': summary.displayCode})
+                        : tr('The date is over and the airline has not said that {code} left. Tell us, so the orders and the hub stay right.', {'code': summary.displayCode}),
+                actions: [confirmButton]),
+          ] else if (look.note != null && summary.status == 'upcoming') ...[
+            const SizedBox(height: 10),
+            StatusNote(text: look.note!, tone: look.noteTone),
+          ],
           const Divider(height: 24, color: AppColors.lineSoft),
           MeterBar(value: summary.fill),
           const SizedBox(height: 6),

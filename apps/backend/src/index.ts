@@ -8,6 +8,8 @@ import { config } from './core/config'
 import { prisma, closeDb } from './core/db'
 import { connectRedis, closeRedis } from './core/redis'
 import { startInvoiceCatchUp } from './shared/shipmentBilling'
+import { startFlightTracking } from './shared/flightTracking'
+import { startFlightReminders } from './shared/flightNotices'
 
 async function main() {
   // Fail fast on a bad connection string rather than surfacing it as a 500 on
@@ -30,12 +32,18 @@ async function main() {
   void startInvoiceCatchUp()
 
   const stopMaintenance = startMaintenance()
+  // Asks the airline how today's flights are going and moves their status forward.
+  const stopTracking = startFlightTracking()
+  // Lands in 24 hours, lands in 1 hour, date passed: notifications from our own data.
+  const stopReminders = startFlightReminders()
   let shuttingDown = false
   const shutdown = async (signal: string) => {
     if (shuttingDown) return
     shuttingDown = true
     console.log(`[api] ${signal} received, shutting down`)
     stopMaintenance()
+    stopTracking()
+    stopReminders()
     server.close()
     await Promise.allSettled([closeDb(), closeRedis()])
     process.exit(0)

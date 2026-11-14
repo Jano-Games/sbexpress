@@ -15,6 +15,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/photo_parts.dart';
 import '../../widgets/ui.dart';
+import '../sorting/sort_customer_screen.dart';
 import '../imei/imei_guide_screen.dart';
 
 class ShipmentProcessScreen extends StatefulWidget {
@@ -579,6 +580,33 @@ class _Action extends StatelessWidget {
     }
     final current = chain.current;
     if (current == null) return const SizedBox.shrink();
+    // The hub sorts weight, packing and courier per customer from the flight;
+    // the admin approves. Only the handover stays here.
+    if (current != HubChainStep.handover) {
+      final flight = detail.flightCode;
+      if (flight == null) {
+        return EmptyNote(
+            title: tr('The admin handles this order'),
+            body: tr('It is not on a flight, so it is not sorted at the hub.'));
+      }
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(
+            tr("Weight, packing and courier are done with the customer's other orders when you sort the flight."),
+            style: const TextStyle(height: 1.45, color: AppColors.inkSoft)),
+        const SizedBox(height: 10),
+        AppButton(
+          key: const Key('process-open-sort'),
+          label: tr('Open sorting'),
+          icon: Icons.checklist_rounded,
+          kind: AppButtonKind.current,
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute<void>(
+                  builder: (_) => SortCustomerScreen(
+                      flightCode: flight, customer: detail.supplierCode)))
+              .then((_) => state._load()),
+        ),
+      ]);
+    }
     switch (current) {
       case HubChainStep.weigh:
         return Column(

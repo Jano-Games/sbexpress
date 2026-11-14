@@ -75,7 +75,7 @@ bool isPdfFile(PickedPhoto file) =>
 /// devices. The photo is turned into a small JPEG once, before the first try.
 UploadJob shipmentPhotoJob(
     MediaRepository media, String code, PickedPhoto photo,
-    {String? deviceCategory}) {
+    {String? deviceCategory, String? purpose}) {
   PreparedImage? prepared;
   return UploadJob(
       label: photo.name,
@@ -84,7 +84,7 @@ UploadJob shipmentPhotoJob(
         prepared ??= await prepareForUpload(photo.bytes,
             name: photo.name, mime: photo.mime, decodeHeic: flutterDecodeHeic);
         await media.uploadPhoto(code, prepared!, progress,
-            deviceCategory: deviceCategory);
+            deviceCategory: deviceCategory, purpose: purpose);
       });
 }
 

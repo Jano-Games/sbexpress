@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../data/models/flight.dart';
 import '../data/models/hub_flight.dart';
-import '../features/flights/hub_flights_screen.dart' show banglaPlace;
+import '../l10n/places.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_colors.dart';
 import 'ui.dart';

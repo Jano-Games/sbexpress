@@ -226,6 +226,17 @@ model Flight {
   kgRateCurrency Currency?
   /// This flight's own piece prices by category, BDT; null = the default from settings.
   pcsRates       Json?
+  /// Who last set `status`: "airline" (flight tracking) or a staff member's name. Null on older flights.
+  statusSetBy    String?
+  statusSetAt    DateTime?
+  /// Flight tracking from the airline: scheduled, on_the_way, landed, cancelled, or none (no data
+  /// for that day). Null until the airline is first asked.
+  airlineStatus  String?
+  /// When the airline was last asked, and how many times for this date (a small monthly allowance).
+  trackedAt      DateTime?
+  trackChecks    Int       @default(0)
+  /// Orders moved to In transit when the flight left: { at, by, codes }.
+  movedOrders    Json?
 
   flyers    FlightFlyer[]
   shipments Shipment[]
@@ -254,6 +265,9 @@ model FlightLeg {
   /// Local wall-clock times, HH:mm.
   depTime  String @default("—")
   arrTime  String @default("—")
+  /// From the airline: its status word, planned and latest times (UTC), local HH:mm and minutes
+  /// late. Null until checked. Shape: LegTracking in src/shared/flightTracking.ts.
+  tracking Json?
 
   @@index([flightId, order])
 }
@@ -292,6 +306,19 @@ model Shipment {
   flyer Flyer? @relation(fields: [flyerId], references: [id], onDelete: Restrict)
   packedAt DateTime?
   packageCount Int @default(0)
+  /// Hub sorting (round 12): what the hub found in this order, and the note for the customer's delivery.
+  arrivedNote String @default("")
+  hubNote String @default("")
+  /// When the hub sent this customer's orders to the admin, and who did.
+  sortedAt DateTime?
+  sortedBy String?
+  /// When an admin approved the delivery, and who did.
+  approvedAt DateTime?
+  approvedBy String?
+  /// The admin's last send-back note to the hub, cleared when the hub sends the orders again.
+  sentBackNote String @default("")
+  sentBackAt DateTime?
+  sentBackBy String?
   id          String         @id @default(cuid())
   /// Human ID, e.g. SH-101.
   code        String         @unique
@@ -482,6 +509,33 @@ model Todo {
   auto      Boolean  @default(false)
   done      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+/// In-app notifications, one per crucial step (docs/notifications.md). Push to phones
+/// comes later from the same rows; pushSentAt marks the ones already pushed.
+model Notification {
+  id           String     @id @default(cuid())
+  /// What happened, e.g. flight_departed or sort_waiting.
+  event        String
+  /// Who sees it.
+  roles        UserRole[]
+  /// English text, used as is for push later. The app builds its own words from event and params.
+  title        String
+  body         String
+  /// The facts in the text, e.g. { flight, arrTime, orders }.
+  params       Json       @default("{}")
+  /// What a tap opens. Flight and order codes are the public references, never database ids.
+  flightCode   String?
+  shipmentCode String?
+  customerCode String?
+  /// One event is sent once, e.g. "flight:<id>:2026-11-14:landed".
+  dedupeKey    String?    @unique
+  /// Staff user ids who have read it.
+  readBy       String[]   @default([])
+  pushSentAt   DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([createdAt])
 }
 
 model Category {

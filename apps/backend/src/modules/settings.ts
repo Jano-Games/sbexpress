@@ -9,7 +9,7 @@ import { cacheInvalidate } from '../core/redis'
 import { notFound } from '../core/errors'
 import { requireRole, type AppEnv } from './auth'
 import { matchesQrDataUrl } from '../shared/mediaValidation'
-import { getSettings, putCostDefaults, putPcsRates, putSetting, putRaw } from '../shared/settings'
+import { cleanPartners, getSettings, putCostDefaults, putPcsRates, putSetting, putRaw } from '../shared/settings'
 
 import type { PayMethod } from '@prisma/client'
 
@@ -88,6 +88,7 @@ export const settingsRoutes = new Hono<AppEnv>()
           })
           .strict()
           .optional(),
+        deliveryPartners: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
       })
       .parse(await c.req.json())
     for (const key of ['rate', 'threshold', 'investBdt', 'investCny', 'kgRate', 'defaultSpaceKg'] as const) {
@@ -97,6 +98,7 @@ export const settingsRoutes = new Hono<AppEnv>()
     if (body.pcsRates !== undefined) await putPcsRates(body.pcsRates)
     if (body.kgRateCurrency !== undefined) await putRaw('kgRateCurrency', body.kgRateCurrency)
     if (body.costDefaults !== undefined) await putCostDefaults(body.costDefaults)
+    if (body.deliveryPartners !== undefined) await putRaw('deliveryPartners', JSON.stringify(cleanPartners(body.deliveryPartners)))
     await cacheInvalidate('dashboard')
     await cacheInvalidate('track')
     return c.json({ settings: await getSettings() })

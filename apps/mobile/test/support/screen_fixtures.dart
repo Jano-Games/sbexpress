@@ -1482,3 +1482,136 @@ Map<String, Object?> round8FlightBody(Map<String, Object?> rates,
     }
   };
 }
+
+/// Round 11: a day [offset] days from today, as the server sends it.
+String r11Day(int offset) => DateTime.now()
+    .add(Duration(days: offset))
+    .toIso8601String()
+    .substring(0, 10);
+
+Map<String, Object?> r11Leg(String code, String state,
+        {String from = 'TFU',
+        String fromCity = 'Chengdu',
+        String to = 'DAC',
+        String toCity = 'Dhaka',
+        String dep = '10:40',
+        String arr = '15:25',
+        String? depLocal,
+        String? arrLocal,
+        int? depLate,
+        int? arrLate}) =>
+    {
+      'code': code,
+      'fromIata': from,
+      'fromCity': fromCity,
+      'toIata': to,
+      'toCity': toCity,
+      'plannedDep': dep,
+      'plannedArr': arr,
+      'state': state,
+      'airlineStatus': null,
+      'depLocal': depLocal,
+      'arrLocal': arrLocal,
+      'depLateMin': depLate,
+      'arrLateMin': arrLate,
+    };
+
+/// The airline saw BG305 leave Chengdu at 10:52 and land in Kunming; BG306
+/// left Kunming at 13:34 and lands in Dhaka at 15:40.
+Map<String, Object?> r11OnTheWay() => {
+      'state': 'on_the_way',
+      'checkedAt': DateTime.now().toUtc().toIso8601String(),
+      'left': true,
+      'leftAt': '10:52',
+      'leftLateMin': 12,
+      'lastLeft': {
+        'code': 'BG306',
+        'iata': 'KMG',
+        'city': 'Kunming',
+        'at': '13:34'
+      },
+      'landed': false,
+      'landsAt': '15:40',
+      'landsLateMin': 15,
+      'plannedDep': '10:40',
+      'plannedArr': '15:25',
+      'nextCheck': 'after_landing',
+      'legs': [
+        r11Leg('BG305', 'landed',
+            to: 'KMG',
+            toCity: 'Kunming',
+            arr: '12:10',
+            depLocal: '10:52',
+            arrLocal: '12:18',
+            depLate: 12,
+            arrLate: 8),
+        r11Leg('BG306', 'in_air',
+            from: 'KMG',
+            fromCity: 'Kunming',
+            dep: '13:30',
+            depLocal: '13:34',
+            arrLocal: '15:40',
+            depLate: 4,
+            arrLate: 15),
+      ],
+    };
+
+Map<String, Object?> r11Cancelled([String code = 'BG147']) => {
+      'state': 'cancelled',
+      'checkedAt': DateTime.now().toUtc().toIso8601String(),
+      'left': false,
+      'landed': false,
+      'plannedDep': '10:40',
+      'plannedArr': '15:25',
+      'nextCheck': null,
+      'legs': [r11Leg(code, 'cancelled')],
+    };
+
+/// An admin flight row.
+Map<String, Object?> r11FlightRow(String number, int offset,
+        {String status = 'upcoming',
+        bool needsConfirmation = false,
+        Map<String, Object?>? tracking}) =>
+    {
+      'code': '$number-${r11Day(offset).replaceAll('-', '')}-ab12cd',
+      'date': r11Day(offset),
+      'depTime': '10:40',
+      'arrTime': '15:25',
+      'via': 'Via KMG Kunming',
+      'legs': [
+        {
+          'source': 'manual',
+          'code': number,
+          'date': r11Day(offset),
+          'fromIata': 'TFU',
+          'fromCity': 'Chengdu',
+          'toIata': 'DAC',
+          'toCity': 'Dhaka',
+          'depTime': '10:40',
+          'arrTime': '15:25',
+        }
+      ],
+      'fare': 0,
+      'actualCost': 30000,
+      'agencyShare': 6000,
+      'flyerDue': 24000,
+      'ticketPaid': 0,
+      'ticketDue': 30000,
+      'spaceKg': 40,
+      'mobiles': 2,
+      'laptops': 1,
+      'bookedKg': 18,
+      'leftKg': 22,
+      'status': status,
+      'statusLabel': switch (status) {
+        'completed' => 'Completed',
+        'departed' => 'Departed',
+        _ => 'Upcoming'
+      },
+      'flyers': ['Arif Rahman'],
+      'shipmentCount': 2,
+      'revenue': 0,
+      'scheduleNeedsConfirmation': needsConfirmation,
+      'settlements': [],
+      'tracking': tracking,
+    };
